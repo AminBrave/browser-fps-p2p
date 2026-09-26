@@ -5,6 +5,7 @@ import { DEFAULT_WEAPON, FIRE_MODE, WEAPON_LOADOUT } from '../../config/constant
 export function createWeapon(config = DEFAULT_WEAPON) {
   const mag = config.MAGAZINE_SIZE ?? 12;
   const reserve = config.RESERVE_AMMO ?? mag * 3;
+  const pellets = config.PELLETS != null ? config.PELLETS : 1;
 
   return {
     typeId: config.ID,
@@ -35,7 +36,7 @@ export function createWeapon(config = DEFAULT_WEAPON) {
     spreadGrow: config.SPREAD_GROW ?? 0.01,
     spreadMax: config.SPREAD_MAX ?? 0.05,
     spreadDecay: config.SPREAD_DECAY ?? 0.12,
-    pelletCount: config.PELLETS ?? 1,
+    pelletCount: pellets,
 
     currentSpread: 0,
     shotsInBurst: 0,
@@ -52,11 +53,7 @@ export function createWeapon(config = DEFAULT_WEAPON) {
 
 export function createLoadout() {
   return {
-    slots: WEAPON_LOADOUT.map((cfg) => {
-      const w = createWeapon(cfg);
-      w.pelletCount = cfg.SIDELETS ?? 1;
-      return w;
-    }),
+    slots: WEAPON_LOADOUT.map((cfg) => createWeapon(cfg)),
     active: 0,
   };
 }
