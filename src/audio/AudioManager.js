@@ -1,9 +1,6 @@
 // src/audio/AudioManager.js
 
-/**
- * Procedural SFX via Web Audio API (no external assets required).
- * Unlock on first user gesture (pointer lock / click).
- */
+/** Procedural SFX — distinct profiles per weapon family */
 export class AudioManager {
   constructor() {
     this.ctx = null;
@@ -20,7 +17,7 @@ export class AudioManager {
       if (!Ctx) return false;
       this.ctx = new Ctx();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.35;
+      this.master.gain.value = 0.32;
       this.master.connect(this.ctx.destination);
       return true;
     } catch {
@@ -28,12 +25,9 @@ export class AudioManager {
     }
   }
 
-  /** Call from click / pointer-lock so browsers allow audio */
   unlock() {
     if (!this._ensure()) return;
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
-    }
+    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
     this._unlocked = true;
   }
 
@@ -46,7 +40,7 @@ export class AudioManager {
     return buf;
   }
 
-  _playTone(freq, duration, type = 'square', gain = 0.2, freqEnd = null) {
+  _tone(freq, duration, type = 'square', gain = 0.2, freqEnd = null) {
     if (!this.enabled || !this._ensure() || !this._unlocked) return;
     const t0 = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
@@ -54,7 +48,7 @@ export class AudioManager {
     osc.type = type;
     osc.frequency.setValueAtTime(freq, t0);
     if (freqEnd != null) {
-      osc.frequency.exponentialRampToValueAtTime(Math.max(40, freqEnd), t0 + duration);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(30, freqEnd), t0 + duration);
     }
     g.gain.setValueAtTime(gain, t0);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
@@ -64,7 +58,7 @@ export class AudioManager {
     osc.stop(t0 + duration + 0.02);
   }
 
-  _playNoise(duration, gain = 0.15, filterFreq = 2000) {
+  _noise(duration, gain = 0.15, filterFreq = 2000) {
     if (!this.enabled || !this._ensure() || !this._unlocked) return;
     const t0 = this.ctx.currentTime;
     const src = this.ctx.createBufferSource();
@@ -72,7 +66,7 @@ export class AudioManager {
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'bandpass';
     filter.frequency.value = filterFreq;
-    filter.Q.value = 0.8;
+    filter.Q.value = 0.7;
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(gain, t0);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
@@ -82,64 +76,82 @@ export class AudioManager {
     src.start(t0);
   }
 
-  playShoot() {
-    this._playNoise(0.07, 0.28, 1800);
-    this._playTone(180, 0.06, 'sawtooth', 0.12, 60);
+  /** @param {string} [sfx] pistol|smg|shotgun|rifle */
+  playShoot(sfx = 'pistol') {
+    switch (sfx) {
+      case 'smg':
+        this._noise(0.04, 0.18, 2200);
+        this._tone(220, 0.04, 'sawtooth', 0.08, 90);
+        break;
+      case 'shotgun':
+        this._noise(0.14, 0.35, 900);
+        this._tone(90, 0.12, 'sawtooth', 0.2, 40);
+        this._tone(55, 0.18, 'sine', 0.12, 30);
+        break;
+      case 'rifle':
+        this._noise(0.06, 0.28, 1600);
+        this._tone(140, 0.07, 'square', 0.14, 50);
+        break;
+      default: // pistol — sharp crack
+        this._noise(0.06, 0.26, 2400);
+        this._tone(200, 0.05, 'square', 0.14, 70);
+        break;
+    }
   }
 
   playEmptyClick() {
-    this._playTone(400, 0.04, 'square', 0.08, 200);
+    this._tone(420, 0.035, 'square', 0.07, 180);
   }
 
   playReloadStart() {
-    this._playTone(220, 0.08, 'triangle', 0.1, 160);
-    setTimeout(() => this._playNoise(0.05, 0.08, 1200), 120);
+    this._tone(200, 0.07, 'triangle', 0.09, 140);
+    setTimeout(() => this._noise(0.04, 0.07, 1100), 100);
   }
 
   playReloadEnd() {
-    this._playTone(320, 0.06, 'square', 0.12, 280);
-    this._playNoise(0.04, 0.1, 2500);
+    this._tone(300, 0.05, 'square', 0.1, 250);
+    this._noise(0.03, 0.08, 2200);
   }
 
-  playFootstep() {
-    this._playNoise(0.04, 0.07, 400);
-    this._playTone(90, 0.05, 'sine', 0.05, 50);
+  playFootstep(stance = 0) {
+    const g = stance === 2 ? 0.03 : stance === 1 ? 0.05 : 0.07;
+    this._noise(0.035, g, 380);
+    this._tone(80, 0.04, 'sine', g * 0.7, 45);
   }
 
   playJump() {
-    this._playTone(150, 0.12, 'sine', 0.1, 280);
+    this._tone(140, 0.1, 'sine', 0.09, 260);
   }
 
   playLand() {
-    this._playNoise(0.06, 0.12, 300);
+    this._noise(0.05, 0.11, 280);
   }
 
   playHit() {
-    this._playTone(90, 0.1, 'sawtooth', 0.15, 40);
-    this._playNoise(0.08, 0.12, 800);
+    this._tone(85, 0.09, 'sawtooth', 0.14, 35);
+    this._noise(0.07, 0.1, 700);
   }
 
   playDeath() {
-    this._playTone(200, 0.35, 'sawtooth', 0.18, 40);
+    this._tone(180, 0.3, 'sawtooth', 0.16, 35);
   }
 
   playImpact() {
-    this._playNoise(0.05, 0.1, 1500);
+    this._noise(0.04, 0.09, 1400);
   }
 
-  /** Call each frame while moving on ground */
-  updateFootsteps(dt, isMoving, isGrounded) {
+  updateFootsteps(dt, isMoving, isGrounded, stance = 0) {
     if (!isMoving || !isGrounded) {
       this._footstepTimer = 0;
       return;
     }
+    const interval = stance === 2 ? 0.55 : stance === 1 ? 0.45 : 0.36;
     this._footstepTimer += dt;
-    if (this._footstepTimer >= 0.38) {
+    if (this._footstepTimer >= interval) {
       this._footstepTimer = 0;
-      this.playFootstep();
+      this.playFootstep(stance);
     }
   }
 }
 
-/** Singleton shared across host/client */
 export const audio = new AudioManager();
