@@ -1,22 +1,15 @@
 // src/config/constants.js
 
 export const NETWORK_CONFIG = {
-  // Server/Host tick rate in Hz (ticks per second)
   SERVER_TICK_RATE: 60,
-  // Network broadcast rate for world snapshots (Hz)
   SNAPSHOT_BROADCAST_RATE: 30,
-  // Input transmission rate from client to host (Hz)
   INPUT_SEND_RATE: 60,
-  // Entity interpolation buffer delay in milliseconds
   INTERPOLATION_BUFFER_MS: 100,
-  // Max input history stored for client prediction rewind/reconciliation
   INPUT_HISTORY_SIZE: 128,
-  // Host reconciliation position snap threshold (meters)
   RECONCILIATION_THRESHOLD: 0.15,
 };
 
 export const GAME_CONFIG = {
-  // Simulation tick rate (shared by host and client fixed-step loops)
   TICK_RATE: 60,
   MAX_PLAYERS: 4,
   PLAYER_SPEED: 8.0,
@@ -27,49 +20,69 @@ export const GAME_CONFIG = {
   CAMERA_HEIGHT_OFFSET: 1.6,
   MAX_HEALTH: 100,
   RESPAWN_TIME_MS: 3000,
-  // Camera / renderer defaults (were missing — caused NaN aspect/FOV)
   FOV: 75,
-  NEAR_PLANE: 0.1,
-  FAR_PLANE: 1000,
+  NEAR_PLANE: 0.05,
+  FAR_PLANE: 500,
   MAP_BOUNDS: {
-    WIDTH: 50,
-    LENGTH: 50,
-    HEIGHT: 15,
+    WIDTH: 80,
+    LENGTH: 80,
+    HEIGHT: 20,
   },
-  // Alias used by InterpolationSystem constructor default
   INTERPOLATION_DELAY_MS: 100,
-  // Alias for reconciliation threshold
   RECONCILIATION_THRESHOLD: 0.15,
+  // Camera punch recovery (radians / second)
+  RECOIL_RECOVERY: 8.0,
 };
 
 export const INPUT_FLAGS = {
-  FORWARD: 1 << 0,  // 0000 0001
-  BACKWARD: 1 << 1, // 0000 0010
-  LEFT:     1 << 2, // 0000 0100
-  RIGHT:    1 << 3, // 0000 1000
-  JUMP:     1 << 4, // 0001 0000
-  SHOOT:    1 << 5, // 0010 0000
-  RELOAD:   1 << 6, // 0100 0000
-  CROUCH:   1 << 7, // 1000 0000
+  FORWARD: 1 << 0,
+  BACKWARD: 1 << 1,
+  LEFT: 1 << 2,
+  RIGHT: 1 << 3,
+  JUMP: 1 << 4,
+  SHOOT: 1 << 5,
+  RELOAD: 1 << 6,
+  CROUCH: 1 << 7,
+};
+
+/** Fire mode constants */
+export const FIRE_MODE = {
+  SEMI: 'semi',
+  AUTO: 'auto',
 };
 
 export const WEAPON_CONFIG = {
   PISTOL: {
     ID: 1,
     NAME: 'Pistol',
-    FIRE_RATE_MS: 200,
+    FIRE_RATE_MS: 180,
     DAMAGE: 25,
-    AMMO_CAPACITY: 12,
-    RELOAD_TIME_MS: 1500,
-    RANGE: 100,
-    RECOIL_PITCH: 0.05,
+    MAGAZINE_SIZE: 12,
+    RESERVE_AMMO: 36,
+    RELOAD_TIME_MS: 1600,
+    RANGE: 120,
+    RECOIL_PITCH: 0.045,
+    RECOIL_YAW_SPREAD: 0.012,
+    FIRE_MODE: FIRE_MODE.SEMI,
+  },
+  SMG: {
+    ID: 2,
+    NAME: 'SMG',
+    FIRE_RATE_MS: 90,
+    DAMAGE: 14,
+    MAGAZINE_SIZE: 30,
+    RESERVE_AMMO: 90,
+    RELOAD_TIME_MS: 2000,
+    RANGE: 90,
+    RECOIL_PITCH: 0.028,
+    RECOIL_YAW_SPREAD: 0.02,
+    FIRE_MODE: FIRE_MODE.AUTO,
   },
 };
 
-/**
- * Deterministic numeric ID from a peer ID string (or passthrough if already numeric).
- * Ensures host snapshots and client entities can match on the same integer key.
- */
+// Default loadout
+export const DEFAULT_WEAPON = WEAPON_CONFIG.PISTOL;
+
 export function peerIdToNumeric(peerId) {
   if (typeof peerId === 'number' && Number.isFinite(peerId)) return peerId >>> 0;
   if (!peerId || typeof peerId !== 'string') return 1;

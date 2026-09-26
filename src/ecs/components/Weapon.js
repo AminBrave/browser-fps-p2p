@@ -1,47 +1,51 @@
 // src/ecs/components/Weapon.js
 
-import { WEAPON_CONFIG } from '../../config/constants.js';
+import { DEFAULT_WEAPON, FIRE_MODE } from '../../config/constants.js';
 
 /**
- * Weapon Component Data Schema
- * Tracks current active weapon state, firing cooldown timers, ammo capacity,
- * and reloading progression for combat systems.
- *
- * Note: both `currentAmmo`/`ammo` and `maxAmmo` are kept in sync so HUD and
- * systems can use either name without undefined reads.
+ * Weapon state: magazine + reserve, fire mode, recoil bookkeeping.
+ * HUD shows: magazine / reserve  (not magazine / magazine).
  */
-export const WeaponComponent = {
-  typeId: WEAPON_CONFIG.PISTOL.ID,
-  currentAmmo: WEAPON_CONFIG.PISTOL.AMMO_CAPACITY,
-  ammo: WEAPON_CONFIG.PISTOL.AMMO_CAPACITY,
-  maxAmmo: WEAPON_CONFIG.PISTOL.AMMO_CAPACITY,
-  lastFiredTime: 0,
-  fireRateMs: WEAPON_CONFIG.PISTOL.FIRE_RATE_MS,
-  damage: WEAPON_CONFIG.PISTOL.DAMAGE,
-  range: WEAPON_CONFIG.PISTOL.RANGE,
-  isReloading: false,
-  reloadStartTime: 0,
-  reloadTimeMs: WEAPON_CONFIG.PISTOL.RELOAD_TIME_MS,
-};
+export function createWeapon(config = DEFAULT_WEAPON) {
+  const mag = config.MAGAZINE_SIZE ?? config.AMMO_CAPACITY ?? 12;
+  const reserve = config.RESERVE_AMMO ?? mag * 3;
 
-/**
- * Creates a default Weapon component data structure using configuration presets.
- * @param {object} [config=WEAPON_CONFIG.PISTOL] - Weapon specification object.
- * @returns {typeof WeaponComponent}
- */
-export function createWeapon(config = WEAPON_CONFIG.PISTOL) {
-  const capacity = config.AMMO_CAPACITY;
   return {
     typeId: config.ID,
-    currentAmmo: capacity,
-    ammo: capacity, // alias for HUD / systems that read weapon.ammo
-    maxAmmo: capacity,
+    name: config.NAME || 'Weapon',
+    // Mag in gun
+    magazine: mag,
+    magazineSize: mag,
+    // Pool for reloads
+    reserveAmmo: reserve,
+    // Aliases kept for older HUD paths
+    ammo: mag,
+    currentAmmo: mag,
+    maxAmmo: mag,
+
     lastFiredTime: 0,
     fireRateMs: config.FIRE_RATE_MS,
     damage: config.DAMAGE,
     range: config.RANGE,
+    fireMode: config.FIRE_MODE || FIRE_MODE.SEMI,
+
     isReloading: false,
     reloadStartTime: 0,
     reloadTimeMs: config.RELOAD_TIME_MS,
+
+    recoilPitch: config.RECOIL_PITCH || 0.04,
+    recoilYawSpread: config.RECOIL_YAW_SPREAD || 0.01,
+
+    // Rising-edge tracking for SEMI
+    shootHeldPrev: false,
+
+    // Camera punch applied by RenderSystem (radians)
+    cameraRecoilPitch: 0,
+    cameraRecoilYaw: 0,
+
+    // One-shot flags for audio/viewmodel
+    justFired: false,
+    justReloaded: false,
+    justStartedReload: false,
   };
 }
