@@ -7,6 +7,7 @@ export const DEFAULT_KEYBINDINGS = {
   MOVE_RIGHT: 'KeyD',
   JUMP: 'Space',
   CROUCH: 'KeyC',
+  PRONE: 'KeyZ',
   RELOAD: 'KeyR',
   SHOOT: 'Mouse0',
   WEAPON_1: 'Digit1',
@@ -26,6 +27,8 @@ export const HUD_HINTS = [
   'LMB — Fire',
   'R — Reload',
   '1-4 — Weapons',
+  'C — Crouch',
+  'Z — Prone',
   'Space — Jump',
   'Click — Lock mouse',
 ];
