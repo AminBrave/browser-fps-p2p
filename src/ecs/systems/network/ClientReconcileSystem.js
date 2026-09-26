@@ -162,7 +162,12 @@ export class ClientReconcileSystem {
 
     if (physComp.controller && physComp.collider) {
       physComp.controller.computeColliderMovement(physComp.collider, movementDelta);
-      const correctedMovement = physComp.controller.getComputedMovement();
+      
+      const correctedMovement = typeof physComp.controller.computedMovement === 'function'
+        ? physComp.controller.computedMovement()
+        : (typeof physComp.controller.getComputedMovement === 'function' 
+            ? physComp.controller.getComputedMovement() 
+            : movementDelta);
       
       const currentPos = physComp.rigidBody ? physComp.rigidBody.translation() : transformComp.position;
 
@@ -175,7 +180,12 @@ export class ClientReconcileSystem {
       if (physComp.rigidBody && typeof physComp.rigidBody.setNextKinematicTranslation === 'function') {
         physComp.rigidBody.setNextKinematicTranslation(reconciledPos);
       }
-      physComp.isGrounded = physComp.controller.isGrounded();
+      
+      physComp.isGrounded = typeof physComp.controller.computedGrounded === 'function'
+        ? physComp.controller.computedGrounded()
+        : (typeof physComp.controller.isGrounded === 'function' 
+            ? physComp.controller.isGrounded() 
+            : true);
 
       transformComp.position.x = reconciledPos.x;
       transformComp.position.y = reconciledPos.y;

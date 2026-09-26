@@ -11,7 +11,7 @@ import { setFlag, clearFlag } from '../../utils/BitFlags.js';
  */
 export class InputSystem {
   /**
-   * @param {HTMLElement} [domElement=document.body] - Canvas/window element capturing user input.
+   * @param {HTMLElement} [domElement=document.body] - Canvas or window element capturing user input.
    * @param {object} [keybindings=DEFAULT_KEYBINDINGS] - Key binding mappings from controls config.
    * @param {object} [mouseConfig=MOUSE_CONFIG] - Sensitivity and Y-axis inversion configuration.
    */
@@ -137,26 +137,33 @@ export class InputSystem {
 
   /**
    * Main System update loop called per frame.
-   * Supports Miniplex v2 entity iteration and passing local entity directly.
+   * Synchronizes local entity input component and returns the current frame input payload object.
    * 
    * @param {object} ecsWorld - Miniplex world instance.
-   * @param {object|Array} [localPlayerEntity] - Local player entity object or legacy entities array.
+   * @param {object|Array|number} [localPlayerEntity] - Local player entity object or ID.
+   * @returns {object} Current input payload frame.
    */
   update(ecsWorld, localPlayerEntity = null) {
     this.sequence++;
 
-    // 1. Direct local entity object supplied
-    if (localPlayerEntity && typeof localPlayerEntity === 'object' && !Array.isArray(localPlayerEntity)) {
-      if (localPlayerEntity.input) {
-        localPlayerEntity.input.inputMask = this.currentInputMask;
-        localPlayerEntity.input.yaw = this.yaw;
-        localPlayerEntity.input.pitch = this.pitch;
-        localPlayerEntity.input.sequence = this.sequence;
-      }
-      return;
+    // Construct input payload snapshot for prediction/networking
+    const inputPayload = {
+      sequence: this.sequence,
+      inputMask: this.currentInputMask,
+      yaw: this.yaw,
+      pitch: this.pitch,
+    };
+
+    // 1. Direct local player entity object supplied
+    if (localPlayerEntity && typeof localPlayerEntity === 'object' && localPlayerEntity.input) {
+      localPlayerEntity.input.inputMask = this.currentInputMask;
+      localPlayerEntity.input.yaw = this.yaw;
+      localPlayerEntity.input.pitch = this.pitch;
+      localPlayerEntity.input.sequence = this.sequence;
+      return inputPayload;
     }
 
-    // 2. Query local player entities using Miniplex v2
+    // 2. Fallback: Query local player entities using Miniplex v2
     const players = ecsWorld.with('player', 'input');
     for (const entity of players) {
       if (entity.player && entity.player.isLocal) {
@@ -166,5 +173,7 @@ export class InputSystem {
         entity.input.sequence = this.sequence;
       }
     }
+
+    return inputPayload;
   }
 }

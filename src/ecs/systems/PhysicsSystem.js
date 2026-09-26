@@ -1,122 +1,125 @@
 // src/ecs/systems/PhysicsSystem.js
 
-import { GAME_CONFIG } from '../../config/constants.js';
+import { GAME_CONFIG, INPUT_FLAGS } from '../../config/constants.js';
 import { hasFlag } from '../../utils/BitFlags.js';
-import { INPUT_FLAGS } from '../../config/constants.js';
 
 /**
  * PhysicsSystem
- * Executes character movement logic via Rapier3D kinematic character controllers,
- * updates rigid body positions, and steps the physics world simulation.
+ * Calculates player kinematic movements using Rapier3D Character Controller,
+ * handles gravity, jumping, and steps the underlying physics world simulation.
  */
 export class PhysicsSystem {
   /**
-   * @param {object} physicsWorld - The PhysicsWorld instance wrapping Rapier3D WASM.
+   * @param {object} physicsWorld - Rapier3D PhysicsWorld wrapper instance.
    */
   constructor(physicsWorld) {
     this.physicsWorld = physicsWorld;
   }
 
   /**
-   * Updates player positions based on local or received input states, 
-   * applies gravity and jumping forces, and steps the Rapier simulation forward.
+   * Main system update tick.
    * 
-   * @param {object} ecsWorld - The ECS world instance.
-   * @param {Array<number>} playerEntities - Array of entity IDs having Player & Physics components.
-   * @param {number} deltaTime - Frame time delta in seconds.
+   * @param {object} ecsWorld - Miniplex v2 ECS world instance.
+   * @param {number} deltaTime - Time step delta in seconds.
    */
-  update(ecsWorld, playerEntities, deltaTime) {
-    if (!this.physicsWorld.initialized) return;
+  update(ecsWorld, deltaTime) {
+    if (!this.physicsWorld || !this.physicsWorld.world) return;
 
-    for (let i = 0; i < playerEntities.length; i++) {
-      const entityId = playerEntities[i];
-      const playerComp = ecsWorld.getComponent(entityId, 'Player');
-      const physComp = ecsWorld.getComponent(entityId, 'Physics');
-      const transformComp = ecsWorld.getComponent(entityId, 'Transform');
-      const inputComp = ecsWorld.getComponent(entityId, 'Input');
+    const dt = deltaTime || (1 / 60);
+    const entities = ecsWorld.with('transform', 'physics');
 
-      if (!physComp || !transformComp || !inputComp) continue;
+    for (const entity of entities) {
+      const transform = entity.transform;
+      const physics = entity.physics;
+      const input = entity.input;
 
-      // Skip dead players from executing physics simulation
-      if (playerComp && playerComp.isDead) continue;
+      if (!transform || !physics) continue;
 
-      // Extract look angles and movement input flags
-      const { yaw, inputMask } = inputComp;
+      // 1. Calculate directional movement vectors if input component exists
+      if (input) {
+        let moveX = 0;
+        let moveZ = 0;
 
-      // Calculate relative movement directions based on current view yaw
-      let moveX = 0;
-      let moveZ = 0;
+        if (hasFlag(input.inputMask, INPUT_FLAGS.FORWARD)) moveZ -= 1;
+        if (hasFlag(input.inputMask, INPUT_FLAGS.BACKWARD)) moveZ += 1;
+        if (hasFlag(input.inputMask, INPUT_FLAGS.LEFT)) moveX -= 1;
+        if (hasFlag(input.inputMask, INPUT_FLAGS.RIGHT)) moveX += 1;
 
-      if (hasFlag(inputMask, INPUT_FLAGS.FORWARD)) moveZ -= 1;
-      if (hasFlag(inputMask, INPUT_FLAGS.BACKWARD)) moveZ += 1;
-      if (hasFlag(inputMask, INPUT_FLAGS.LEFT)) moveX -= 1;
-      if (hasFlag(inputMask, INPUT_FLAGS.RIGHT)) moveX += 1;
-
-      // Normalize diagonal movement vector
-      const moveLen = Math.hypot(moveX, moveZ);
-      if (moveLen > 0) {
-        moveX /= moveLen;
-        moveZ /= moveLen;
-      }
-
-      // Rotate movement vector into world coordinates using character yaw
-      const cosYaw = Math.cos(yaw);
-      const sinYaw = Math.sin(yaw);
-      const worldMoveX = moveX * cosYaw - moveZ * sinYaw;
-      const worldMoveZ = moveX * sinYaw + moveZ * cosYaw;
-
-      // Apply horizontal movement speed
-      const speed = GAME_CONFIG.PLAYER_SPEED;
-      physComp.velocity.x = worldMoveX * speed;
-      physComp.velocity.z = worldMoveZ * speed;
-
-      // Process gravity & jump impulse
-      if (physComp.isGrounded) {
-        physComp.velocity.y = -0.1; // Slight downward sticky force to maintain ground contact
-        if (hasFlag(inputMask, INPUT_FLAGS.JUMP)) {
-          physComp.velocity.y = GAME_CONFIG.PLAYER_JUMP_FORCE;
-          physComp.isGrounded = false;
+        // Normalize directional vector
+        const moveLen = Math.hypot(moveX, moveZ);
+        if (moveLen > 0) {
+          moveX /= moveLen;
+          moveZ /= moveLen;
         }
-      } else {
-        physComp.velocity.y += GAME_CONFIG.GRAVITY * deltaTime;
+
+        // Apply orientation yaw rotation to movement vectors
+        const yaw = input.yaw || 0;
+        const cosYaw = Math.cos(yaw);
+        const sinYaw = Math.sin(yaw);
+
+        const worldMoveX = moveX * cosYaw - moveZ * sinYaw;
+        const worldMoveZ = moveX * sinYaw + moveZ * cosYaw;
+
+        const speed = GAME_CONFIG.PLAYER_SPEED || 8.0;
+        if (!physics.velocity) physics.velocity = { x: 0, y: 0, z: 0 };
+
+        physics.velocity.x = worldMoveX * speed;
+        physics.velocity.z = worldMoveZ * speed;
+
+        // Jump & Gravity logic
+        if (physics.isGrounded) {
+          physics.velocity.y = -0.1;
+          if (hasFlag(input.inputMask, INPUT_FLAGS.JUMP)) {
+            physics.velocity.y = GAME_CONFIG.PLAYER_JUMP_FORCE || 7.0;
+            physics.isGrounded = false;
+          }
+        } else {
+          physics.velocity.y += (GAME_CONFIG.GRAVITY || -20.0) * dt;
+        }
       }
 
-      // Compute displacement delta for Rapier Kinematic Controller
-      const movementDelta = {
-        x: physComp.velocity.x * deltaTime,
-        y: physComp.velocity.y * deltaTime,
-        z: physComp.velocity.z * deltaTime,
-      };
+      // 2. Perform character controller movement step in Rapier3D
+      if (physics.controller && physics.collider && physics.rigidBody) {
+        const movementDelta = {
+          x: (physics.velocity?.x || 0) * dt,
+          y: (physics.velocity?.y || 0) * dt,
+          z: (physics.velocity?.z || 0) * dt,
+        };
 
-      // Compute movement collisions using Rapier Character Controller
-      physComp.controller.computeColliderMovement(
-        physComp.collider,
-        movementDelta
-      );
+        // Compute movement collision against environment
+        physics.controller.computeColliderMovement(physics.collider, movementDelta);
 
-      // Extract corrected translation vector after applying collision offsets
-      const correctedMovement = physComp.controller.getComputedMovement();
-      const currentPos = physComp.rigidBody.translation();
+        // Fetch computed movement vector (Rapier v0.11+ method name)
+        const correctedMovement = typeof physics.controller.computedMovement === 'function'
+          ? physics.controller.computedMovement()
+          : (typeof physics.controller.getComputedMovement === 'function' 
+              ? physics.controller.getComputedMovement() 
+              : movementDelta);
 
-      const newPos = {
-        x: currentPos.x + correctedMovement.x,
-        y: currentPos.y + correctedMovement.y,
-        z: currentPos.z + correctedMovement.z,
-      };
+        const currentPos = physics.rigidBody.translation();
+        const newPos = {
+          x: currentPos.x + correctedMovement.x,
+          y: currentPos.y + correctedMovement.y,
+          z: currentPos.z + correctedMovement.z,
+        };
 
-      // Set rigid body position and check ground status
-      physComp.rigidBody.setNextKinematicTranslation(newPos);
-      physComp.isGrounded = physComp.controller.isGrounded();
+        // Update Kinematic position & ECS transform
+        physics.rigidBody.setNextKinematicTranslation(newPos);
 
-      // Sync computed position and orientation back to ECS Transform component
-      transformComp.position.x = newPos.x;
-      transformComp.position.y = newPos.y;
-      transformComp.position.z = newPos.z;
-      transformComp.rotation.yaw = yaw;
-      transformComp.rotation.pitch = inputComp.pitch;
+        // Fetch grounded status (Rapier v0.11+ method name)
+        physics.isGrounded = typeof physics.controller.computedGrounded === 'function'
+          ? physics.controller.computedGrounded()
+          : (typeof physics.controller.isGrounded === 'function' 
+              ? physics.controller.isGrounded() 
+              : true);
+
+        transform.position.x = newPos.x;
+        transform.position.y = newPos.y;
+        transform.position.z = newPos.z;
+      }
     }
 
-    // Step Rapier3D WASM simulation world forward
-    this.physicsWorld.step();
+    // Step Rapier physics world simulation
+    this.physicsWorld.step(dt);
   }
 }

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2] - 2026-09-26
+
+### Fixed
+* **Physics & Character Controller:**
+  * Fixed `Uncaught TypeError: physics.controller.getComputedMovement is not a function` in `PhysicsSystem.js` and `ClientReconcileSystem.js` by migrating to Rapier3D API methods (`computedMovement()` and `computedGrounded()`) with fallback checks.
+  * Resolved player movement freezing issue caused by unhandled exceptions breaking the `HostGame` and `ClientGame` main tick loops.
+
+* **Input Sampling & Prediction:**
+  * Updated `InputSystem.update()` to explicitly construct and return the frame's `inputPayload` object (`sequence`, `inputMask`, `yaw`, `pitch`), enabling client-side movement prediction and host input packet serialization.
+
+---
+
 ## [1.0.1] - 2026-09-26
 
 ### Fixed
