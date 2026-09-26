@@ -8,10 +8,24 @@ export const DEFAULT_KEYBINDINGS = {
   JUMP: 'Space',
   CROUCH: 'KeyC',
   RELOAD: 'KeyR',
-  SHOOT: 'Mouse0', // Primary mouse button
+  SHOOT: 'Mouse0',
+  WEAPON_1: 'Digit1',
+  WEAPON_2: 'Digit2',
+  WEAPON_3: 'Digit3',
+  WEAPON_4: 'Digit4',
 };
 
 export const MOUSE_CONFIG = {
-  SENSITIVITY: 0.002, // Radians per pixel delta
+  SENSITIVITY: 0.002,
   INVERT_Y: false,
 };
+
+export const HUD_HINTS = [
+  'WASD — Move',
+  'Mouse — Look',
+  'LMB — Fire',
+  'R — Reload',
+  '1-4 — Weapons',
+  'Space — Jump',
+  'Click — Lock mouse',
+];

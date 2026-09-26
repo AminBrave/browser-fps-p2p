@@ -28,10 +28,12 @@ export const GAME_CONFIG = {
     LENGTH: 80,
     HEIGHT: 20,
   },
+  // Soft kill / push-back margin inside outer walls
+  BOUNDARY_PADDING: 1.5,
   INTERPOLATION_DELAY_MS: 100,
   RECONCILIATION_THRESHOLD: 0.15,
-  // Camera punch recovery (radians / second)
-  RECOIL_RECOVERY: 8.0,
+  RECOIL_RECOVERY: 10.0,
+  MAX_DECALS: 400,
 };
 
 export const INPUT_FLAGS = {
@@ -45,42 +47,102 @@ export const INPUT_FLAGS = {
   CROUCH: 1 << 7,
 };
 
-/** Fire mode constants */
 export const FIRE_MODE = {
   SEMI: 'semi',
   AUTO: 'auto',
 };
 
+/**
+ * Four distinct weapons — realistic-ish stats.
+ * First-shot in a burst is always exact (0 spread); bloom grows only on follow-up shots.
+ */
 export const WEAPON_CONFIG = {
   PISTOL: {
     ID: 1,
+    SLOT: 0,
     NAME: 'Pistol',
-    FIRE_RATE_MS: 180,
-    DAMAGE: 25,
+    FIRE_RATE_MS: 220,
+    DAMAGE: 28,
     MAGAZINE_SIZE: 12,
     RESERVE_AMMO: 36,
-    RELOAD_TIME_MS: 1600,
-    RANGE: 120,
-    RECOIL_PITCH: 0.045,
-    RECOIL_YAW_SPREAD: 0.012,
+    RELOAD_TIME_MS: 1500,
+    RANGE: 100,
+    // Visual / follow-up only (first shot = 0 spread)
+    RECOIL_PITCH: 0.038,
+    RECOIL_YAW_SPREAD: 0.01,
+    SPREAD_BASE: 0,
+    SPREAD_GROW: 0.008,
+    SPREAD_MAX: 0.04,
+    SPREAD_DECAY: 0.12,
+    PELLETS: 1,
     FIRE_MODE: FIRE_MODE.SEMI,
   },
   SMG: {
     ID: 2,
+    SLOT: 1,
     NAME: 'SMG',
-    FIRE_RATE_MS: 90,
+    FIRE_RATE_MS: 85,
     DAMAGE: 14,
     MAGAZINE_SIZE: 30,
     RESERVE_AMMO: 90,
-    RELOAD_TIME_MS: 2000,
-    RANGE: 90,
-    RECOIL_PITCH: 0.028,
-    RECOIL_YAW_SPREAD: 0.02,
+    RELOAD_TIME_MS: 1900,
+    RANGE: 80,
+    RECOIL_PITCH: 0.022,
+    RECOIL_YAW_SPREAD: 0.018,
+    SPREAD_BASE: 0,
+    SPREAD_GROW: 0.012,
+    SPREAD_MAX: 0.07,
+    SPREAD_DECAY: 0.15,
+    PELLETS: 1,
+    FIRE_MODE: FIRE_MODE.AUTO,
+  },
+  SHOTGUN: {
+    ID: 3,
+    SLOT: 2,
+    NAME: 'Shotgun',
+    FIRE_RATE_MS: 700,
+    DAMAGE: 12,
+    MAGAZINE_SIZE: 6,
+    RESERVE_AMMO: 24,
+    RELOAD_TIME_MS: 2400,
+    RANGE: 35,
+    RECOIL_PITCH: 0.09,
+    RECOIL_YAW_SPREAD: 0.03,
+    SPREAD_BASE: 0.04,
+    SPREAD_GROW: 0.01,
+    SPREAD_MAX: 0.1,
+    SPREAD_DECAY: 0.2,
+    PELLETS: 8,
+    FIRE_MODE: FIRE_MODE.SEMI,
+  },
+  RIFLE: {
+    ID: 4,
+    SLOT: 3,
+    NAME: 'Rifle',
+    FIRE_RATE_MS: 110,
+    DAMAGE: 22,
+    MAGAZINE_SIZE: 25,
+    RESERVE_AMMO: 75,
+    RELOAD_TIME_MS: 2100,
+    RANGE: 150,
+    RECOIL_PITCH: 0.032,
+    RECOIL_YAW_SPREAD: 0.012,
+    SPREAD_BASE: 0,
+    SPREAD_GROW: 0.006,
+    SPREAD_MAX: 0.045,
+    SPREAD_DECAY: 0.1,
+    PELLETS: 1,
     FIRE_MODE: FIRE_MODE.AUTO,
   },
 };
 
-// Default loadout
+export const WEAPON_LOADOUT = [
+  WEAPON_CONFIG.PISTOL,
+  WEAPON_CONFIG.SMG,
+  WEAPON_CONFIG.SHOTGUN,
+  WEAPON_CONFIG.RIFLE,
+];
+
 export const DEFAULT_WEAPON = WEAPON_CONFIG.PISTOL;
 
 export function peerIdToNumeric(peerId) {
