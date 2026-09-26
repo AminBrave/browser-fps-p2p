@@ -50,18 +50,11 @@ export function createWeapon(config = DEFAULT_WEAPON) {
   };
 }
 
-// Ensure pelletCount reads PELLETS key from config
-export function createWeaponFixed(config = DEFAULT_WEAPON) {
-  const w = createWeapon(config);
-  w.pelletCount = config.PELLETS ?? config.PELLETS ?? 1;
-  return w;
-}
-
 export function createLoadout() {
   return {
     slots: WEAPON_LOADOUT.map((cfg) => {
       const w = createWeapon(cfg);
-      w.pelletCount = cfg.PELLETS ?? 1;
+      w.pelletCount = cfg.SIDELETS ?? 1;
       return w;
     }),
     active: 0,
