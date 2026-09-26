@@ -18,14 +18,11 @@ import { ClientPredictSystem } from './ecs/systems/network/ClientPredictSystem.j
 import { ClientReconcileSystem } from './ecs/systems/network/ClientReconcileSystem.js';
 import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.js';
 import { CircularBuffer } from './utils/CircularBuffer.js';
+import { audio } from './audio/AudioManager.js';
 
-/**
- * ClientGame — prediction + local weapon FX (damage is host-authoritative).
- */
 export class ClientGame {
   constructor(containerElement) {
     this.container = containerElement;
-
     this.ecsWorld = new World();
     this.physicsWorld = new PhysicsWorld();
     this.sceneManager = new SceneManager(this.container);
@@ -35,15 +32,19 @@ export class ClientGame {
     this.localPlayerId = null;
     this.localEntity = null;
     this.playerEntities = [];
-
     this.pendingInputBuffer = new CircularBuffer(128);
 
     this.lastFrameTime = performance.now();
     this.accumulatedTime = 0;
     this.fixedDeltaTime = 1 / (GAME_CONFIG.TICK_RATE || 60);
-
     this.isRunning = false;
     this.animationFrameId = null;
+
+    const unlock = () => {
+      audio.unlock();
+      window.removeEventListener('click', unlock);
+    };
+    window.addEventListener('click', unlock);
   }
 
   async initialize(hostRoomId) {
@@ -51,14 +52,14 @@ export class ClientGame {
 
     this.inputSystem = new InputSystem(this.container);
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
-    // Client: visual weapon only (tracers / ammo / reload) — no damage authority
+    this.renderSystem = new RenderSystem(this.sceneManager);
     this.weaponSystem = new WeaponSystem(
       this.physicsWorld,
       this.sceneManager,
       null,
-      false
+      false,
+      this.renderSystem
     );
-    this.renderSystem = new RenderSystem(this.sceneManager);
 
     this.predictSystem = new ClientPredictSystem(
       this.physicsWorld,
@@ -73,10 +74,7 @@ export class ClientGame {
     createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
 
     this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
-
-    this.peerManager.onData((_peerId, dataView) => {
-      this._handleServerPacket(dataView);
-    });
+    this.peerManager.onData((_id, dataView) => this._handleServerPacket(dataView));
 
     this.localEntity = createPlayer(
       this.ecsWorld,
@@ -88,7 +86,6 @@ export class ClientGame {
       false
     );
     this.playerEntities.push(this.localEntity);
-
     this.hud.setVisible(true);
   }
 
@@ -108,7 +105,6 @@ export class ClientGame {
     this.accumulatedTime += Math.min(frameDelta, 0.25);
 
     const inputPayload = this.inputSystem.update(this.ecsWorld, this.localEntity);
-
     if (inputPayload && this.localEntity) {
       inputPayload.deltaTime = this.fixedDeltaTime;
       this.predictSystem.update(this.ecsWorld, this.localEntity, this.fixedDeltaTime);
@@ -117,7 +113,6 @@ export class ClientGame {
 
     while (this.accumulatedTime >= this.fixedDeltaTime) {
       this.physicsSystem.update(this.ecsWorld, this.fixedDeltaTime);
-      // Local tracers / ammo / reload (host still owns real damage)
       this.weaponSystem.update(this.ecsWorld, performance.now());
       this.accumulatedTime -= this.fixedDeltaTime;
     }
@@ -128,7 +123,6 @@ export class ClientGame {
       this.localEntity,
       currentTime
     );
-
     this.renderSystem.update(this.ecsWorld, this.localEntity, currentTime);
     this.sceneManager.render();
     this._updateHUD();
@@ -138,28 +132,25 @@ export class ClientGame {
 
   _handleServerPacket(dataView) {
     const packetType = Protocol.getPacketType(dataView);
-
     if (
       packetType === PACKET_TYPES.WORLD_SNAPSHOT ||
       packetType === PACKET_TYPES.STATE_SNAPSHOT
     ) {
       const snapshot = Protocol.decodeWorldSnapshot(dataView);
       if (!snapshot) return;
-
       this.interpolationSystem.addSnapshot(snapshot);
-
       if (this.localEntity) {
         this.reconcileSystem.update(this.ecsWorld, this.localEntity, snapshot);
-        // Sync local health from host snapshot
         const me = (snapshot.players || snapshot.entities || []).find(
           (p) => (p.id ?? p.entityId) === this.localEntity.player?.id
         );
         if (me && this.localEntity.player) {
+          const wasAlive = !this.localEntity.player.isDead;
           this.localEntity.player.health = me.health;
           this.localEntity.player.isDead = me.health <= 0;
+          if (wasAlive && this.localEntity.player.isDead) audio.playDeath();
         }
       }
-
       this._syncRemoteEntities(snapshot.players || snapshot.entities || []);
     }
   }
@@ -173,7 +164,6 @@ export class ClientGame {
       for (const entity of this.ecsWorld.with('player')) {
         if (entity.player?.id === remoteId) {
           exists = true;
-          // Sync remote health for death visuals
           if (rPlayer.health !== undefined) {
             entity.player.health = rPlayer.health;
             entity.player.isDead = rPlayer.health <= 0;
@@ -207,17 +197,18 @@ export class ClientGame {
 
   _updateHUD() {
     if (!this.localEntity) return;
-    const playerComp = this.localEntity.player;
-    const weaponComp = this.localEntity.weapon;
-    if (playerComp) {
-      this.hud.updateHealth(playerComp.health, playerComp.maxHealth || 100);
-      this.hud.setDeathOverlay(playerComp.isDead);
+    const p = this.localEntity.player;
+    const w = this.localEntity.weapon;
+    if (p) {
+      this.hud.updateHealth(p.health, p.maxHealth || 100);
+      this.hud.setDeathOverlay(p.isDead);
     }
-    if (weaponComp) {
+    if (w) {
       this.hud.updateAmmo(
-        weaponComp.ammo ?? weaponComp.currentAmmo ?? 0,
-        weaponComp.maxAmmo ?? 12,
-        !!weaponComp.isReloading
+        w.magazine ?? w.ammo ?? 0,
+        w.reserveAmmo ?? 0,
+        !!w.isReloading,
+        w.fireMode
       );
     }
   }

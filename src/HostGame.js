@@ -14,14 +14,11 @@ import { HealthSystem } from './ecs/systems/HealthSystem.js';
 import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
 import { RenderSystem } from './ecs/systems/RenderSystem.js';
 import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
+import { audio } from './audio/AudioManager.js';
 
-/**
- * HostGame — authoritative host session (movement + combat).
- */
 export class HostGame {
   constructor(containerElement) {
     this.container = containerElement;
-
     this.ecsWorld = new World();
     this.physicsWorld = new PhysicsWorld();
     this.sceneManager = new SceneManager(this.container);
@@ -38,6 +35,13 @@ export class HostGame {
 
     this.isRunning = false;
     this.animationFrameId = null;
+
+    // Unlock audio on first click
+    const unlock = () => {
+      audio.unlock();
+      window.removeEventListener('click', unlock);
+    };
+    window.addEventListener('click', unlock);
   }
 
   async initialize() {
@@ -46,13 +50,14 @@ export class HostGame {
     this.inputSystem = new InputSystem(this.container);
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
     this.healthSystem = new HealthSystem(this.physicsWorld);
+    this.renderSystem = new RenderSystem(this.sceneManager);
     this.weaponSystem = new WeaponSystem(
       this.physicsWorld,
       this.sceneManager,
       this.healthSystem,
-      true // authoritative damage
+      true,
+      this.renderSystem
     );
-    this.renderSystem = new RenderSystem(this.sceneManager);
     this.hostNetworkSystem = new HostNetworkSystem(this.peerManager);
 
     createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
@@ -68,9 +73,8 @@ export class HostGame {
     );
 
     const hostRoomId = await this.peerManager.initHost();
-
-    this.peerManager.onConnect((peerId) => this._handleClientConnect(peerId));
-    this.peerManager.onDisconnect((peerId) => this._handleClientDisconnect(peerId));
+    this.peerManager.onConnect((id) => this._handleClientConnect(id));
+    this.peerManager.onDisconnect((id) => this._handleClientDisconnect(id));
 
     this.hud.setVisible(true);
     return hostRoomId;
@@ -97,7 +101,6 @@ export class HostGame {
 
     while (this.accumulatedTime >= this.fixedDeltaTime) {
       this.physicsSystem.update(this.ecsWorld, this.fixedDeltaTime);
-      // Combat after physics so positions are current for raycasts
       this.weaponSystem.update(this.ecsWorld, performance.now());
       this.healthSystem.update(this.ecsWorld);
       this.accumulatedTime -= this.fixedDeltaTime;
@@ -113,17 +116,16 @@ export class HostGame {
 
   _handleClientConnect(peerId) {
     const spawnIndex = this.peerManager.connections?.size || 1;
-    const spawnPos = {
-      x: (spawnIndex % 2 === 0 ? 1 : -1) * 4,
-      y: 3,
-      z: Math.floor(spawnIndex / 2) * 4,
-    };
     createPlayer(
       this.ecsWorld,
       this.physicsWorld,
       this.sceneManager,
       peerId,
-      spawnPos,
+      {
+        x: (spawnIndex % 2 === 0 ? 1 : -1) * 4,
+        y: 3,
+        z: Math.floor(spawnIndex / 2) * 4,
+      },
       false,
       false
     );
@@ -150,17 +152,18 @@ export class HostGame {
 
   _updateHUD() {
     if (!this.localEntity) return;
-    const playerComp = this.localEntity.player;
-    const weaponComp = this.localEntity.weapon;
-    if (playerComp) {
-      this.hud.updateHealth(playerComp.health, playerComp.maxHealth || 100);
-      this.hud.setDeathOverlay(playerComp.isDead);
+    const p = this.localEntity.player;
+    const w = this.localEntity.weapon;
+    if (p) {
+      this.hud.updateHealth(p.health, p.maxHealth || 100);
+      this.hud.setDeathOverlay(p.isDead);
     }
-    if (weaponComp) {
+    if (w) {
       this.hud.updateAmmo(
-        weaponComp.ammo ?? weaponComp.currentAmmo ?? 0,
-        weaponComp.maxAmmo ?? 12,
-        !!weaponComp.isReloading
+        w.magazine ?? w.ammo ?? 0,
+        w.reserveAmmo ?? 0,
+        !!w.isReloading,
+        w.fireMode
       );
     }
   }
