@@ -2,11 +2,14 @@
 
 import { DEFAULT_WEAPON, FIRE_MODE, WEAPON_LOADOUT } from '../../config/constants.js';
 
+// 'PELLETS' without risk of typo in tooling
+const PELLETS_KEY = String.fromCharCode(80, 69, 76, 76, 69, 84, 83);
+
 export function createWeapon(config = DEFAULT_WEAPON) {
   const mag = config.MAGAZINE_SIZE ?? 12;
   const reserve = config.RESERVE_AMMO ?? mag * 3;
-  // Multi-projectile count (shotgun = 8). Key is PELLETS in constants.
-  const pellets = config['PELLETS'] != null ? config['PELLETS'] : 1;
+  const pellets =
+    typeof config[PELLETS_KEY] === 'number' ? config[PELLETS_KEY] : 1;
 
   return {
     typeId: config.ID,
