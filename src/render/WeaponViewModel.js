@@ -3,8 +3,7 @@
 import * as THREE from 'three';
 
 /**
- * First-person weapon viewmodel parented to camera.
- * Exposes muzzle world position for hitscan origin.
+ * Distinct procedural viewmodels for Pistol / SMG / Shotgun / Rifle.
  */
 export class WeaponViewModel {
   constructor(camera) {
@@ -12,115 +11,291 @@ export class WeaponViewModel {
     this.root = new THREE.Group();
     this.root.name = 'WeaponViewModel';
 
-    this.restPosition = new THREE.Vector3(0.22, -0.22, -0.45);
-    this.restRotation = new THREE.Euler(0.12, 0.2, 0.08);
+    this.restPosition = new THREE.Vector3(0.22, -0.22, -0.48);
+    this.restRotation = new THREE.Euler(0.1, 0.18, 0.06);
 
     this.muzzleLocal = new THREE.Object3D();
-    this._buildMesh();
+    this._models = {};
+    this._activeId = null;
+
+    this._buildAllModels();
+    this.setWeaponType(1); // pistol default
+
     this.root.position.copy(this.restPosition);
     this.root.rotation.copy(this.restRotation);
-
-    this.root.traverse((obj) => {
-      if (obj.isMesh) {
-        obj.renderOrder = 999;
-        obj.frustumCulled = false;
-      }
-    });
-
     camera.add(this.root);
 
     this._bobTime = 0;
-    this._recoilPitch = 0;
     this._recoilKick = 0;
     this._reloadT = 0;
+    this._swayX = 0;
+    this._swayY = 0;
     this.visible = true;
     this._muzzleWorld = new THREE.Vector3();
-    this._muzzleFlash = null;
   }
 
-  _buildMesh() {
-    const metal = new THREE.MeshStandardMaterial({
-      color: 0x4a4a55, metalness: 0.75, roughness: 0.3, emissive: 0x111114,
+  _mat(color, metal = 0.6, rough = 0.4) {
+    return new THREE.MeshStandardMaterial({
+      color,
+      metalness: metal,
+      roughness: rough,
     });
-    const dark = new THREE.MeshStandardMaterial({
-      color: 0x2a2a30, metalness: 0.5, roughness: 0.45,
-    });
-    const gripMat = new THREE.MeshStandardMaterial({
-      color: 0x6b4423, metalness: 0.05, roughness: 0.85,
-    });
-    const accent = new THREE.MeshStandardMaterial({
-      color: 0xb0b0c0, metalness: 0.9, roughness: 0.25,
-    });
-    const skin = new THREE.MeshStandardMaterial({
-      color: 0xd4a574, metalness: 0, roughness: 0.75,
-    });
+  }
 
+  _buildAllModels() {
+    this._models[1] = this._buildPistol();
+    this._models[2] = this._buildSmg();
+    this._models[3] = this._buildShotgun();
+    this._models[4] = this._buildRifle();
+    for (const g of Object.values(this._models)) {
+      g.visible = false;
+      this.root.add(g);
+    }
+  }
+
+  _buildPistol() {
     const g = new THREE.Group();
-    g.scale.set(1.4, 1.4, 1.4);
+    g.scale.setScalar(1.35);
+    const metal = this._mat(0x4a4a55, 0.8, 0.3);
+    const dark = this._mat(0x2a2a30, 0.5, 0.5);
+    const grip = this._mat(0x6b4423, 0.05, 0.9);
+    const accent = this._mat(0xb0b0c0, 0.9, 0.25);
 
-    const slide = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.36), metal);
+    const slide = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.34), metal);
     slide.position.set(0, 0.05, -0.02);
     g.add(slide);
-    this._slide = slide;
+    this._pistolSlide = slide;
 
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.16, 10), dark);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.018, 0.14, 10), dark);
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.05, -0.24);
+    barrel.position.set(0, 0.05, -0.22);
     g.add(barrel);
 
-    const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.035, 10), accent);
-    muzzle.rotation.x = Math.PI / 2;
-    muzzle.position.set(0, 0.05, -0.32);
-    g.add(muzzle);
-
-    // Muzzle tip marker (local → world for ray origin)
-    this.muzzleLocal.position.set(0, 0.05, -0.36);
-    g.add(this.muzzleLocal);
-
-    // Muzzle flash (hidden by default)
-    this._muzzleFlash = new THREE.Mesh(
-      new THREE.SphereGeometry(0.04, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0 })
-    );
-    this._muzzleFlash.position.copy(this.muzzleLocal.position);
-    g.add(this._muzzleFlash);
-
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.055, 0.24), dark);
-    frame.position.set(0, -0.015, 0.02);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.2), dark);
+    frame.position.set(0, -0.02, 0.02);
     g.add(frame);
 
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.16, 0.09), gripMat);
-    grip.position.set(0, -0.11, 0.09);
-    grip.rotation.x = 0.28;
-    g.add(grip);
+    const gr = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.08), grip);
+    gr.position.set(0, -0.1, 0.08);
+    gr.rotation.x = 0.28;
+    g.add(gr);
 
-    const guard = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.01, 8, 16, Math.PI), accent);
-    guard.rotation.y = Math.PI / 2;
-    guard.rotation.z = Math.PI;
-    guard.position.set(0, -0.04, 0.02);
-    g.add(guard);
-
-    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.03, 0.012), accent);
-    sight.position.set(0, 0.105, -0.15);
+    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.025, 0.01), accent);
+    sight.position.set(0, 0.1, -0.12);
     g.add(sight);
 
-    const rearSight = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.022, 0.012), accent);
-    rearSight.position.set(0, 0.1, 0.12);
-    g.add(rearSight);
+    const muzzle = new THREE.Object3D();
+    muzzle.position.set(0, 0.05, -0.32);
+    g.add(muzzle);
+    g.userData.muzzle = muzzle;
 
-    const hand = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.055, 0.11), skin);
-    hand.position.set(0.02, -0.16, 0.16);
+    const flash = new THREE.Mesh(
+      new THREE.SphereGeometry(0.035, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0 })
+    );
+    flash.position.copy(muzzle.position);
+    g.add(flash);
+    g.userData.flash = flash;
+
+    const hand = new THREE.Mesh(
+      new THREE.BoxGeometry(0.07, 0.05, 0.1),
+      this._mat(0xd4a574, 0, 0.75)
+    );
+    hand.position.set(0.02, -0.14, 0.14);
     g.add(hand);
-
-    this.root.add(g);
+    return g;
   }
 
-  /**
-   * World-space muzzle position for hitscan.
-   * @returns {{x:number,y:number,z:number}}
-   */
+  _buildSmg() {
+    const g = new THREE.Group();
+    g.scale.setScalar(1.25);
+    const metal = this._mat(0x3d3d48, 0.75, 0.35);
+    const dark = this._mat(0x222228, 0.4, 0.55);
+    const grip = this._mat(0x2c2c30, 0.2, 0.7);
+
+    // Receiver
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.42), metal);
+    body.position.set(0, 0.02, -0.05);
+    g.add(body);
+
+    // Long barrel
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.28, 10), dark);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0.04, -0.35);
+    g.add(barrel);
+
+    // Mag well
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 0.08), grip);
+    mag.position.set(0, -0.12, 0.02);
+    g.add(mag);
+
+    // Stock stub
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.14), dark);
+    stock.position.set(0, 0.02, 0.2);
+    g.add(stock);
+
+    // Front grip
+    const fg = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.1, 0.05), grip);
+    fg.position.set(0, -0.08, -0.18);
+    g.add(fg);
+
+    const muzzle = new THREE.Object3D();
+    muzzle.position.set(0, 0.04, -0.5);
+    g.add(muzzle);
+    g.userData.muzzle = muzzle;
+
+    const flash = new THREE.Mesh(
+      new THREE.SphereGeometry(0.03, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffdd88, transparent: true, opacity: 0 })
+    );
+    flash.position.copy(muzzle.position);
+    g.add(flash);
+    g.userData.flash = flash;
+
+    const hand = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.045, 0.09),
+      this._mat(0xd4a574, 0, 0.75)
+    );
+    hand.position.set(0.015, -0.16, 0.1);
+    g.add(hand);
+    return g;
+  }
+
+  _buildShotgun() {
+    const g = new THREE.Group();
+    g.scale.setScalar(1.2);
+    const wood = this._mat(0x8b5a2b, 0.1, 0.85);
+    const metal = this._mat(0x555560, 0.85, 0.3);
+    const dark = this._mat(0x2a2a30, 0.5, 0.5);
+
+    // Dual barrel look
+    const b1 = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.55, 10), metal);
+    b1.rotation.x = Math.PI / 2;
+    b1.position.set(0, 0.06, -0.2);
+    g.add(b1);
+    const b2 = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.55, 10), metal);
+    b2.rotation.x = Math.PI / 2;
+    b2.position.set(0, 0.02, -0.2);
+    g.add(b2);
+
+    // Receiver
+    const recv = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.1, 0.2), dark);
+    recv.position.set(0, 0.04, 0.12);
+    g.add(recv);
+
+    // Stock
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.28), wood);
+    stock.position.set(0, 0.0, 0.32);
+    stock.rotation.x = -0.15;
+    g.add(stock);
+
+    // Pump
+    const pump = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.12), wood);
+    pump.position.set(0, -0.02, -0.05);
+    g.add(pump);
+
+    const muzzle = new THREE.Object3D();
+    muzzle.position.set(0, 0.04, -0.5);
+    g.add(muzzle);
+    g.userData.muzzle = muzzle;
+
+    const flash = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0 })
+    );
+    flash.position.copy(muzzle.position);
+    g.add(flash);
+    g.userData.flash = flash;
+
+    const hand = new THREE.Mesh(
+      new THREE.BoxGeometry(0.065, 0.05, 0.1),
+      this._mat(0xd4a574, 0, 0.75)
+    );
+    hand.position.set(0.02, -0.12, 0.18);
+    g.add(hand);
+    return g;
+  }
+
+  _buildRifle() {
+    const g = new THREE.Group();
+    g.scale.setScalar(1.2);
+    const metal = this._mat(0x3a4a3a, 0.7, 0.4);
+    const dark = this._mat(0x1e2420, 0.4, 0.55);
+    const accent = this._mat(0x2d3a2d, 0.5, 0.45);
+
+    // Long receiver
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.1, 0.5), metal);
+    body.position.set(0, 0.03, -0.05);
+    g.add(body);
+
+    // Barrel
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.014, 0.4, 10), dark);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0.05, -0.42);
+    g.add(barrel);
+
+    // Mag
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.16, 0.07), accent);
+    mag.position.set(0, -0.1, 0.0);
+    g.add(mag);
+
+    // Stock
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.08, 0.22), dark);
+    stock.position.set(0, 0.02, 0.28);
+    g.add(stock);
+
+    // Carry handle / optic mount
+    const optic = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.12), accent);
+    optic.position.set(0, 0.12, -0.05);
+    g.add(optic);
+
+    // Handguard
+    const hg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.2), dark);
+    hg.position.set(0, 0.02, -0.22);
+    g.add(hg);
+
+    const muzzle = new THREE.Object3D();
+    muzzle.position.set(0, 0.05, -0.62);
+    g.add(muzzle);
+    g.userData.muzzle = muzzle;
+
+    const flash = new THREE.Mesh(
+      new THREE.SphereGeometry(0.035, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0 })
+    );
+    flash.position.copy(muzzle.position);
+    g.add(flash);
+    g.userData.flash = flash;
+
+    const hand = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.045, 0.09),
+      this._mat(0xd4a574, 0, 0.75)
+    );
+    hand.position.set(0.015, -0.14, 0.12);
+    g.add(hand);
+    return g;
+  }
+
+  /** @param {number} typeId 1..4 */
+  setWeaponType(typeId) {
+    if (this._activeId === typeId) return;
+    for (const [id, g] of Object.entries(this._models)) {
+      g.visible = Number(id) === typeId;
+    }
+    this._activeId = typeId;
+    const active = this._models[typeId];
+    if (active?.userData?.muzzle) {
+      // Re-parent reference
+      this.muzzleLocal = active.userData.muzzle;
+    }
+  }
+
   getMuzzleWorldPosition() {
-    this.muzzleLocal.getWorldPosition(this._muzzleWorld);
+    if (this.muzzleLocal?.getWorldPosition) {
+      this.muzzleLocal.getWorldPosition(this._muzzleWorld);
+    } else {
+      this._muzzleWorld.set(0, 0, -1);
+    }
     return {
       x: this._muzzleWorld.x,
       y: this._muzzleWorld.y,
@@ -128,11 +303,11 @@ export class WeaponViewModel {
     };
   }
 
-  /** Trigger visual kick + flash when a shot fires */
-  onFired(recoilAmount = 0.14) {
-    this._recoilKick = Math.min(this._recoilKick + recoilAmount, 0.35);
-    if (this._muzzleFlash?.material) {
-      this._muzzleFlash.material.opacity = 1;
+  onFired(amount = 0.12) {
+    this._recoilKick = Math.min(this._recoilKick + amount, 0.4);
+    const active = this._models[this._activeId];
+    if (active?.userData?.flash?.material) {
+      active.userData.flash.material.opacity = 1;
     }
   }
 
@@ -144,59 +319,61 @@ export class WeaponViewModel {
    * @param {number} dt
    * @param {boolean} isMoving
    * @param {boolean} isReloading
+   * @param {number} moveIntensity 0..1
    */
-  update(dt, isMoving = false, isReloading = false) {
+  update(dt, isMoving = false, isReloading = false, moveIntensity = 0) {
     if (!this.visible) {
       this.root.visible = false;
       return;
     }
     this.root.visible = true;
 
-    this._bobTime += dt * (isMoving ? 10 : 2.5);
-    const bobX = Math.sin(this._bobTime) * (isMoving ? 0.01 : 0.004);
-    const bobY = Math.cos(this._bobTime * 2) * (isMoving ? 0.012 : 0.005);
+    const bobSpeed = 8 + moveIntensity * 6;
+    this._bobTime += dt * bobSpeed;
+    const bobAmp = 0.004 + moveIntensity * 0.014;
+    const bobX = Math.sin(this._bobTime) * bobAmp;
+    const bobY = Math.cos(this._bobTime * 2) * bobAmp * 1.2;
 
-    // Decay kick
-    this._recoilKick = Math.max(0, this._recoilKick - dt * 2.2);
-    if (this._muzzleFlash?.material) {
-      this._muzzleFlash.material.opacity = Math.max(
+    // Extra micro-shake when moving hard
+    this._swayX += (Math.random() - 0.5) * moveIntensity * 0.004;
+    this._swayY += (Math.random() - 0.5) * moveIntensity * 0.004;
+    this._swayX *= 0.85;
+    this._swayY *= 0.85;
+
+    this._recoilKick = Math.max(0, this._recoilKick - dt * 2.4);
+    const active = this._models[this._activeId];
+    if (active?.userData?.flash?.material) {
+      active.userData.flash.material.opacity = Math.max(
         0,
-        this._muzzleFlash.material.opacity - dt * 12
+        active.userData.flash.material.opacity - dt * 14
       );
     }
 
-    // Simple reload dip
-    let reloadOffsetY = 0;
-    let reloadOffsetX = 0;
+    let reloadY = 0;
+    let reloadX = 0;
     if (isReloading || this._reloadT > 0) {
       this._reloadT += dt;
-      const t = Math.min(1, this._reloadT / 1.5);
-      reloadOffsetY = -0.12 * Math.sin(t * Math.PI);
-      reloadOffsetX = 0.08 * Math.sin(t * Math.PI);
+      const t = Math.min(1, this._reloadT / 1.4);
+      reloadY = -0.1 * Math.sin(t * Math.PI);
+      reloadX = 0.06 * Math.sin(t * Math.PI);
       if (!isReloading && t >= 1) this._reloadT = 0;
     }
 
-    // Slide rack on kick
-    if (this._slide) {
-      this._slide.position.z = -0.02 + this._recoilKick * 0.08;
-    }
-
     this.root.position.set(
-      this.restPosition.x + bobX + reloadOffsetX,
-      this.restPosition.y + bobY + reloadOffsetY - this._recoilKick * 0.2,
-      this.restPosition.z + this._recoilKick * 0.08
+      this.restPosition.x + bobX + this._swayX + reloadX,
+      this.restPosition.y + bobY + this._swayY + reloadY - this._recoilKick * 0.18,
+      this.restPosition.z + this._recoilKick * 0.07
     );
-
     this.root.rotation.set(
-      this.restRotation.x - this._recoilKick,
-      this.restRotation.y,
-      this.restRotation.z + bobX * 0.5
+      this.restRotation.x - this._recoilKick + this._swayY * 2,
+      this.restRotation.y + this._swayX * 2,
+      this.restRotation.z + bobX * 0.6
     );
   }
 
-  setVisible(visible) {
-    this.visible = visible;
-    this.root.visible = visible;
+  setVisible(v) {
+    this.visible = v;
+    this.root.visible = v;
   }
 
   dispose() {

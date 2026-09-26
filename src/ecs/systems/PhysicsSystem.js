@@ -1,50 +1,38 @@
 // src/ecs/systems/PhysicsSystem.js
 
 import { applyFpsMovement } from '../../utils/Movement.js';
+import { STANCE } from '../../config/constants.js';
 
-/**
- * PhysicsSystem
- * Camera-relative FPS movement via Rapier3D Character Controller,
- * gravity, jumping, and physics world step.
- */
 export class PhysicsSystem {
-  /**
-   * @param {object} physicsWorld
-   */
   constructor(physicsWorld) {
     this.physicsWorld = physicsWorld;
   }
 
-  /**
-   * @param {object} ecsWorld
-   * @param {number} deltaTime
-   */
   update(ecsWorld, deltaTime) {
-    if (!this.physicsWorld || !this.physicsWorld.world) return;
+    if (!this.physicsWorld?.world) return;
 
     const dt = deltaTime || 1 / 60;
-    const entities = ecsWorld.with('transform', 'physics');
 
-    for (const entity of entities) {
+    for (const entity of ecsWorld.with('transform', 'physics')) {
       const transform = entity.transform;
       const physics = entity.physics;
       const input = entity.input;
-
       if (!transform || !physics) continue;
 
       if (!physics.velocity) physics.velocity = { x: 0, y: 0, z: 0 };
 
       if (input) {
         const yaw = input.yaw || 0;
+        const stance = input.stance ?? STANCE.STAND;
         physics.isGrounded = applyFpsMovement(
           input.inputMask || 0,
           yaw,
           physics.velocity,
           physics.isGrounded,
-          dt
+          dt,
+          stance
         );
 
-        // Keep transform orientation in sync with look direction (for remote meshes / snapshots)
         if (transform.rotation) {
           transform.rotation.yaw = yaw;
           transform.rotation.pitch = input.pitch || 0;

@@ -2,7 +2,6 @@
 
 import { DEFAULT_WEAPON, FIRE_MODE, WEAPON_LOADOUT } from '../../config/constants.js';
 
-// 'PELLETS' without risk of typo in tooling
 const PELLETS_KEY = String.fromCharCode(80, 69, 76, 76, 69, 84, 83);
 
 export function createWeapon(config = DEFAULT_WEAPON) {
@@ -15,6 +14,7 @@ export function createWeapon(config = DEFAULT_WEAPON) {
     typeId: config.ID,
     slot: config.SLOT ?? 0,
     name: config.NAME || 'Weapon',
+    sfx: config.SFX || 'pistol',
 
     magazine: mag,
     magazineSize: mag,
@@ -64,7 +64,7 @@ export function createLoadout() {
 
 export function copyWeaponState(target, source) {
   const keys = [
-    'typeId', 'slot', 'name',
+    'typeId', 'slot', 'name', 'sfx',
     'magazine', 'magazineSize', 'reserveAmmo', 'ammo', 'currentAmmo', 'maxAmmo',
     'lastFiredTime', 'fireRateMs', 'damage', 'range', 'fireMode',
     'isReloading', 'reloadStartTime', 'reloadTimeMs',

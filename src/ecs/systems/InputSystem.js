@@ -1,6 +1,6 @@
 // src/ecs/systems/InputSystem.js
 
-import { INPUT_FLAGS } from '../../config/constants.js';
+import { INPUT_FLAGS, STANCE } from '../../config/constants.js';
 import { DEFAULT_KEYBINDINGS, MOUSE_CONFIG } from '../../config/controls.js';
 import { setFlag, clearFlag } from '../../utils/BitFlags.js';
 
@@ -14,11 +14,11 @@ export class InputSystem {
     this.yaw = 0;
     this.pitch = 0;
     this.sequence = 0;
-    this.weaponSlot = -1; // 0-3 when 1-4 pressed
+    this.weaponSlot = -1;
+    this.stance = STANCE.STAND;
 
     this.isPointerLocked = false;
     this.keyStateMap = new Map();
-
     this._bindEvents();
   }
 
@@ -52,6 +52,16 @@ export class InputSystem {
     if (event.code === b.WEAPON_2 || event.code === 'Digit2') this.weaponSlot = 1;
     if (event.code === b.WEAPON_3 || event.code === 'Digit3') this.weaponSlot = 2;
     if (event.code === b.WEAPON_4 || event.code === 'Digit4') this.weaponSlot = 3;
+
+    // Toggle crouch / prone
+    if (event.code === b.CROUCH || event.code === 'KeyC') {
+      this.stance =
+        this.stance === STANCE.CROUCH ? STANCE.STAND : STANCE.CROUCH;
+    }
+    if (event.code === b.PRONE || event.code === 'KeyZ') {
+      this.stance =
+        this.stance === STANCE.PRONE ? STANCE.STAND : STANCE.PRONE;
+    }
   }
 
   _onKeyUp(event) {
@@ -92,7 +102,6 @@ export class InputSystem {
       case bindings.MOVE_LEFT: flag = INPUT_FLAGS.LEFT; break;
       case bindings.MOVE_RIGHT: flag = INPUT_FLAGS.RIGHT; break;
       case bindings.JUMP: flag = INPUT_FLAGS.JUMP; break;
-      case bindings.CROUCH: flag = INPUT_FLAGS.CROUCH; break;
       case bindings.RELOAD: flag = INPUT_FLAGS.RELOAD; break;
     }
     if (flag !== 0) {
@@ -105,33 +114,43 @@ export class InputSystem {
   update(ecsWorld, localPlayerEntity = null) {
     this.sequence++;
 
-    const inputPayload = {
-      sequence: this.sequence,
-      inputMask: this.currentInputMask,
-      yaw: this.yaw,
-      pitch: this.pitch,
-      weaponSlot: this.weaponSlot,
-    };
+    // Encode stance into mask for systems that read flags
+    let mask = this.currentInputMask;
+    mask = clearFlag(mask, INPUT_FLAGS.CROUCH);
+    mask = clearFlag(mask, INPUT_FLAGS.PRONE);
+    if (this.stance === STANCE.CROUCH) mask = setFlag(mask, INPUT_FLAGS.CROUCH);
+    if (this.stance === STANCE.PRONE) mask = setFlag(mask, INPUT_FLAGS.PRONE);
 
     const slot = this.weaponSlot;
-    this.weaponSlot = -1; // consume one-shot switch
+    this.weaponSlot = -1;
+
+    const inputPayload = {
+      sequence: this.sequence,
+      inputMask: mask,
+      yaw: this.yaw,
+      pitch: this.pitch,
+      weaponSlot: slot,
+      stance: this.stance,
+    };
 
     if (localPlayerEntity?.input) {
-      localPlayerEntity.input.inputMask = this.currentInputMask;
+      localPlayerEntity.input.inputMask = mask;
       localPlayerEntity.input.yaw = this.yaw;
       localPlayerEntity.input.pitch = this.pitch;
       localPlayerEntity.input.sequence = this.sequence;
       localPlayerEntity.input.weaponSlot = slot;
+      localPlayerEntity.input.stance = this.stance;
       return inputPayload;
     }
 
     for (const entity of ecsWorld.with('player', 'input')) {
       if (entity.player?.isLocal) {
-        entity.input.inputMask = this.currentInputMask;
+        entity.input.inputMask = mask;
         entity.input.yaw = this.yaw;
         entity.input.pitch = this.pitch;
         entity.input.sequence = this.sequence;
         entity.input.weaponSlot = slot;
+        entity.input.stance = this.stance;
       }
     }
 
