@@ -9,18 +9,7 @@ import { createInput } from '../components/Input.js';
 import { GAME_CONFIG, peerIdToNumeric } from '../../config/constants.js';
 
 /**
- * Entity Assembler: Player
- * Assembles a player entity with transform, physics kinematic controller,
- * network status, weapon state, input tracking, and Three.js visual mesh.
- *
- * @param {object} ecsWorld - The Miniplex ECS world instance.
- * @param {object} physicsWorld - Wrapper class for Rapier3D.
- * @param {object|THREE.Scene} sceneOrManager - SceneManager instance or direct THREE.Scene instance.
- * @param {string|number} playerId - Unique player identifier or WebRTC Peer ID.
- * @param {{x: number, y: number, z: number}} [spawnPos={x: 0, y: 2, z: 0}] - Initial spawn position.
- * @param {boolean} [isLocal=false] - True if this represents the local player instance.
- * @param {boolean} [isHost=false] - True if running as host.
- * @returns {object} The created Miniplex player entity object.
+ * Assembles a player entity (physics capsule, mesh, weapon, input).
  */
 export function createPlayer(
   ecsWorld,
@@ -59,27 +48,34 @@ export function createPlayer(
   mesh.position.set(spawnPos.x, spawnPos.y, spawnPos.z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-
-  if (isLocal) {
-    mesh.visible = false;
-  }
+  if (isLocal) mesh.visible = false;
 
   if (scene && typeof scene.add === 'function') {
     scene.add(mesh);
   }
 
-  // Stable numeric id from peer string so host snapshots and client entities match
   const peerId = typeof playerId === 'string' ? playerId : String(playerId ?? '');
   const numericId = peerIdToNumeric(playerId);
 
   const playerEntity = ecsWorld.add({
-    player: createPlayerComponent(numericId, peerId, isLocal, isHost, GAME_CONFIG.MAX_HEALTH),
+    player: createPlayerComponent(
+      numericId,
+      peerId,
+      isLocal,
+      isHost,
+      GAME_CONFIG.MAX_HEALTH
+    ),
     transform: createTransform(spawnPos.x, spawnPos.y, spawnPos.z),
     physics: createPhysics(phys.body, phys.collider, phys.controller),
     weapon: createWeapon(),
     input: createInput(),
     renderMesh: { mesh },
   });
+
+  // Hitscan: map collider → entity
+  if (physicsWorld && typeof physicsWorld.registerColliderEntity === 'function') {
+    physicsWorld.registerColliderEntity(phys.collider, playerEntity);
+  }
 
   return playerEntity;
 }

@@ -11,11 +11,12 @@ import { createMap } from './ecs/entities/createMap.js';
 import { InputSystem } from './ecs/systems/InputSystem.js';
 import { PhysicsSystem } from './ecs/systems/PhysicsSystem.js';
 import { HealthSystem } from './ecs/systems/HealthSystem.js';
+import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
 import { RenderSystem } from './ecs/systems/RenderSystem.js';
 import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
 
 /**
- * HostGame — authoritative host session.
+ * HostGame — authoritative host session (movement + combat).
  */
 export class HostGame {
   constructor(containerElement) {
@@ -45,19 +46,23 @@ export class HostGame {
     this.inputSystem = new InputSystem(this.container);
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
     this.healthSystem = new HealthSystem(this.physicsWorld);
-    // Pass SceneManager so RenderSystem owns camera + weapon viewmodel
+    this.weaponSystem = new WeaponSystem(
+      this.physicsWorld,
+      this.sceneManager,
+      this.healthSystem,
+      true // authoritative damage
+    );
     this.renderSystem = new RenderSystem(this.sceneManager);
     this.hostNetworkSystem = new HostNetworkSystem(this.peerManager);
 
     createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
 
-    const spawnPos = { x: 0, y: 3, z: 0 };
     this.localEntity = createPlayer(
       this.ecsWorld,
       this.physicsWorld,
       this.sceneManager,
       this.localPlayerId,
-      spawnPos,
+      { x: 0, y: 3, z: 0 },
       true,
       true
     );
@@ -92,6 +97,8 @@ export class HostGame {
 
     while (this.accumulatedTime >= this.fixedDeltaTime) {
       this.physicsSystem.update(this.ecsWorld, this.fixedDeltaTime);
+      // Combat after physics so positions are current for raycasts
+      this.weaponSystem.update(this.ecsWorld, performance.now());
       this.healthSystem.update(this.ecsWorld);
       this.accumulatedTime -= this.fixedDeltaTime;
     }
@@ -125,13 +132,12 @@ export class HostGame {
   _handleClientDisconnect(peerId) {
     for (const entity of this.ecsWorld.with('player')) {
       if (entity.player?.peerId === peerId) {
-        if (entity.physics) {
-          if (entity.physics.collider) {
-            this.physicsWorld.world.removeCollider(entity.physics.collider, true);
-          }
-          if (entity.physics.rigidBody) {
-            this.physicsWorld.world.removeRigidBody(entity.physics.rigidBody);
-          }
+        if (entity.physics?.collider) {
+          this.physicsWorld.unregisterCollider?.(entity.physics.collider);
+          this.physicsWorld.world.removeCollider(entity.physics.collider, true);
+        }
+        if (entity.physics?.rigidBody) {
+          this.physicsWorld.world.removeRigidBody(entity.physics.rigidBody);
         }
         if (entity.renderMesh?.mesh) {
           this.sceneManager.scene.remove(entity.renderMesh.mesh);
@@ -153,7 +159,8 @@ export class HostGame {
     if (weaponComp) {
       this.hud.updateAmmo(
         weaponComp.ammo ?? weaponComp.currentAmmo ?? 0,
-        weaponComp.maxAmmo ?? 12
+        weaponComp.maxAmmo ?? 12,
+        !!weaponComp.isReloading
       );
     }
   }

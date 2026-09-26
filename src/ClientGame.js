@@ -12,6 +12,7 @@ import { createPlayer } from './ecs/entities/createPlayer.js';
 import { createMap } from './ecs/entities/createMap.js';
 import { InputSystem } from './ecs/systems/InputSystem.js';
 import { PhysicsSystem } from './ecs/systems/PhysicsSystem.js';
+import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
 import { RenderSystem } from './ecs/systems/RenderSystem.js';
 import { ClientPredictSystem } from './ecs/systems/network/ClientPredictSystem.js';
 import { ClientReconcileSystem } from './ecs/systems/network/ClientReconcileSystem.js';
@@ -19,7 +20,7 @@ import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.j
 import { CircularBuffer } from './utils/CircularBuffer.js';
 
 /**
- * ClientGame — prediction, reconciliation, interpolation, FPS view.
+ * ClientGame — prediction + local weapon FX (damage is host-authoritative).
  */
 export class ClientGame {
   constructor(containerElement) {
@@ -50,10 +51,23 @@ export class ClientGame {
 
     this.inputSystem = new InputSystem(this.container);
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
+    // Client: visual weapon only (tracers / ammo / reload) — no damage authority
+    this.weaponSystem = new WeaponSystem(
+      this.physicsWorld,
+      this.sceneManager,
+      null,
+      false
+    );
     this.renderSystem = new RenderSystem(this.sceneManager);
 
-    this.predictSystem = new ClientPredictSystem(this.physicsWorld, this.pendingInputBuffer);
-    this.reconcileSystem = new ClientReconcileSystem(this.physicsWorld, this.pendingInputBuffer);
+    this.predictSystem = new ClientPredictSystem(
+      this.physicsWorld,
+      this.pendingInputBuffer
+    );
+    this.reconcileSystem = new ClientReconcileSystem(
+      this.physicsWorld,
+      this.pendingInputBuffer
+    );
     this.interpolationSystem = new InterpolationSystem();
 
     createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
@@ -103,6 +117,8 @@ export class ClientGame {
 
     while (this.accumulatedTime >= this.fixedDeltaTime) {
       this.physicsSystem.update(this.ecsWorld, this.fixedDeltaTime);
+      // Local tracers / ammo / reload (host still owns real damage)
+      this.weaponSystem.update(this.ecsWorld, performance.now());
       this.accumulatedTime -= this.fixedDeltaTime;
     }
 
@@ -134,6 +150,14 @@ export class ClientGame {
 
       if (this.localEntity) {
         this.reconcileSystem.update(this.ecsWorld, this.localEntity, snapshot);
+        // Sync local health from host snapshot
+        const me = (snapshot.players || snapshot.entities || []).find(
+          (p) => (p.id ?? p.entityId) === this.localEntity.player?.id
+        );
+        if (me && this.localEntity.player) {
+          this.localEntity.player.health = me.health;
+          this.localEntity.player.isDead = me.health <= 0;
+        }
       }
 
       this._syncRemoteEntities(snapshot.players || snapshot.entities || []);
@@ -149,6 +173,14 @@ export class ClientGame {
       for (const entity of this.ecsWorld.with('player')) {
         if (entity.player?.id === remoteId) {
           exists = true;
+          // Sync remote health for death visuals
+          if (rPlayer.health !== undefined) {
+            entity.player.health = rPlayer.health;
+            entity.player.isDead = rPlayer.health <= 0;
+            if (entity.renderMesh?.mesh) {
+              entity.renderMesh.mesh.visible = !entity.player.isDead;
+            }
+          }
           break;
         }
       }
@@ -184,7 +216,8 @@ export class ClientGame {
     if (weaponComp) {
       this.hud.updateAmmo(
         weaponComp.ammo ?? weaponComp.currentAmmo ?? 0,
-        weaponComp.maxAmmo ?? 12
+        weaponComp.maxAmmo ?? 12,
+        !!weaponComp.isReloading
       );
     }
   }
