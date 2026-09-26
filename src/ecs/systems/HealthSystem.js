@@ -1,22 +1,14 @@
 // src/ecs/systems/HealthSystem.js
 
-import { GAME_CONFIG } from '../../config/constants.js';
+import { GAME_CONFIG, DEFAULT_WEAPON } from '../../config/constants.js';
+import { audio } from '../../audio/AudioManager.js';
 
-/**
- * HealthSystem (Host-Only)
- * Damage queue, death, respawn.
- */
 export class HealthSystem {
   constructor(physicsWorld) {
     this.physicsWorld = physicsWorld;
     this.pendingDamageEvents = [];
   }
 
-  /**
-   * @param {object} targetEntity
-   * @param {number} amount
-   * @param {string|number|null} [attackerId]
-   */
   applyDamage(targetEntity, amount, attackerId = null) {
     if (!targetEntity) return;
     this.pendingDamageEvents.push({ targetEntity, amount, attackerId });
@@ -28,25 +20,21 @@ export class HealthSystem {
       ? damageQueue
       : this.pendingDamageEvents;
 
-    if (queueToProcess && queueToProcess.length > 0) {
+    if (queueToProcess?.length) {
       while (queueToProcess.length > 0) {
         const event = queueToProcess.shift();
         const entity = event.targetEntity || event.entity;
-
         if (entity?.player) {
           const player = entity.player;
           if (!player.isDead) {
             const before = player.health;
             player.health = Math.max(0, player.health - (event.amount || 0));
-
             if (player.health <= 0 && before > 0) {
               player.isDead = true;
               player.deathTime = now;
               player.deaths = (player.deaths || 0) + 1;
-
-              if (entity.renderMesh?.mesh) {
-                entity.renderMesh.mesh.visible = false;
-              }
+              if (entity.renderMesh?.mesh) entity.renderMesh.mesh.visible = false;
+              if (player.isLocal) audio.playDeath();
             }
           }
         }
@@ -57,7 +45,6 @@ export class HealthSystem {
       const player = entity.player;
       const transform = entity.transform;
       const physics = entity.physics;
-
       if (!player?.isDead) continue;
 
       const respawnDelay = GAME_CONFIG.RESPAWN_TIME_MS || 3000;
@@ -68,7 +55,6 @@ export class HealthSystem {
         const spawnX = (Math.random() - 0.5) * 10;
         const spawnY = 3.0;
         const spawnZ = (Math.random() - 0.5) * 10;
-
         transform.position.x = spawnX;
         transform.position.y = spawnY;
         transform.position.z = spawnZ;
@@ -87,11 +73,19 @@ export class HealthSystem {
           entity.renderMesh.mesh.visible = !player.isLocal;
         }
 
-        // Refill weapon on respawn
         if (entity.weapon) {
-          const cap = entity.weapon.maxAmmo || 12;
-          entity.weapon.currentAmmo = cap;
-          entity.weapon.ammo = cap;
+          const size =
+            entity.weapon.magazineSize ||
+            DEFAULT_WEAPON.MAGAZINE_SIZE ||
+            12;
+          const reserve =
+            DEFAULT_WEAPON.RESERVE_AMMO ?? size * 3;
+          entity.weapon.magazine = size;
+          entity.weapon.magazineSize = size;
+          entity.weapon.reserveAmmo = reserve;
+          entity.weapon.ammo = size;
+          entity.weapon.currentAmmo = size;
+          entity.weapon.maxAmmo = size;
           entity.weapon.isReloading = false;
         }
       }
