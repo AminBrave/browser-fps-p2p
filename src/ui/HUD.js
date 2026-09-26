@@ -85,10 +85,11 @@ export class HUD {
       </div>
     `;
 
-    this.healthBar = document.getElementById('hud-health-bar');
-    this.healthVal = document.getElementById('hud-health-val');
-    this.ammoVal = document.getElementById('hud-ammo-val');
-    this.deathOverlay = document.getElementById('hud-death-overlay');
+    // Scope queries to this.container instead of global document
+    this.healthBar = this.container.querySelector('#hud-health-bar');
+    this.healthVal = this.container.querySelector('#hud-health-val');
+    this.ammoVal = this.container.querySelector('#hud-ammo-val');
+    this.deathOverlay = this.container.querySelector('#hud-death-overlay');
   }
 
   /**

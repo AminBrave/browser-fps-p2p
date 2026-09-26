@@ -11,29 +11,28 @@ import { GAME_CONFIG } from '../../config/constants.js';
 /**
  * Entity Assembler: Player
  * Assembles a player entity with transform, physics kinematic controller,
- * network status, weapon state, input tracking, and three.js visual mesh.
+ * network status, weapon state, input tracking, and Three.js visual mesh.
  * 
- * @param {object} ecsWorld - The ECS world instance.
+ * @param {object} ecsWorld - The Miniplex ECS world instance.
  * @param {object} physicsWorld - Wrapper class for Rapier3D.
- * @param {object} sceneManager - Wrapper class for Three.js scene management.
- * @param {number} playerId - Unique numeric player index (1-4).
- * @param {string} peerId - WebRTC Peer ID associated with this client.
- * @param {boolean} isLocal - True if this represents the local player instance.
- * @param {boolean} isHost - True if running as host.
- * @param {{x: number, y: number, z: number}} spawnPos - Initial spawn position.
- * @returns {number} The created player entity ID.
+ * @param {object|THREE.Scene} sceneOrManager - SceneManager instance or direct THREE.Scene instance.
+ * @param {string|number} playerId - Unique player identifier or WebRTC Peer ID.
+ * @param {{x: number, y: number, z: number}} [spawnPos={x: 0, y: 2, z: 0}] - Initial spawn position.
+ * @param {boolean} [isLocal=false] - True if this represents the local player instance.
+ * @param {boolean} [isHost=false] - True if running as host.
+ * @returns {object} The created Miniplex player entity object.
  */
 export function createPlayer(
   ecsWorld,
   physicsWorld,
-  sceneManager,
+  sceneOrManager,
   playerId,
-  peerId,
+  spawnPos = { x: 0, y: 2, z: 0 },
   isLocal = false,
-  isHost = false,
-  spawnPos = { x: 0, y: 2, z: 0 }
+  isHost = false
 ) {
-  const entityId = ecsWorld.createEntity();
+  // Resolve scene object depending on whether sceneManager or raw THREE.Scene was passed
+  const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
 
   // 1. Create Rapier3D Kinematic Physics Capsule
   const phys = physicsWorld.createPlayerBody(
@@ -66,20 +65,27 @@ export function createPlayer(
   mesh.castShadow = true;
   mesh.receiveShadow = true;
 
-  // Local player body is hidden visually for the local camera, but kept in scene graph
+  // Hide mesh visually for local FPS camera, keep active in scene tree
   if (isLocal) {
     mesh.visible = false;
   }
 
-  sceneManager.add(mesh);
+  if (scene && typeof scene.add === 'function') {
+    scene.add(mesh);
+  }
 
-  // 3. Attach ECS Components
-  ecsWorld.addComponent(entityId, 'Transform', createTransform(spawnPos.x, spawnPos.y, spawnPos.z));
-  ecsWorld.addComponent(entityId, 'Physics', createPhysics(phys.body, phys.collider, phys.controller));
-  ecsWorld.addComponent(entityId, 'Player', createPlayerComponent(playerId, peerId, isLocal, isHost, GAME_CONFIG.MAX_HEALTH));
-  ecsWorld.addComponent(entityId, 'Weapon', createWeapon());
-  ecsWorld.addComponent(entityId, 'Input', createInput());
-  ecsWorld.addComponent(entityId, 'RenderMesh', { mesh });
+  // 3. Instantiate Components & Register Entity in Miniplex ECS
+  const peerId = typeof playerId === 'string' ? playerId : '';
+  const numericId = typeof playerId === 'number' ? playerId : 1;
 
-  return entityId;
+  const playerEntity = ecsWorld.add({
+    player: createPlayerComponent(numericId, peerId, isLocal, isHost, GAME_CONFIG.MAX_HEALTH),
+    transform: createTransform(spawnPos.x, spawnPos.y, spawnPos.z),
+    physics: createPhysics(phys.body, phys.collider, phys.controller),
+    weapon: createWeapon(),
+    input: createInput(),
+    renderMesh: { mesh },
+  });
+
+  return playerEntity;
 }

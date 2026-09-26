@@ -8,14 +8,14 @@ import { createTransform } from '../components/Transform.js';
  * Spawns an instant hitscan visual tracer beam in the Three.js scene graph 
  * that automatically fades and cleans itself up after a brief duration.
  * 
- * @param {object} ecsWorld - The ECS world instance.
- * @param {object} sceneManager - Wrapper class for Three.js scene management.
+ * @param {object} ecsWorld - The Miniplex ECS world instance.
+ * @param {object|THREE.Scene} sceneOrManager - SceneManager instance or direct THREE.Scene.
  * @param {{x: number, y: number, z: number}} startPos - Bullet muzzle start point.
  * @param {{x: number, y: number, z: number}} endPos - Bullet target/impact point.
- * @returns {number} The created bullet visual entity ID.
+ * @returns {object} The created Miniplex bullet entity object.
  */
-export function createBullet(ecsWorld, sceneManager, startPos, endPos) {
-  const entityId = ecsWorld.createEntity();
+export function createBullet(ecsWorld, sceneOrManager, startPos, endPos) {
+  const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
 
   // Create tracer line geometry from origin to target hit point
   const points = [
@@ -33,17 +33,20 @@ export function createBullet(ecsWorld, sceneManager, startPos, endPos) {
   });
 
   const lineMesh = new THREE.Line(geometry, material);
-  sceneManager.add(lineMesh);
+  if (scene && typeof scene.add === 'function') {
+    scene.add(lineMesh);
+  }
 
-  // Attach ECS Components
-  ecsWorld.addComponent(entityId, 'Transform', createTransform(startPos.x, startPos.y, startPos.z));
-  ecsWorld.addComponent(entityId, 'RenderMesh', { mesh: lineMesh });
-
-  // Lifespan metadata component for auto-destruction (fades out in 100ms)
-  ecsWorld.addComponent(entityId, 'Lifespan', {
-    createdAt: performance.now(),
-    durationMs: 100,
+  // Register in Miniplex
+  const bulletEntity = ecsWorld.add({
+    isBullet: true,
+    transform: createTransform(startPos.x, startPos.y, startPos.z),
+    renderMesh: { mesh: lineMesh },
+    lifespan: {
+      createdAt: performance.now(),
+      durationMs: 100,
+    },
   });
 
-  return entityId;
+  return bulletEntity;
 }

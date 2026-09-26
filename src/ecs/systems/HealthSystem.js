@@ -3,161 +3,109 @@
 import { GAME_CONFIG } from '../../config/constants.js';
 
 /**
- * HealthSystem (Host-Only)
- * Handles weapon firing input verification, raycast hit detection, health updates,
- * death/respawn state transitions, and damage event propagation across the network.
+ * HealthSystem (Authoritative / Host-Only)
+ * Processes entity damage, health regeneration/deduction, respawn timer logic,
+ * and resets physics positions upon player elimination.
  */
 export class HealthSystem {
   /**
-   * @param {object} physicsWorld - The Rapier3D physics wrapper instance.
-   * @param {function} onDamageCallback - Callback to broadcast hit events via network.
-   * @param {function} onSpawnBulletCallback - Callback to spawn hitscan tracer visuals.
+   * @param {object} physicsWorld - Wrapper class for Rapier3D.
    */
-  constructor(physicsWorld, onDamageCallback, onSpawnBulletCallback) {
+  constructor(physicsWorld) {
     this.physicsWorld = physicsWorld;
-    this.onDamageCallback = onDamageCallback;
-    this.onSpawnBulletCallback = onSpawnBulletCallback;
+    this.pendingDamageEvents = []; // Array of { targetEntity, amount, attackerId }
   }
 
   /**
-   * Executes health, firing rate, raycast hit detection, and respawn logic.
+   * Enqueues a damage event to be processed on the next system update tick.
    * 
-   * @param {object} ecsWorld - The ECS world instance.
-   * @param {Array<number>} playerEntities - All active player entity IDs.
-   * @param {number} currentTime - Current timestamp in milliseconds.
+   * @param {object} targetEntity - The Miniplex entity receiving damage.
+   * @param {number} amount - Amount of health points to deduct.
+   * @param {string|number} [attackerId] - ID of the player dealing damage.
    */
-  update(ecsWorld, playerEntities, currentTime) {
-    for (let i = 0; i < playerEntities.length; i++) {
-      const entityId = playerEntities[i];
-      const playerComp = ecsWorld.getComponent(entityId, 'Player');
-      const transformComp = ecsWorld.getComponent(entityId, 'Transform');
-      const weaponComp = ecsWorld.getComponent(entityId, 'Weapon');
-      const inputComp = ecsWorld.getComponent(entityId, 'Input');
-
-      if (!playerComp || !transformComp || !weaponComp || !inputComp) continue;
-
-      // 1. Check for Respawn state
-      if (playerComp.isDead) {
-        if (currentTime - playerComp.deathTimestamp >= GAME_CONFIG.RESPAWN_TIME_MS) {
-          this._respawnPlayer(playerComp, transformComp);
-        }
-        continue;
-      }
-
-      // 2. Weapon Reload Cooldown Logic
-      if (weaponComp.isReloading) {
-        if (currentTime - weaponComp.reloadStartTimestamp >= GAME_CONFIG.WEAPON.RELOAD_TIME_MS) {
-          weaponComp.ammo = GAME_CONFIG.WEAPON.MAGAZINE_SIZE;
-          weaponComp.isReloading = false;
-        }
-      }
-
-      // Handle Manual Reload Action
-      if ((inputComp.inputMask & (1 << 6)) !== 0 && weaponComp.ammo < GAME_CONFIG.WEAPON.MAGAZINE_SIZE && !weaponComp.isReloading) {
-        weaponComp.isReloading = true;
-        weaponComp.reloadStartTimestamp = currentTime;
-      }
-
-      // 3. Fire Weapon Input Handling
-      const isShootingPressed = (inputComp.inputMask & (1 << 4)) !== 0; // SHOOT Flag
-      const canFire = isShootingPressed && 
-                        !weaponComp.isReloading && 
-                        weaponComp.ammo > 0 && 
-                        (currentTime - weaponComp.lastFiredTimestamp >= GAME_CONFIG.WEAPON.FIRE_RATE_MS);
-
-      if (canFire) {
-        weaponComp.ammo--;
-        weaponComp.lastFiredTimestamp = currentTime;
-
-        // Auto-trigger reload if magazine emptied
-        if (weaponComp.ammo <= 0) {
-          weaponComp.isReloading = true;
-          weaponComp.reloadStartTimestamp = currentTime;
-        }
-
-        // Perform Hitscan Raycast Simulation
-        this._processHitscan(ecsWorld, playerEntities, entityId, transformComp, inputComp);
-      }
-    }
+  applyDamage(targetEntity, amount, attackerId = null) {
+    if (!targetEntity) return;
+    this.pendingDamageEvents.push({ targetEntity, amount, attackerId });
   }
 
   /**
-   * Performs hitscan raycast from player aim vector against physics colliders.
-   * @private
+   * Main system update loop executed every physics/logic step.
+   * Supports both Miniplex v2 world queries and flexible argument signatures.
+   * 
+   * @param {object} ecsWorld - The Miniplex ECS world instance.
+   * @param {Array} [damageQueue] - Optional external array of damage events.
    */
-  _processHitscan(ecsWorld, playerEntities, shooterEntityId, shooterTransform, shooterInput) {
-    const origin = {
-      x: shooterTransform.position.x,
-      y: shooterTransform.position.y + GAME_CONFIG.CAMERA_EYE_HEIGHT,
-      z: shooterTransform.position.z,
-    };
+  update(ecsWorld, damageQueue = null) {
+    const now = performance.now();
 
-    // Calculate normalized direction vector using pitch and yaw look angles
-    const dirX = -Math.sin(shooterInput.yaw) * Math.cos(shooterInput.pitch);
-    const dirY = Math.sin(shooterInput.pitch);
-    const dirZ = -Math.cos(shooterInput.yaw) * Math.cos(shooterInput.pitch);
+    // 1. Process externally passed damage queue or local pending damage events
+    const queueToProcess = Array.isArray(damageQueue) ? damageQueue : this.pendingDamageEvents;
 
-    const hitResult = this.physicsWorld.castRay(origin, { x: dirX, y: dirY, z: dirZ }, GAME_CONFIG.WEAPON.MAX_RANGE);
+    if (queueToProcess && queueToProcess.length > 0) {
+      while (queueToProcess.length > 0) {
+        const event = queueToProcess.shift();
+        const entity = event.targetEntity || event.entity;
 
-    let endPoint = {
-      x: origin.x + dirX * GAME_CONFIG.WEAPON.MAX_RANGE,
-      y: origin.y + dirY * GAME_CONFIG.WEAPON.MAX_RANGE,
-      z: origin.z + dirZ * GAME_CONFIG.WEAPON.MAX_RANGE,
-    };
+        if (entity && entity.player) {
+          const player = entity.player;
 
-    if (hitResult) {
-      endPoint = hitResult.point;
+          if (!player.isDead) {
+            player.health = Math.max(0, player.health - (event.amount || 0));
 
-      // Check if the hit collider belongs to a player entity
-      for (let j = 0; j < playerEntities.length; j++) {
-        const victimEntityId = playerEntities[j];
-        if (victimEntityId === shooterEntityId) continue; // Prevent self-harm
+            if (player.health <= 0) {
+              player.isDead = true;
+              player.deathTime = now;
+              player.deaths = (player.deaths || 0) + 1;
 
-        const victimPhys = ecsWorld.getComponent(victimEntityId, 'Physics');
-        const victimPlayer = ecsWorld.getComponent(victimEntityId, 'Player');
-
-        if (victimPhys && victimPhys.collider === hitResult.collider && victimPlayer && !victimPlayer.isDead) {
-          // Apply Damage
-          victimPlayer.health = Math.max(0, victimPlayer.health - GAME_CONFIG.WEAPON.DAMAGE);
-
-          if (this.onDamageCallback) {
-            this.onDamageCallback(victimPlayer.id, victimPlayer.health, GAME_CONFIG.WEAPON.DAMAGE);
+              // Hide render mesh on death if present
+              if (entity.renderMesh && entity.renderMesh.mesh) {
+                entity.renderMesh.mesh.visible = false;
+              }
+            }
           }
-
-          // Check Player Death
-          if (victimPlayer.health <= 0) {
-            victimPlayer.isDead = true;
-            victimPlayer.deathTimestamp = performance.now();
-            victimPlayer.deaths++;
-
-            const shooterPlayer = ecsWorld.getComponent(shooterEntityId, 'Player');
-            if (shooterPlayer) shooterPlayer.kills++;
-          }
-          break;
         }
       }
     }
 
-    // Spawn tracer visual on all clients
-    if (this.onSpawnBulletCallback) {
-      this.onSpawnBulletCallback(origin, endPoint);
+    // 2. Query all active players in Miniplex v2 to manage respawns & state
+    const players = ecsWorld.with('player', 'transform');
+
+    for (const entity of players) {
+      const player = entity.player;
+      const transform = entity.transform;
+      const physics = entity.physics;
+
+      if (!player || !player.isDead) continue;
+
+      // Handle Respawn Delay Logic
+      const respawnDelay = GAME_CONFIG.RESPAWN_TIME_MS || 3000;
+      if (now - player.deathTime >= respawnDelay) {
+        player.isDead = false;
+        player.health = player.maxHealth || GAME_CONFIG.MAX_HEALTH || 100;
+
+        // Reset spawn position (Randomized offset around origin)
+        const spawnX = (Math.random() - 0.5) * 10;
+        const spawnY = 3.0;
+        const spawnZ = (Math.random() - 0.5) * 10;
+
+        transform.position.x = spawnX;
+        transform.position.y = spawnY;
+        transform.position.z = spawnZ;
+
+        // Reset Rapier physics rigid body or character controller position
+        if (physics) {
+          if (physics.rigidBody && typeof physics.rigidBody.setTranslation === 'function') {
+            physics.rigidBody.setTranslation({ x: spawnX, y: spawnY, z: spawnZ }, true);
+          } else if (physics.controller && typeof physics.controller.setTranslation === 'function') {
+            physics.controller.setTranslation({ x: spawnX, y: spawnY, z: spawnZ });
+          }
+        }
+
+        // Restore mesh visibility (Keep hidden for local player FPS view)
+        if (entity.renderMesh && entity.renderMesh.mesh) {
+          entity.renderMesh.mesh.visible = !player.isLocal;
+        }
+      }
     }
-  }
-
-  /**
-   * Resets player health and teleports entity to a spawn location.
-   * @private
-   */
-  _respawnPlayer(playerComp, transformComp) {
-    playerComp.health = GAME_CONFIG.MAX_HEALTH;
-    playerComp.isDead = false;
-
-    // Pick a random spawn coordinate from pool
-    const spawnIndex = Math.floor(Math.random() * GAME_CONFIG.SPAWN_POINTS.length);
-    const spawn = GAME_CONFIG.SPAWN_POINTS[spawnIndex];
-
-    transformComp.position.x = spawn.x;
-    transformComp.position.y = spawn.y;
-    transformComp.position.z = spawn.z;
   }
 }

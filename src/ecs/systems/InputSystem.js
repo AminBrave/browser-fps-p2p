@@ -1,6 +1,7 @@
 // src/ecs/systems/InputSystem.js
 
 import { INPUT_FLAGS } from '../../config/constants.js';
+import { DEFAULT_KEYBINDINGS, MOUSE_CONFIG } from '../../config/controls.js';
 import { setFlag, clearFlag } from '../../utils/BitFlags.js';
 
 /**
@@ -10,14 +11,14 @@ import { setFlag, clearFlag } from '../../utils/BitFlags.js';
  */
 export class InputSystem {
   /**
-   * @param {HTMLElement} domElement - The canvas or window element capturing user input.
-   * @param {object} keybindings - Key binding mappings from controls config.
-   * @param {object} mouseConfig - Sensitivity and Y-axis inversion configuration.
+   * @param {HTMLElement} [domElement=document.body] - Canvas/window element capturing user input.
+   * @param {object} [keybindings=DEFAULT_KEYBINDINGS] - Key binding mappings from controls config.
+   * @param {object} [mouseConfig=MOUSE_CONFIG] - Sensitivity and Y-axis inversion configuration.
    */
-  constructor(domElement = document.body, keybindings, mouseConfig) {
-    this.domElement = domElement;
-    this.keybindings = keybindings;
-    this.mouseConfig = mouseConfig;
+  constructor(domElement = document.body, keybindings = DEFAULT_KEYBINDINGS, mouseConfig = MOUSE_CONFIG) {
+    this.domElement = domElement || document.body;
+    this.keybindings = keybindings || DEFAULT_KEYBINDINGS;
+    this.mouseConfig = mouseConfig || MOUSE_CONFIG;
 
     this.currentInputMask = 0;
     this.yaw = 0;
@@ -45,11 +46,13 @@ export class InputSystem {
       this.isPointerLocked = document.pointerLockElement === this.domElement;
     });
 
-    this.domElement.addEventListener('click', () => {
-      if (!this.isPointerLocked) {
-        this.domElement.requestPointerLock();
-      }
-    });
+    if (this.domElement) {
+      this.domElement.addEventListener('click', () => {
+        if (!this.isPointerLocked && typeof this.domElement.requestPointerLock === 'function') {
+          this.domElement.requestPointerLock();
+        }
+      });
+    }
   }
 
   _onKeyDown(event) {
@@ -79,8 +82,8 @@ export class InputSystem {
   _onMouseMove(event) {
     if (!this.isPointerLocked) return;
 
-    const sensitivity = this.mouseConfig.SENSITIVITY;
-    const invertY = this.mouseConfig.INVERT_Y ? -1 : 1;
+    const sensitivity = this.mouseConfig?.SENSITIVITY ?? 0.002;
+    const invertY = this.mouseConfig?.INVERT_Y ? -1 : 1;
 
     // Horizontal rotation (Yaw) around Y axis
     this.yaw -= event.movementX * sensitivity;
@@ -99,26 +102,28 @@ export class InputSystem {
    */
   _updateMaskFromKey(code, isPressed) {
     let flag = 0;
+    const bindings = this.keybindings || DEFAULT_KEYBINDINGS;
+
     switch (code) {
-      case this.keybindings.MOVE_FORWARD:
+      case bindings.MOVE_FORWARD:
         flag = INPUT_FLAGS.FORWARD;
         break;
-      case this.keybindings.MOVE_BACKWARD:
+      case bindings.MOVE_BACKWARD:
         flag = INPUT_FLAGS.BACKWARD;
         break;
-      case this.keybindings.MOVE_LEFT:
+      case bindings.MOVE_LEFT:
         flag = INPUT_FLAGS.LEFT;
         break;
-      case this.keybindings.MOVE_RIGHT:
+      case bindings.MOVE_RIGHT:
         flag = INPUT_FLAGS.RIGHT;
         break;
-      case this.keybindings.JUMP:
+      case bindings.JUMP:
         flag = INPUT_FLAGS.JUMP;
         break;
-      case this.keybindings.CROUCH:
+      case bindings.CROUCH:
         flag = INPUT_FLAGS.CROUCH;
         break;
-      case this.keybindings.RELOAD:
+      case bindings.RELOAD:
         flag = INPUT_FLAGS.RELOAD;
         break;
     }
@@ -132,23 +137,33 @@ export class InputSystem {
 
   /**
    * Main System update loop called per frame.
-   * Updates local player Input component with the latest frame sequence and data.
+   * Supports Miniplex v2 entity iteration and passing local entity directly.
    * 
-   * @param {object} ecsWorld 
-   * @param {Array<number>} localPlayerEntities 
+   * @param {object} ecsWorld - Miniplex world instance.
+   * @param {object|Array} [localPlayerEntity] - Local player entity object or legacy entities array.
    */
-  update(ecsWorld, localPlayerEntities) {
+  update(ecsWorld, localPlayerEntity = null) {
     this.sequence++;
 
-    for (let i = 0; i < localPlayerEntities.length; i++) {
-      const entityId = localPlayerEntities[i];
-      const inputComp = ecsWorld.getComponent(entityId, 'Input');
+    // 1. Direct local entity object supplied
+    if (localPlayerEntity && typeof localPlayerEntity === 'object' && !Array.isArray(localPlayerEntity)) {
+      if (localPlayerEntity.input) {
+        localPlayerEntity.input.inputMask = this.currentInputMask;
+        localPlayerEntity.input.yaw = this.yaw;
+        localPlayerEntity.input.pitch = this.pitch;
+        localPlayerEntity.input.sequence = this.sequence;
+      }
+      return;
+    }
 
-      if (inputComp) {
-        inputComp.inputMask = this.currentInputMask;
-        inputComp.yaw = this.yaw;
-        inputComp.pitch = this.pitch;
-        inputComp.sequence = this.sequence;
+    // 2. Query local player entities using Miniplex v2
+    const players = ecsWorld.with('player', 'input');
+    for (const entity of players) {
+      if (entity.player && entity.player.isLocal) {
+        entity.input.inputMask = this.currentInputMask;
+        entity.input.yaw = this.yaw;
+        entity.input.pitch = this.pitch;
+        entity.input.sequence = this.sequence;
       }
     }
   }

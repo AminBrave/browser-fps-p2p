@@ -83,15 +83,34 @@ export class Protocol {
   }
 
   /**
+   * Alias for decodeClientInput.
+   * @param {DataView} view 
+   * @returns {{ sequence: number, inputMask: number, yaw: number, pitch: number }}
+   */
+  static decodeInput(view) {
+    return Protocol.decodeClientInput(view);
+  }
+
+  /**
    * Encodes authoritative world state snapshot.
    * Format: [PacketType: u8, ServerTick: u32, LastAckedInputSeq: u32, EntityCount: u8, ...Entities]
    * Entity Format: [EntityId: u32, PosX: f32, PosY: f32, PosZ: f32, Yaw: f32, Health: u8]
    * @param {number} serverTick 
-   * @param {number} lastAckedSeq 
-   * @param {Array<{entityId: number, x: number, y: number, z: number, yaw: number, health: number}>} entities 
+   * @param {number|Array} lastAckedSeqOrEntities - Sequence number OR entities array if 2 args passed.
+   * @param {Array} [entitiesList] - Entity state array if 3 args passed.
    * @returns {ArrayBuffer}
    */
-  static encodeWorldSnapshot(serverTick, lastAckedSeq, entities) {
+  static encodeWorldSnapshot(serverTick, lastAckedSeqOrEntities, entitiesList) {
+    let lastAckedSeq = 0;
+    let entities = [];
+
+    if (Array.isArray(lastAckedSeqOrEntities)) {
+      entities = lastAckedSeqOrEntities;
+    } else {
+      lastAckedSeq = lastAckedSeqOrEntities || 0;
+      entities = entitiesList || [];
+    }
+
     const headerSize = 10;
     const entitySize = 21;
     const buffer = new ArrayBuffer(headerSize + entities.length * entitySize);
@@ -105,16 +124,33 @@ export class Protocol {
     let offset = headerSize;
     for (let i = 0; i < entities.length; i++) {
       const e = entities[i];
-      view.setUint32(offset, e.entityId, true);
-      view.setFloat32(offset + 4, e.x, true);
-      view.setFloat32(offset + 8, e.y, true);
-      view.setFloat32(offset + 12, e.z, true);
-      view.setFloat32(offset + 16, e.yaw, true);
-      view.setUint8(offset + 20, e.health);
+      const entityId = e.entityId || e.id || 0;
+      const posX = e.x !== undefined ? e.x : (e.position?.x || 0);
+      const posY = e.y !== undefined ? e.y : (e.position?.y || 0);
+      const posZ = e.z !== undefined ? e.z : (e.position?.z || 0);
+      const yaw = e.yaw !== undefined ? e.yaw : (e.rotation?.yaw || e.rotation?.y || 0);
+      const health = e.health !== undefined ? e.health : 100;
+
+      view.setUint32(offset, entityId, true);
+      view.setFloat32(offset + 4, posX, true);
+      view.setFloat32(offset + 8, posY, true);
+      view.setFloat32(offset + 12, posZ, true);
+      view.setFloat32(offset + 16, yaw, true);
+      view.setUint8(offset + 20, health);
       offset += entitySize;
     }
 
     return buffer;
+  }
+
+  /**
+   * Alias for encodeWorldSnapshot.
+   * @param {number} serverTick 
+   * @param {Array} entities 
+   * @returns {ArrayBuffer}
+   */
+  static encodeSnapshot(serverTick, entities) {
+    return Protocol.encodeWorldSnapshot(serverTick, 0, entities);
   }
 
   /**

@@ -11,12 +11,13 @@ import { Protocol } from '../../../network/Protocol.js';
 export class HostNetworkSystem {
   /**
    * @param {object} peerManager - The WebRTC PeerManager instance.
-   * @param {object} protocol - Protocol utility for binary packet encoding/decoding.
+   * @param {object} [protocol] - Protocol utility for binary packet encoding/decoding.
    */
   constructor(peerManager, protocol) {
     this.peerManager = peerManager;
     this.protocol = protocol || Protocol;
     this.incomingInputs = new Map(); // Map<peerId, Array<{inputMask, yaw, pitch, sequence}>>
+    this.serverTick = 0;
 
     this._setupNetworkListeners();
   }
@@ -30,7 +31,12 @@ export class HostNetworkSystem {
       const packetType = dataView.getUint8(0);
 
       if (packetType === PACKET_TYPES.CLIENT_INPUT) {
-        const inputData = this.protocol.decodeInput(dataView);
+        // Support both decodeClientInput and decodeInput aliases
+        const decodeMethod = this.protocol.decodeClientInput 
+          || this.protocol.decodeInput 
+          || Protocol.decodeClientInput;
+          
+        const inputData = decodeMethod.call(this.protocol, dataView);
         
         if (!this.incomingInputs.has(peerId)) {
           this.incomingInputs.set(peerId, []);
@@ -44,16 +50,19 @@ export class HostNetworkSystem {
    * System update loop executed every server tick frame.
    * Consumes queued client input commands and broadcasts world snapshots.
    * 
-   * @param {object} ecsWorld - The ECS world instance.
-   * @param {Array<number>} playerEntities - All active player entity IDs.
-   * @param {number} serverTick - Current server simulation tick index.
+   * @param {object} ecsWorld - The Miniplex ECS world instance.
+   * @param {number} [currentTime] - Current performance frame timestamp or server tick.
    */
-  update(ecsWorld, playerEntities, serverTick) {
-    // 1. Consume and apply incoming client inputs to corresponding player entities
-    for (let i = 0; i < playerEntities.length; i++) {
-      const entityId = playerEntities[i];
-      const playerComp = ecsWorld.getComponent(entityId, 'Player');
-      const inputComp = ecsWorld.getComponent(entityId, 'Input');
+  update(ecsWorld, currentTime) {
+    this.serverTick++;
+
+    // Query active player entities in Miniplex v2
+    const players = ecsWorld.with('player', 'transform', 'input');
+
+    // 1. Consume and apply incoming client inputs to corresponding remote player entities
+    for (const entity of players) {
+      const playerComp = entity.player;
+      const inputComp = entity.input;
 
       if (!playerComp || !inputComp) continue;
 
@@ -73,25 +82,44 @@ export class HostNetworkSystem {
 
     // 2. Serialize full authoritative world snapshot state
     const playerSnapshots = [];
-    for (let i = 0; i < playerEntities.length; i++) {
-      const entityId = playerEntities[i];
-      const playerComp = ecsWorld.getComponent(entityId, 'Player');
-      const transformComp = ecsWorld.getComponent(entityId, 'Transform');
-      const inputComp = ecsWorld.getComponent(entityId, 'Input');
+    let maxAckedSeq = 0;
+
+    for (const entity of players) {
+      const playerComp = entity.player;
+      const transformComp = entity.transform;
+      const inputComp = entity.input;
 
       if (playerComp && transformComp) {
         playerSnapshots.push({
-          id: playerComp.id,
+          entityId: playerComp.id || 1,
+          id: playerComp.id || 1,
+          x: transformComp.position.x,
+          y: transformComp.position.y,
+          z: transformComp.position.z,
           position: transformComp.position,
+          yaw: transformComp.rotation ? transformComp.rotation.y || transformComp.rotation.yaw : 0,
           rotation: transformComp.rotation,
-          health: playerComp.health,
-          lastProcessedSequence: inputComp ? inputComp.sequence : 0,
+          health: playerComp.health || 100,
         });
+
+        if (inputComp && inputComp.sequence > maxAckedSeq) {
+          maxAckedSeq = inputComp.sequence;
+        }
       }
     }
 
-    // Encode world snapshot into compact binary ArrayBuffer
-    const snapshotBuffer = this.protocol.encodeSnapshot(serverTick, playerSnapshots);
+    // Resolve encode method across Protocol class variants
+    const encodeMethod = this.protocol.encodeWorldSnapshot 
+      || this.protocol.encodeSnapshot 
+      || Protocol.encodeWorldSnapshot;
+
+    // Encode world snapshot into binary ArrayBuffer
+    const snapshotBuffer = encodeMethod.call(
+      this.protocol,
+      this.serverTick,
+      maxAckedSeq,
+      playerSnapshots
+    );
 
     // Broadcast snapshot packet to all connected clients over WebRTC DataChannel
     this.peerManager.broadcast(snapshotBuffer);

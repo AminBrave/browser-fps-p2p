@@ -8,19 +8,18 @@ import { GAME_CONFIG } from '../../config/constants.js';
 /**
  * Entity Assembler: Map
  * Instantiates static geometry colliders in the Rapier physics world 
- * and corresponding Three.js meshes in the graphics scene.
+ * and corresponding Three.js meshes in the graphics scene using Miniplex ECS.
  * 
- * @param {object} ecsWorld - The ECS world instance or entity container.
+ * @param {object} ecsWorld - The Miniplex ECS world instance.
  * @param {object} physicsWorld - Wrapper class for Rapier3D.
  * @param {object} sceneManager - Wrapper class for Three.js scene management.
- * @returns {Array<number>} Array of generated entity IDs representing map elements.
+ * @returns {Array<object>} Array of generated entity objects representing map elements.
  */
 export function createMap(ecsWorld, physicsWorld, sceneManager) {
   const mapEntities = [];
   const { WIDTH, LENGTH, HEIGHT } = GAME_CONFIG.MAP_BOUNDS;
 
   // 1. Arena Floor
-  const floorEntityId = ecsWorld.createEntity();
   const floorSize = { x: WIDTH, y: 0.2, z: LENGTH };
   const floorPos = { x: 0, y: -0.1, z: 0 };
 
@@ -36,13 +35,21 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
   const floorMesh = new THREE.Mesh(floorGeo, floorMat);
   floorMesh.position.set(floorPos.x, floorPos.y, floorPos.z);
   floorMesh.receiveShadow = true;
-  sceneManager.add(floorMesh);
 
-  // Attach ECS Components
-  ecsWorld.addComponent(floorEntityId, 'Transform', createTransform(floorPos.x, floorPos.y, floorPos.z));
-  ecsWorld.addComponent(floorEntityId, 'Physics', createPhysics(floorPhysics.body, floorPhysics.collider));
-  ecsWorld.addComponent(floorEntityId, 'RenderMesh', { mesh: floorMesh });
-  mapEntities.push(floorEntityId);
+  if (sceneManager && sceneManager.scene) {
+    sceneManager.scene.add(floorMesh);
+  } else if (sceneManager && typeof sceneManager.add === 'function') {
+    sceneManager.add(floorMesh);
+  }
+
+  // Create Miniplex Entity
+  const floorEntity = ecsWorld.add({
+    isMap: true,
+    transform: createTransform(floorPos.x, floorPos.y, floorPos.z),
+    physics: createPhysics(floorPhysics.body, floorPhysics.collider),
+    renderMesh: { mesh: floorMesh },
+  });
+  mapEntities.push(floorEntity);
 
   // 2. Perimeter Obstacles / Cover Blocks
   const coverBlocks = [
@@ -54,8 +61,6 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
   ];
 
   coverBlocks.forEach((block) => {
-    const entityId = ecsWorld.createEntity();
-
     const phys = physicsWorld.createStaticBox(
       block.x, block.y, block.z,
       block.sx / 2, block.sy / 2, block.sz / 2
@@ -67,12 +72,20 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
     mesh.position.set(block.x, block.y, block.z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    sceneManager.add(mesh);
 
-    ecsWorld.addComponent(entityId, 'Transform', createTransform(block.x, block.y, block.z));
-    ecsWorld.addComponent(entityId, 'Physics', createPhysics(phys.body, phys.collider));
-    ecsWorld.addComponent(entityId, 'RenderMesh', { mesh });
-    mapEntities.push(entityId);
+    if (sceneManager && sceneManager.scene) {
+      sceneManager.scene.add(mesh);
+    } else if (sceneManager && typeof sceneManager.add === 'function') {
+      sceneManager.add(mesh);
+    }
+
+    const blockEntity = ecsWorld.add({
+      isMap: true,
+      transform: createTransform(block.x, block.y, block.z),
+      physics: createPhysics(phys.body, phys.collider),
+      renderMesh: { mesh },
+    });
+    mapEntities.push(blockEntity);
   });
 
   return mapEntities;

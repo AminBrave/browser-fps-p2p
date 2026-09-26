@@ -1,6 +1,6 @@
 // src/HostGame.js
 
-import { GAME_CONFIG } from './config/constants.js';
+import { GAME_CONFIG, NETWORK_CONFIG } from './config/constants.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
@@ -35,12 +35,12 @@ export class HostGame {
 
     // Local host player tracking
     this.localPlayerId = 'host-player';
-    this.localEntityId = null;
+    this.localEntity = null;
 
     // Fixed timestep accumulation
     this.lastFrameTime = performance.now();
     this.accumulatedTime = 0;
-    this.fixedDeltaTime = 1 / GAME_CONFIG.TICK_RATE;
+    this.fixedDeltaTime = 1 / (NETWORK_CONFIG?.SERVER_TICK_RATE || GAME_CONFIG?.TICK_RATE || 60);
 
     // Loop state
     this.isRunning = false;
@@ -64,28 +64,29 @@ export class HostGame {
     this.hostNetworkSystem = new HostNetworkSystem(this.peerManager, this.physicsWorld);
 
     // 3. Setup static environment collision geometry
-    createMap(this.ecsWorld, this.physicsWorld, this.sceneManager.scene);
+    createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
 
     // 4. Create host's local authoritative player entity
     const spawnPos = { x: 0, y: 3, z: 0 };
-    this.localEntityId = createPlayer(
+    this.localEntity = createPlayer(
       this.ecsWorld,
       this.physicsWorld,
-      this.sceneManager.scene,
+      this.sceneManager,
       this.localPlayerId,
       spawnPos,
+      true,
       true
     );
 
     // 5. Initialize WebRTC host listener
-    const hostRoomId = await this.peerManager.initializeHost();
+    const hostRoomId = await this.peerManager.initHost();
 
     // Register incoming P2P peer connection and disconnection callbacks
-    this.peerManager.onPeerConnect((peerId) => {
+    this.peerManager.onConnect((peerId) => {
       this._handleClientConnect(peerId);
     });
 
-    this.peerManager.onPeerDisconnect((peerId) => {
+    this.peerManager.onDisconnect((peerId) => {
       this._handleClientDisconnect(peerId);
     });
 
@@ -120,7 +121,9 @@ export class HostGame {
     this.accumulatedTime += Math.min(frameDelta, 0.25);
 
     // Process local host inputs
-    this.inputSystem.update(this.ecsWorld, this.localEntityId);
+    if (this.localEntity) {
+      this.inputSystem.update(this.ecsWorld, this.localEntity);
+    }
 
     // Fixed physics simulation step loop
     while (this.accumulatedTime >= this.fixedDeltaTime) {
@@ -135,7 +138,7 @@ export class HostGame {
     this.hostNetworkSystem.update(this.ecsWorld, currentTime);
 
     // Sync visual meshes with ECS state & render camera scene
-    this.renderSystem.update(this.ecsWorld, this.localEntityId);
+    this.renderSystem.update(this.ecsWorld, this.localEntity);
     this.sceneManager.render();
 
     // Synchronize local HUD elements
@@ -149,7 +152,7 @@ export class HostGame {
    * @private
    */
   _handleClientConnect(peerId) {
-    const spawnIndex = this.peerManager.connections.size;
+    const spawnIndex = this.peerManager.connections ? this.peerManager.connections.size : 1;
     const spawnPos = {
       x: (spawnIndex % 2 === 0 ? 1 : -1) * 4,
       y: 3,
@@ -159,9 +162,10 @@ export class HostGame {
     createPlayer(
       this.ecsWorld,
       this.physicsWorld,
-      this.sceneManager.scene,
+      this.sceneManager,
       peerId,
       spawnPos,
+      false,
       false
     );
   }
@@ -195,18 +199,18 @@ export class HostGame {
    * @private
    */
   _updateHUD() {
-    if (this.localEntityId === null) return;
+    if (!this.localEntity) return;
 
-    const playerComp = this.ecsWorld.getComponent(this.localEntityId, 'Player');
-    const weaponComp = this.ecsWorld.getComponent(this.localEntityId, 'Weapon');
+    const playerComp = this.localEntity.player;
+    const weaponComp = this.localEntity.weapon;
 
     if (playerComp) {
-      this.hud.updateHealth(playerComp.health, playerComp.maxHealth);
+      this.hud.updateHealth(playerComp.health, playerComp.maxHealth || 100);
       this.hud.setDeathOverlay(playerComp.isDead);
     }
 
     if (weaponComp) {
-      this.hud.updateAmmo(weaponComp.ammo, weaponComp.maxAmmo);
+      this.hud.updateAmmo(weaponComp.ammo, weaponComp.maxAmmo || 12);
     }
   }
 

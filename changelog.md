@@ -2,35 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.0.0] - 2026-09-26
+## [1.0.1] - 2026-09-26
 
-### Added
-- **Core Engine & ECS Framework**
-  - Integrated `miniplex` for Entity-Component-System (ECS) state management.
-  - Added ECS components for `Transform`, `Physics`, `Player`, `Weapon`, and `Input`.
-  - Added core systems including `InputSystem`, `PhysicsSystem`, `HealthSystem`, and `RenderSystem`.
+### Fixed
+* **UI & DOM Initialization:**
+  * Fixed `TypeError` in `LobbyUI.js` and `HUD.js` by scoping element queries directly to component containers (`this.container.querySelector`) instead of global `document.getElementById` lookup before mounting.
 
-- **Physics Engine**
-  - Integrated `@dimforge/rapier3d-compat` (WASM-based 3D physics engine).
-  - Implemented character controller handling kinematic collisions, gravity, jumping, and floor grounding checks.
-  - Added dynamic raycast weapon fire and bullet collision handling.
+* **ECS & Entity Engine (Miniplex v2 Migration):**
+  * Fixed `TypeError: ecsWorld.createEntity is not a function` in `createMap.js`, `createPlayer.js`, and `createBullet.js` by updating entity creation logic to `ecsWorld.add(...)`.
+  * Fixed `TypeError: ecsWorld.getComponent is not a function` in `RenderSystem.js` and `ClientReconcileSystem.js` by refactoring queries to `ecsWorld.with(...)` iterators and direct component property access.
+  * Fixed `TypeError: Cannot read properties of undefined (reading 'length')` in `HealthSystem.update` by validating damage queue inputs and updating player queries to Miniplex v2 iterators.
 
-- **Networking & Netcode Architecture**
-  - WebRTC Peer-to-Peer network layer powered by `PeerJS`.
-  - Custom compact binary serialization using native JavaScript `DataView` / `ArrayBuffer` payloads.
-  - **Authoritative Host System:** Broadcasts state snapshots at fixed simulation tick rates (`HostNetworkSystem`).
-  - **Client-Side Prediction:** Local physics prediction for immediate player response (`ClientPredictSystem`).
-  - **Server Reconciliation:** State rollback and re-simulation upon network latency mispredictions (`ClientReconcileSystem`).
-  - **Entity Interpolation:** Buffer-based LERP position and angle interpolation for remote entities (`InterpolationSystem`).
+* **Networking & Synchronization:**
+  * Fixed `TypeError: this.peerManager.initializeHost is not a function` in `HostGame.js` by adding alias methods (`initializeHost`, `initializeClient`, `onPeerConnect`, `onPeerDisconnect`) to `PeerManager.js`.
+  * Fixed `TypeError: this.protocol.encodeSnapshot / encodeWorldSnapshot is not a function` in `HostNetworkSystem.js` by standardizing method signatures, adding argument normalization, and supporting method aliases in `Protocol.js`.
 
-- **Rendering & Assets**
-  - Three.js WebGL renderer setup with dynamic shadows, tone mapping, exponential fog, and ambient lighting (`SceneManager`).
-  - Asset loader utility with procedural texture generation fallbacks (`AssetLoader`).
-  - Procedural arena map assembler (`createMap`).
-
-- **User Interface & UX**
-  - Full DOM overlay HUD displaying player HP, ammunition counts, crosshair, and elimination overlays (`HUD`).
-  - Interactive lobby interface supporting session hosting and direct room joining via Peer IDs (`LobbyUI`).
-
-- **Build Systems**
-  - Vite configuration featuring WebAssembly (`vite-plugin-wasm`) and top-level `await` support (`vite-plugin-top-level-await`).
+* **Input & Controls:**
+  * Fixed `TypeError` on keyboard/mouse events (`SENSITIVITY` and keybindings undefined) in `InputSystem.js` by adding default fallback configurations for missing constructor arguments.

@@ -111,24 +111,32 @@ export class LobbyUI {
       </div>
     `;
 
-    this.statusEl = document.getElementById('lobby-status');
-    this.hostBtn = document.getElementById('btn-host');
-    this.joinBtn = document.getElementById('btn-join');
-    this.roomIdInput = document.getElementById('input-room-id');
+    // Append container to body BEFORE querying elements if not already appended
+    if (!this.container.parentNode) {
+      document.body.appendChild(this.container);
+    }
 
-    // Event Bindings
-    this.hostBtn.addEventListener('click', () => {
-      if (this.callbacks.onHostGame) this.callbacks.onHostGame();
-    });
+    // Query directly from container instance to avoid global document timing mismatches
+    this.statusEl = this.container.querySelector('#lobby-status');
+    this.hostBtn = this.container.querySelector('#btn-host');
+    this.joinBtn = this.container.querySelector('#btn-join');
+    this.roomIdInput = this.container.querySelector('#input-room-id');
 
-    this.joinBtn.addEventListener('click', () => {
-      const roomId = this.roomIdInput.value.trim();
-      if (roomId && this.callbacks.onJoinGame) {
-        this.callbacks.onJoinGame(roomId);
-      } else {
-        this.setStatus('Please enter a valid Host Room ID.', '#ff4757');
-      }
-    });
+    // Guarded Event Attachments
+    if (this.hostBtn) {
+      this.hostBtn.addEventListener('click', () => {
+        if (this.callbacks?.onHostGame) this.callbacks.onHostGame();
+      });
+    }
+
+    if (this.joinBtn) {
+      this.joinBtn.addEventListener('click', () => {
+        const roomId = this.roomIdInput?.value.trim() || '';
+        if (roomId && this.callbacks?.onJoinGame) {
+          this.callbacks.onJoinGame(roomId);
+        }
+      });
+    }
   }
 
   /**

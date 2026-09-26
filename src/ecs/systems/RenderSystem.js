@@ -9,39 +9,65 @@ import * as THREE from 'three';
  */
 export class RenderSystem {
   /**
-   * @param {object} sceneManager - Wrapper holding Three.js Scene and Camera instances.
+   * @param {object|THREE.Scene} sceneOrManager - SceneManager wrapper instance or direct THREE.Scene instance.
+   * @param {THREE.Camera} [camera] - Optional direct camera instance if sceneOrManager is raw Scene.
    */
-  constructor(sceneManager) {
-    this.sceneManager = sceneManager;
-    this.camera = sceneManager.camera;
+  constructor(sceneOrManager, camera = null) {
+    if (sceneOrManager && sceneOrManager.scene) {
+      this.sceneManager = sceneOrManager;
+      this.scene = sceneOrManager.scene;
+      this.camera = sceneOrManager.camera || camera;
+    } else {
+      this.sceneManager = null;
+      this.scene = sceneOrManager;
+      this.camera = camera;
+    }
   }
 
   /**
    * Main system update loop run every frame prior to WebGL rendering.
+   * Supports both Miniplex v2 world queries and legacy argument signatures.
    * 
-   * @param {object} ecsWorld - The ECS world instance.
-   * @param {Array<number>} renderableEntities - Entity IDs with RenderMesh & Transform components.
-   * @param {number|null} localPlayerEntityId - Local player entity ID driving the FPS camera.
-   * @param {number} currentTime - Current timestamp in milliseconds.
+   * @param {object} ecsWorld - The Miniplex ECS world instance.
+   * @param {object|Array|number} [renderableEntitiesOrLocalEntity] - Local entity object/ID or legacy entities array.
+   * @param {object|number} [localEntityOrTime] - Local entity object/ID or current performance timestamp.
+   * @param {number} [currentTime] - Current timestamp in milliseconds.
    */
-  update(ecsWorld, renderableEntities, localPlayerEntityId, currentTime) {
-    // 1. Update 3D Mesh positions and rotations from ECS components
-    for (let i = 0; i < renderableEntities.length; i++) {
-      const entityId = renderableEntities[i];
-      const transform = ecsWorld.getComponent(entityId, 'Transform');
-      const renderMesh = ecsWorld.getComponent(entityId, 'RenderMesh');
-      const lifespan = ecsWorld.getComponent(entityId, 'Lifespan');
+  update(ecsWorld, renderableEntitiesOrLocalEntity, localEntityOrTime, currentTime) {
+    const now = typeof currentTime === 'number' 
+      ? currentTime 
+      : (typeof localEntityOrTime === 'number' ? localEntityOrTime : performance.now());
+
+    // Resolve local player entity reference across parameter variants
+    let localEntity = null;
+    if (renderableEntitiesOrLocalEntity && typeof renderableEntitiesOrLocalEntity === 'object' && renderableEntitiesOrLocalEntity.transform) {
+      localEntity = renderableEntitiesOrLocalEntity;
+    } else if (localEntityOrTime && typeof localEntityOrTime === 'object' && localEntityOrTime.transform) {
+      localEntity = localEntityOrTime;
+    }
+
+    // 1. Update 3D Mesh positions, rotations, and lifetimes for renderable entities
+    const renderables = ecsWorld.with('transform', 'renderMesh');
+
+    for (const entity of renderables) {
+      const transform = entity.transform;
+      const renderMesh = entity.renderMesh;
+      const lifespan = entity.lifespan;
 
       // Process and destroy expired temporary visual entities (e.g., bullet tracers)
       if (lifespan) {
-        const elapsed = currentTime - lifespan.createdAt;
+        const elapsed = now - lifespan.createdAt;
         if (elapsed >= lifespan.durationMs) {
           if (renderMesh && renderMesh.mesh) {
-            this.sceneManager.remove(renderMesh.mesh);
+            if (this.scene) {
+              this.scene.remove(renderMesh.mesh);
+            } else if (this.sceneManager && typeof this.sceneManager.remove === 'function') {
+              this.sceneManager.remove(renderMesh.mesh);
+            }
             if (renderMesh.mesh.geometry) renderMesh.mesh.geometry.dispose();
             if (renderMesh.mesh.material) renderMesh.mesh.material.dispose();
           }
-          ecsWorld.destroyEntity(entityId);
+          ecsWorld.remove(entity);
           continue;
         } else if (renderMesh && renderMesh.mesh && renderMesh.mesh.material) {
           // Fade opacity over remaining life
@@ -51,7 +77,7 @@ export class RenderSystem {
 
       if (!transform || !renderMesh || !renderMesh.mesh) continue;
 
-      // Sync position
+      // Sync position with ECS Transform component
       renderMesh.mesh.position.set(
         transform.position.x,
         transform.position.y,
@@ -59,32 +85,43 @@ export class RenderSystem {
       );
 
       // Sync rotation (Yaw around Y-axis)
-      renderMesh.mesh.rotation.y = transform.rotation.yaw;
+      const yaw = transform.rotation ? (transform.rotation.y || transform.rotation.yaw || 0) : 0;
+      renderMesh.mesh.rotation.y = yaw;
     }
 
     // 2. Attach and update Local FPS Camera
-    if (localPlayerEntityId !== null) {
-      const transform = ecsWorld.getComponent(localPlayerEntityId, 'Transform');
-      const input = ecsWorld.getComponent(localPlayerEntityId, 'Input');
-
-      if (transform && input) {
-        const eyeY = transform.position.y + 1.6; // Eye level offset
-
-        this.camera.position.set(
-          transform.position.x,
-          eyeY,
-          transform.position.z
-        );
-
-        // Apply pitch and yaw look angles to Euler rotation matrix
-        const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-        euler.x = input.pitch;
-        euler.y = input.yaw;
-        this.camera.quaternion.setFromEuler(euler);
+    if (!localEntity) {
+      // Attempt to find local player entity from Miniplex world if not passed explicitly
+      const players = ecsWorld.with('player', 'transform', 'input');
+      for (const entity of players) {
+        if (entity.player && entity.player.isLocal) {
+          localEntity = entity;
+          break;
+        }
       }
     }
 
-    // Render WebGL scene frame
-    this.sceneManager.render();
+    if (localEntity && localEntity.transform && localEntity.input && this.camera) {
+      const transform = localEntity.transform;
+      const input = localEntity.input;
+      const eyeY = transform.position.y + 1.6; // Eye level offset
+
+      this.camera.position.set(
+        transform.position.x,
+        eyeY,
+        transform.position.z
+      );
+
+      // Apply pitch and yaw look angles to Euler rotation matrix
+      const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+      euler.x = input.pitch || 0;
+      euler.y = input.yaw || 0;
+      this.camera.quaternion.setFromEuler(euler);
+    }
+
+    // Render WebGL scene frame if SceneManager is present
+    if (this.sceneManager && typeof this.sceneManager.render === 'function') {
+      this.sceneManager.render();
+    }
   }
 }
