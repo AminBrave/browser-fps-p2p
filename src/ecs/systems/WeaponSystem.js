@@ -4,16 +4,13 @@ import {
   INPUT_FLAGS,
   GAME_CONFIG,
   FIRE_MODE,
-  WEAPON_LOADOUT,
 } from '../../config/constants.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { createBullet, createImpactDecal } from '../entities/createBullet.js';
 import { copyWeaponState } from '../components/Weapon.js';
+import { moveIntensity } from '../../utils/Movement.js';
 import { audio } from '../../audio/AudioManager.js';
 
-/**
- * Hitscan combat with first-shot accuracy + progressive bloom on sustained fire.
- */
 export class WeaponSystem {
   constructor(
     physicsWorld,
@@ -48,7 +45,6 @@ export class WeaponSystem {
       weapon.justReloaded = false;
       weapon.justStartedReload = false;
 
-      // Weapon switch (local only via input.weaponSlot)
       if (player.isLocal && input.weaponSlot != null && input.weaponSlot >= 0) {
         this._trySwitchWeapon(entity, input.weaponSlot);
         input.weaponSlot = -1;
@@ -61,7 +57,6 @@ export class WeaponSystem {
         continue;
       }
 
-      // Decay bloom when not firing
       const wantShoot = hasFlag(input.inputMask || 0, INPUT_FLAGS.SHOOT);
       if (!wantShoot) {
         weapon.shotsInBurst = 0;
@@ -71,7 +66,6 @@ export class WeaponSystem {
         );
       }
 
-      // Reload finish
       if (weapon.isReloading) {
         if (now - weapon.reloadStartTime >= (weapon.reloadTimeMs || 1600)) {
           this._completeReload(weapon);
@@ -103,21 +97,16 @@ export class WeaponSystem {
       if (!weapon.isReloading) {
         const mag = weapon.magazine ?? 0;
         const mode = weapon.fireMode || FIRE_MODE.SEMI;
-        const cooled = now - (weapon.lastFiredTime || 0) >= (weapon.fireRateMs || 200);
+        const cooled =
+          now - (weapon.lastFiredTime || 0) >= (weapon.fireRateMs || 200);
 
         let shouldFire = false;
-        if (mode === FIRE_MODE.AUTO) {
-          shouldFire = wantShoot && cooled;
-        } else {
-          shouldFire = shootPressed && cooled;
-        }
+        if (mode === FIRE_MODE.AUTO) shouldFire = wantShoot && cooled;
+        else shouldFire = shootPressed && cooled;
 
         if (shouldFire) {
-          if (mag > 0) {
-            this._fireShot(ecsWorld, entity, now);
-          } else if (player.isLocal && shootPressed) {
-            audio.playEmptyClick();
-          }
+          if (mag > 0) this._fireShot(ecsWorld, entity, now);
+          else if (player.isLocal && shootPressed) audio.playEmptyClick();
         }
       }
     }
@@ -129,7 +118,6 @@ export class WeaponSystem {
     if (slotIndex < 0 || slotIndex >= slots.length) return;
     if (entity.loadout.active === slotIndex) return;
 
-    // Save current weapon state into loadout slot
     const cur = entity.loadout.active;
     if (slots[cur]) copyWeaponState(slots[cur], entity.weapon);
 
@@ -140,7 +128,8 @@ export class WeaponSystem {
     entity.weapon.currentSpread = 0;
 
     if (entity.player?.isLocal) {
-      audio.playReloadEnd(); // short click as switch feedback
+      this.renderSystem?.weaponViewModel?.setWeaponType?.(entity.weapon.typeId);
+      audio.playReloadEnd();
     }
   }
 
@@ -157,11 +146,6 @@ export class WeaponSystem {
     weapon.isReloading = false;
   }
 
-  /**
-   * CRITICAL: ray uses aim angles BEFORE recoil is applied.
-   * First shot in a burst (shotsInBurst === 0) has zero extra bloom.
-   * Sustained fire adds spread + visual recoil after the ray is resolved.
-   */
   _fireShot(ecsWorld, entity, now) {
     const player = entity.player;
     const transform = entity.transform;
@@ -169,14 +153,17 @@ export class WeaponSystem {
     const weapon = entity.weapon;
     const physics = entity.physics;
 
-    // Snapshot exact crosshair aim BEFORE any recoil mutation
     const aimYaw = input.yaw || 0;
     const aimPitch = input.pitch || 0;
 
     const isFirstInBurst = (weapon.shotsInBurst || 0) === 0;
-    // Bloom used for THIS shot: 0 on first, then accumulated
-    const bloom = isFirstInBurst ? 0 : (weapon.currentSpread || 0);
-    const baseSpread = isFirstInBurst ? 0 : (weapon.spreadBase || 0);
+    const bloom = isFirstInBurst ? 0 : weapon.currentSpread || 0;
+    const baseSpread = isFirstInBurst ? 0 : weapon.spreadBase || 0;
+
+    // Movement accuracy penalty (always applies, including first shot while sprinting)
+    const intensity = moveIntensity(physics?.velocity);
+    const moveSpread =
+      intensity * (GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035);
 
     weapon.magazine = Math.max(0, (weapon.magazine ?? 1) - 1);
     weapon.ammo = weapon.magazine;
@@ -185,8 +172,10 @@ export class WeaponSystem {
     weapon.justFired = true;
 
     if (player.isLocal) {
-      audio.playShoot();
-      this.renderSystem?.weaponViewModel?.onFired?.(0.12 + (weapon.recoilPitch || 0) * 2);
+      audio.playShoot(weapon.sfx || 'pistol');
+      this.renderSystem?.weaponViewModel?.onFired?.(
+        0.1 + (weapon.recoilPitch || 0) * 2
+      );
     }
 
     const pelletCount = Math.max(1, weapon.pelletCount || 1);
@@ -194,7 +183,10 @@ export class WeaponSystem {
     const exclude = physics?.collider || null;
 
     let origin;
-    if (player.isLocal && this.renderSystem?.weaponViewModel?.getMuzzleWorldPosition) {
+    if (
+      player.isLocal &&
+      this.renderSystem?.weaponViewModel?.getMuzzleWorldPosition
+    ) {
       origin = this.renderSystem.weaponViewModel.getMuzzleWorldPosition();
     } else {
       const eyeY = GAME_CONFIG.CAMERA_HEIGHT_OFFSET || 1.6;
@@ -207,16 +199,16 @@ export class WeaponSystem {
     }
 
     for (let p = 0; p < pelletCount; p++) {
-      // Direction from true aim + bloom (first shot bloom=0 → exact crosshair)
       let yawOff = 0;
       let pitchOff = 0;
-      if (bloom > 0 || baseSpread > 0 || pelletCount > 1) {
-        const spread = baseSpread + bloom;
-        // Shotgun always has pellet cone; first shot still centered on crosshair mean
-        if (pelletCount > 1) {
-          yawOff = (Math.random() * 2 - 1) * (weapon.spreadBase || 0.04);
-          pitchOff = (Math.random() * 2 - 1) * (weapon.spreadBase || 0.04);
-        } else if (spread > 0) {
+
+      if (pelletCount > 1) {
+        const s = weapon.spreadBase || 0.04;
+        yawOff = (Math.random() * 2 - 1) * s;
+        pitchOff = (Math.random() * 2 - 1) * s;
+      } else {
+        const spread = baseSpread + bloom + moveSpread;
+        if (spread > 0) {
           yawOff = (Math.random() * 2 - 1) * spread;
           pitchOff = (Math.random() * 2 - 1) * spread;
         }
@@ -230,17 +222,17 @@ export class WeaponSystem {
         y: Math.sin(pitch),
         z: -Math.cos(yaw) * cosPitch,
       };
-      const len = Math.hypot(dir.x, dir.y, dir.z) || 1;
-      dir.x /= len;
-      dir.y /= len;
-      dir.z /= len;
+      const dLen = Math.hypot(dir.x, dir.y, dir.z) || 1;
+      dir.x /= dLen;
+      dir.y /= dLen;
+      dir.z /= dLen;
 
       let endPos = {
         x: origin.x + dir.x * range,
         y: origin.y + dir.y * range,
         z: origin.z + dir.z * range,
       };
-      let hitNormal = { x: 0, y: 1, z: 0 };
+      let hitNormal = { x: -dir.x, y: -dir.y, z: -dir.z };
       let hitEntity = null;
       let didHit = false;
 
@@ -249,13 +241,7 @@ export class WeaponSystem {
         if (hit) {
           didHit = true;
           endPos = hit.point;
-          // Prefer real surface normal from Rapier when available
-          if (hit.normal && (hit.normal.x || hit.normal.y || hit.normal.z)) {
-            hitNormal = hit.normal;
-          } else {
-            // Fallback: face opposite to incoming ray
-            hitNormal = { x: -dir.x, y: -dir.y, z: -dir.z };
-          }
+          if (hit.normal) hitNormal = hit.normal;
           hitEntity = hit.entity === entity ? null : hit.entity;
         }
       }
@@ -281,15 +267,14 @@ export class WeaponSystem {
       }
     }
 
-    // AFTER shot resolved: visual recoil + bloom for NEXT shots only
-    const yawKick = (Math.random() * 2 - 1) * (weapon.recoilYawSpread || 0.01);
+    // Visual recoil AFTER ray resolved
+    const yawKick =
+      (Math.random() * 2 - 1) * (weapon.recoilYawSpread || 0.01);
     const pitchKick = weapon.recoilPitch || 0.04;
     weapon.cameraRecoilPitch = (weapon.cameraRecoilPitch || 0) + pitchKick;
     weapon.cameraRecoilYaw = (weapon.cameraRecoilYaw || 0) + yawKick;
-
-    // Pull view slightly (player recovers with mouse); does NOT rewrite the shot we already fired
-    input.pitch = Math.min((89 * Math.PI) / 180, aimPitch + pitchKick * 0.7);
-    input.yaw = aimYaw + yawKick * 0.4;
+    input.pitch = Math.min((89 * Math.PI) / 180, aimPitch + pitchKick * 0.65);
+    input.yaw = aimYaw + yawKick * 0.35;
 
     weapon.shotsInBurst = (weapon.shotsInBurst || 0) + 1;
     weapon.currentSpread = Math.min(

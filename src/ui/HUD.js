@@ -49,6 +49,7 @@ export class HUD {
           <span style="font-weight:bold;font-size:13px;color:#ffa502;">AMMO</span>
           <span id="hud-ammo-val" style="font-size:22px;font-weight:bold;letter-spacing:1px;">12 / 36</span>
           <span id="hud-firemode" style="font-size:11px;color:#a4b0be;border:1px solid #57606f;padding:2px 6px;border-radius:4px;">SEMI</span>
+          <span id="hud-stance" style="font-size:11px;color:#eccc68;border:1px solid #57606f;padding:2px 6px;border-radius:4px;">STAND</span>
           <span id="hud-reload-val" style="font-size:12px;color:#70a1ff;display:none;">RELOADING...</span>
         </div>
 
@@ -71,6 +72,7 @@ export class HUD {
     this.ammoVal = this.container.querySelector('#hud-ammo-val');
     this.reloadVal = this.container.querySelector('#hud-reload-val');
     this.fireModeEl = this.container.querySelector('#hud-firemode');
+    this.stanceEl = this.container.querySelector('#hud-stance');
     this.weaponNameEl = this.container.querySelector('#hud-weapon-name');
     this.weaponSlots = this.container.querySelector('#hud-weapon-slots');
     this.deathOverlay = this.container.querySelector('#hud-death-overlay');
@@ -89,11 +91,20 @@ export class HUD {
       p > 50 ? '#2ed573' : p > 25 ? '#ffa502' : '#ff4757';
   }
 
-  updateAmmo(magazine, reserve, isReloading = false, fireMode = 'semi', weaponName = '', activeSlot = 0) {
+  updateAmmo(
+    magazine,
+    reserve,
+    isReloading = false,
+    fireMode = 'semi',
+    weaponName = '',
+    activeSlot = 0,
+    stanceLabel = 'STAND'
+  ) {
     this.ammoVal.textContent = `${magazine} / ${reserve}`;
     if (this.reloadVal) this.reloadVal.style.display = isReloading ? 'inline' : 'none';
     if (this.fireModeEl) this.fireModeEl.textContent = (fireMode || 'semi').toUpperCase();
     if (this.weaponNameEl && weaponName) this.weaponNameEl.textContent = weaponName;
+    if (this.stanceEl) this.stanceEl.textContent = stanceLabel;
 
     if (this.weaponSlots) {
       this.weaponSlots.querySelectorAll('[data-slot]').forEach((el) => {

@@ -1,6 +1,6 @@
 // src/HostGame.js
 
-import { GAME_CONFIG, NETWORK_CONFIG } from './config/constants.js';
+import { GAME_CONFIG, NETWORK_CONFIG, STANCE } from './config/constants.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
@@ -157,6 +157,13 @@ export class HostGame {
     if (!this.localEntity) return;
     const p = this.localEntity.player;
     const w = this.localEntity.weapon;
+    const stance = this.localEntity.input?.stance ?? STANCE.STAND;
+    const stanceLabel =
+      stance === STANCE.CROUCH
+        ? 'CROUCH'
+        : stance === STANCE.PRONE
+          ? 'PRONE'
+          : 'STAND';
     if (p) {
       this.hud.updateHealth(p.health, p.maxHealth || 100);
       this.hud.setDeathOverlay(p.isDead);
@@ -168,7 +175,8 @@ export class HostGame {
         !!w.isReloading,
         w.fireMode,
         w.name,
-        this.localEntity.loadout?.active ?? 0
+        this.localEntity.loadout?.active ?? 0,
+        stanceLabel
       );
     }
   }

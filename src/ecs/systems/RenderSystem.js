@@ -1,9 +1,10 @@
 // src/ecs/systems/RenderSystem.js
 
 import * as THREE from 'three';
-import { GAME_CONFIG, INPUT_FLAGS } from '../../config/constants.js';
+import { GAME_CONFIG, INPUT_FLAGS, STANCE } from '../../config/constants.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { WeaponViewModel } from '../../render/WeaponViewModel.js';
+import { moveIntensity } from '../../utils/Movement.js';
 import { audio } from '../../audio/AudioManager.js';
 
 export class RenderSystem {
@@ -28,6 +29,7 @@ export class RenderSystem {
     this._euler = new THREE.Euler(0, 0, 0, 'YXZ');
     this._wasGrounded = true;
     this._audioUnlocked = false;
+    this._lastWeaponId = null;
   }
 
   update(ecsWorld, localEntityArg, _maybeTime, currentTimeArg) {
@@ -48,16 +50,15 @@ export class RenderSystem {
       const renderMesh = entity.renderMesh;
       const lifespan = entity.lifespan;
 
-      // Permanent decals: only fade the flash sphere, never remove
       if (entity.isPermanentDecal && renderMesh?.mesh) {
         if (entity.impactFlashUntil && now < entity.impactFlashUntil) {
-          const t = 1 - (entity.impactFlashUntil - now) / 100;
+          const t = 1 - (entity.impactFlashUntil - now) / 90;
           renderMesh.mesh.traverse((c) => {
             if (c.name === 'impactFlash' && c.material) {
               c.material.opacity = Math.max(0, 1 - t);
             }
           });
-        } else if (entity.impactFlashUntil && now >= entity.impactFlashUntil) {
+        } else if (entity.impactFlashUntil) {
           renderMesh.mesh.traverse((c) => {
             if (c.name === 'impactFlash') c.visible = false;
           });
@@ -119,7 +120,14 @@ export class RenderSystem {
       const input = localEntity.input;
       const weapon = localEntity.weapon;
       const physics = localEntity.physics;
-      const eyeOffset = GAME_CONFIG.CAMERA_HEIGHT_OFFSET || 1.6;
+
+      const stance = input.stance ?? STANCE.STAND;
+      let eyeOffset = GAME_CONFIG.CAMERA_HEIGHT_OFFSET || 1.6;
+      if (stance === STANCE.CROUCH) {
+        eyeOffset = GAME_CONFIG.CAMERA_HEIGHT_CROUCH || 1.0;
+      } else if (stance === STANCE.PRONE) {
+        eyeOffset = GAME_CONFIG.CAMERA_HEIGHT_PRONE || 0.35;
+      }
 
       this.camera.position.set(
         transform.position.x,
@@ -139,9 +147,13 @@ export class RenderSystem {
           weapon.cameraRecoilYaw -=
             Math.sign(weapon.cameraRecoilYaw || 1) * d;
         }
+
+        if (weapon.typeId !== this._lastWeaponId) {
+          this.weaponViewModel?.setWeaponType?.(weapon.typeId);
+          this._lastWeaponId = weapon.typeId;
+        }
       }
 
-      // Visual punch only — does not affect hitscan aim angles stored on input
       const pitch =
         (input.pitch || 0) + (weapon?.cameraRecoilPitch || 0) * 0.2;
       const yaw =
@@ -161,10 +173,16 @@ export class RenderSystem {
           hasFlag(mask, INPUT_FLAGS.LEFT) ||
           hasFlag(mask, INPUT_FLAGS.RIGHT);
 
-        this.weaponViewModel.update(dt, isMoving, !!weapon?.isReloading);
+        const intensity = moveIntensity(physics?.velocity);
+        this.weaponViewModel.update(
+          dt,
+          isMoving,
+          !!weapon?.isReloading,
+          intensity
+        );
 
         const grounded = physics?.isGrounded !== false;
-        audio.updateFootsteps(dt, isMoving, grounded);
+        audio.updateFootsteps(dt, isMoving, grounded, stance);
         if (!this._wasGrounded && grounded) audio.playLand();
         if (this._wasGrounded && !grounded && hasFlag(mask, INPUT_FLAGS.JUMP)) {
           audio.playJump();
