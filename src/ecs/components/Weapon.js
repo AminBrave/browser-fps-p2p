@@ -5,7 +5,8 @@ import { DEFAULT_WEAPON, FIRE_MODE, WEAPON_LOADOUT } from '../../config/constant
 export function createWeapon(config = DEFAULT_WEAPON) {
   const mag = config.MAGAZINE_SIZE ?? 12;
   const reserve = config.RESERVE_AMMO ?? mag * 3;
-  const pellets = config.PELLETS != null ? config.PELLETS : 1;
+  // Multi-projectile count (shotgun = 8). Key is PELLETS in constants.
+  const pellets = config['PELLETS'] != null ? config['PELLETS'] : 1;
 
   return {
     typeId: config.ID,
