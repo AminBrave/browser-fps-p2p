@@ -23,12 +23,15 @@ export class SceneManager {
     // 2. Initialize Perspective Camera
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.PerspectiveCamera(
-      GAME_CONFIG.FOV,
+      GAME_CONFIG.FOV || 75,
       aspect,
-      GAME_CONFIG.NEAR_PLANE,
-      GAME_CONFIG.FAR_PLANE
+      GAME_CONFIG.NEAR_PLANE || 0.1,
+      GAME_CONFIG.FAR_PLANE || 1000
     );
-    this.camera.position.set(0, 1.6, 0); // Default eye level height
+    this.camera.position.set(0, 1.6, 0);
+
+    // REQUIRED: camera must be in the scene graph so children (weapon viewmodel) render
+    this.scene.add(this.camera);
 
     // 3. Initialize WebGL Renderer
     this.renderer = new THREE.WebGLRenderer({
@@ -42,76 +45,50 @@ export class SceneManager {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
 
-    // Append canvas element
     this.container.appendChild(this.renderer.domElement);
 
-    // Setup Lighting
     this._setupLighting();
 
-    // Event listener for screen resize
     this._onWindowResize = this._onWindowResize.bind(this);
     window.addEventListener('resize', this._onWindowResize);
   }
 
-  /**
-   * Configures scene lighting including directional sun light and ambient fill.
-   * @private
-   */
   _setupLighting() {
-    // Ambient Light
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
     this.scene.add(ambientLight);
 
-    // Directional Sun Light
     const sunLight = new THREE.DirectionalLight(0xfff5ea, 1.2);
     sunLight.position.set(20, 40, 20);
     sunLight.castShadow = true;
-
-    // Shadow Map configuration
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.camera.near = 0.5;
     sunLight.shadow.camera.far = 100;
-
     const shadowDistance = 35;
     sunLight.shadow.camera.left = -shadowDistance;
     sunLight.shadow.camera.right = shadowDistance;
     sunLight.shadow.camera.top = shadowDistance;
     sunLight.shadow.camera.bottom = -shadowDistance;
     sunLight.shadow.bias = -0.0005;
-
     this.scene.add(sunLight);
 
-    // Hemisphere Light
-    const hemiLight = new THREE.HemisphereLight(0x7090b0, 0x443322, 0.3);
+    const hemiLight = new THREE.HemisphereLight(0x7090b0, 0x443322, 0.35);
     this.scene.add(hemiLight);
   }
 
-  /**
-   * Window resize handler updating aspect ratio and renderer viewport.
-   * @private
-   */
   _onWindowResize() {
     const width = window.innerWidth;
     const height = window.innerHeight;
-
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   }
 
-  /**
-   * Renders a frame of the current scene state.
-   */
   render() {
     this.renderer.render(this.scene, this.camera);
   }
 
-  /**
-   * Cleans up scene objects, events, and WebGL context.
-   */
   dispose() {
     window.removeEventListener('resize', this._onWindowResize);
     this.renderer.dispose();

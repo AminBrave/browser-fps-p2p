@@ -6,8 +6,7 @@ import { hasFlag } from '../../utils/BitFlags.js';
 import { WeaponViewModel } from '../../render/WeaponViewModel.js';
 
 /**
- * RenderSystem
- * Syncs ECS transforms → meshes, drives local FPS camera + weapon viewmodel.
+ * RenderSystem — mesh sync + FPS camera + weapon viewmodel.
  */
 export class RenderSystem {
   /**
@@ -27,6 +26,10 @@ export class RenderSystem {
 
     this.weaponViewModel = null;
     if (this.camera) {
+      // Safety: ensure camera is in the scene (weapon is a camera child)
+      if (this.scene && !this.camera.parent) {
+        this.scene.add(this.camera);
+      }
       this.weaponViewModel = new WeaponViewModel(this.camera);
     }
 
@@ -36,8 +39,9 @@ export class RenderSystem {
 
   /**
    * @param {object} ecsWorld
-   * @param {object} [localEntity]
-   * @param {number} [currentTime]
+   * @param {object} [localEntityArg]
+   * @param {*} [_maybeTime]
+   * @param {number} [currentTimeArg]
    */
   update(ecsWorld, localEntityArg, _maybeTime, currentTimeArg) {
     const now =
@@ -55,7 +59,7 @@ export class RenderSystem {
       localEntity = localEntityArg;
     }
 
-    // 1. Sync world meshes
+    // World meshes
     for (const entity of ecsWorld.with('transform', 'renderMesh')) {
       const transform = entity.transform;
       const renderMesh = entity.renderMesh;
@@ -79,7 +83,7 @@ export class RenderSystem {
 
       if (!transform || !renderMesh?.mesh) continue;
 
-      // Skip local player body (hidden; we use FPS camera + viewmodel instead)
+      // Local body stays hidden (FPS view uses camera + viewmodel)
       if (entity.player?.isLocal) {
         renderMesh.mesh.visible = false;
         continue;
@@ -97,7 +101,6 @@ export class RenderSystem {
       renderMesh.mesh.rotation.y = yaw;
     }
 
-    // 2. Resolve local player if not passed
     if (!localEntity) {
       for (const entity of ecsWorld.with('player', 'transform', 'input')) {
         if (entity.player?.isLocal) {
@@ -107,26 +110,23 @@ export class RenderSystem {
       }
     }
 
-    // 3. First-person camera: position at eyes, rotation from look input
+    // FPS camera + weapon
     if (localEntity?.transform && localEntity?.input && this.camera) {
       const transform = localEntity.transform;
       const input = localEntity.input;
       const eyeOffset = GAME_CONFIG.CAMERA_HEIGHT_OFFSET || 1.6;
 
-      // Camera sits at player capsule eye height
       this.camera.position.set(
         transform.position.x,
         transform.position.y + eyeOffset,
         transform.position.z
       );
 
-      // YXZ: yaw then pitch — standard FPS mouse look
       this._euler.set(input.pitch || 0, input.yaw || 0, 0, 'YXZ');
       this.camera.quaternion.setFromEuler(this._euler);
 
-      // 4. Weapon viewmodel (child of camera → always tracks look direction)
       if (this.weaponViewModel) {
-        const isDead = localEntity.player?.isDead;
+        const isDead = !!localEntity.player?.isDead;
         this.weaponViewModel.setVisible(!isDead);
 
         const mask = input.inputMask || 0;
