@@ -1,19 +1,15 @@
 // src/ecs/systems/network/ClientPredictSystem.js
 
-import { GAME_CONFIG, INPUT_FLAGS } from '../../../config/constants.js';
-import { hasFlag } from '../../../utils/BitFlags.js';
+import { applyFpsMovement } from '../../../utils/Movement.js';
 
 /**
  * ClientPredictSystem (Client-Only)
- * Executes immediate local prediction for the local player entity using unacknowledged inputs,
- * pushing each prediction snapshot into a ring buffer for server reconciliation.
- *
- * Uses Miniplex v2 entity objects (not getComponent + entity IDs).
+ * Immediate local prediction using the same camera-relative FPS movement as the host.
  */
 export class ClientPredictSystem {
   /**
-   * @param {object} physicsWorld - Rapier3D physics world wrapper instance.
-   * @param {object} inputBuffer - CircularBuffer holding unacknowledged input frames.
+   * @param {object} physicsWorld
+   * @param {object} inputBuffer
    */
   constructor(physicsWorld, inputBuffer) {
     this.physicsWorld = physicsWorld;
@@ -22,7 +18,7 @@ export class ClientPredictSystem {
 
   /**
    * @param {object} ecsWorld
-   * @param {object} localEntity - Miniplex entity object (or null)
+   * @param {object} localEntity
    * @param {number} deltaTime
    */
   update(ecsWorld, localEntity, deltaTime) {
@@ -40,41 +36,17 @@ export class ClientPredictSystem {
     const pitch = inputComp.pitch || 0;
     const inputMask = inputComp.inputMask || 0;
     const sequence = inputComp.sequence || 0;
-    const dt = deltaTime || (1 / 60);
+    const dt = deltaTime || 1 / 60;
 
-    let moveX = 0;
-    let moveZ = 0;
-
-    if (hasFlag(inputMask, INPUT_FLAGS.FORWARD)) moveZ -= 1;
-    if (hasFlag(inputMask, INPUT_FLAGS.BACKWARD)) moveZ += 1;
-    if (hasFlag(inputMask, INPUT_FLAGS.LEFT)) moveX -= 1;
-    if (hasFlag(inputMask, INPUT_FLAGS.RIGHT)) moveX += 1;
-
-    const moveLen = Math.hypot(moveX, moveZ);
-    if (moveLen > 0) {
-      moveX /= moveLen;
-      moveZ /= moveLen;
-    }
-
-    const cosYaw = Math.cos(yaw);
-    const sinYaw = Math.sin(yaw);
-    const worldMoveX = moveX * cosYaw - moveZ * sinYaw;
-    const worldMoveZ = moveX * sinYaw + moveZ * cosYaw;
-
-    const speed = GAME_CONFIG.PLAYER_SPEED || 8.0;
     if (!physComp.velocity) physComp.velocity = { x: 0, y: 0, z: 0 };
-    physComp.velocity.x = worldMoveX * speed;
-    physComp.velocity.z = worldMoveZ * speed;
 
-    if (physComp.isGrounded) {
-      physComp.velocity.y = -0.1;
-      if (hasFlag(inputMask, INPUT_FLAGS.JUMP)) {
-        physComp.velocity.y = GAME_CONFIG.PLAYER_JUMP_FORCE || 6.5;
-        physComp.isGrounded = false;
-      }
-    } else {
-      physComp.velocity.y += (GAME_CONFIG.GRAVITY || -19.62) * dt;
-    }
+    physComp.isGrounded = applyFpsMovement(
+      inputMask,
+      yaw,
+      physComp.velocity,
+      physComp.isGrounded,
+      dt
+    );
 
     const movementDelta = {
       x: physComp.velocity.x * dt,
@@ -112,7 +84,7 @@ export class ClientPredictSystem {
           ? physComp.controller.computedGrounded()
           : typeof physComp.controller.isGrounded === 'function'
             ? physComp.controller.isGrounded()
-            : true;
+            : physComp.isGrounded;
     }
 
     transformComp.position.x = predictedPos.x;

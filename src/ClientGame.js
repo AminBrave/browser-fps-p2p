@@ -19,14 +19,9 @@ import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.j
 import { CircularBuffer } from './utils/CircularBuffer.js';
 
 /**
- * ClientGame
- * Orchestrates the client session: local input prediction, state reconciliation
- * against authoritative host snapshots, entity interpolation for remote players, and local rendering.
+ * ClientGame — prediction, reconciliation, interpolation, FPS view.
  */
 export class ClientGame {
-  /**
-   * @param {HTMLElement} containerElement
-   */
   constructor(containerElement) {
     this.container = containerElement;
 
@@ -50,39 +45,31 @@ export class ClientGame {
     this.animationFrameId = null;
   }
 
-  /**
-   * @param {string} hostRoomId
-   * @returns {Promise<void>}
-   */
   async initialize(hostRoomId) {
     await this.physicsWorld.init();
 
     this.inputSystem = new InputSystem(this.container);
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
-    this.renderSystem = new RenderSystem(this.sceneManager.scene, this.sceneManager.camera);
+    this.renderSystem = new RenderSystem(this.sceneManager);
 
     this.predictSystem = new ClientPredictSystem(this.physicsWorld, this.pendingInputBuffer);
     this.reconcileSystem = new ClientReconcileSystem(this.physicsWorld, this.pendingInputBuffer);
     this.interpolationSystem = new InterpolationSystem();
 
-    // Pass SceneManager so createMap can use .scene consistently
     createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
 
-    // initializeClient now resolves with local PeerJS id
     this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
 
-    // PeerManager always invokes (peerId, dataView) — ignore peerId on client (only host talks)
     this.peerManager.onData((_peerId, dataView) => {
       this._handleServerPacket(dataView);
     });
 
-    const spawnPos = { x: 0, y: 3, z: 0 };
     this.localEntity = createPlayer(
       this.ecsWorld,
       this.physicsWorld,
       this.sceneManager,
       this.localPlayerId,
-      spawnPos,
+      { x: 0, y: 3, z: 0 },
       true,
       false
     );
@@ -104,18 +91,14 @@ export class ClientGame {
 
     const frameDelta = (currentTime - this.lastFrameTime) / 1000;
     this.lastFrameTime = currentTime;
-
     this.accumulatedTime += Math.min(frameDelta, 0.25);
 
     const inputPayload = this.inputSystem.update(this.ecsWorld, this.localEntity);
 
     if (inputPayload && this.localEntity) {
       inputPayload.deltaTime = this.fixedDeltaTime;
-
       this.predictSystem.update(this.ecsWorld, this.localEntity, this.fixedDeltaTime);
-
-      const encodedInput = Protocol.encodeInput(inputPayload);
-      this.peerManager.sendToHost(encodedInput);
+      this.peerManager.sendToHost(Protocol.encodeInput(inputPayload));
     }
 
     while (this.accumulatedTime >= this.fixedDeltaTime) {
@@ -130,22 +113,20 @@ export class ClientGame {
       currentTime
     );
 
-    this.renderSystem.update(this.ecsWorld, this.localEntity);
+    this.renderSystem.update(this.ecsWorld, this.localEntity, currentTime);
     this.sceneManager.render();
-
     this._updateHUD();
 
     this.animationFrameId = requestAnimationFrame(this._gameLoop);
   }
 
-  /**
-   * @param {DataView} dataView
-   * @private
-   */
   _handleServerPacket(dataView) {
     const packetType = Protocol.getPacketType(dataView);
 
-    if (packetType === PACKET_TYPES.WORLD_SNAPSHOT || packetType === PACKET_TYPES.STATE_SNAPSHOT) {
+    if (
+      packetType === PACKET_TYPES.WORLD_SNAPSHOT ||
+      packetType === PACKET_TYPES.STATE_SNAPSHOT
+    ) {
       const snapshot = Protocol.decodeWorldSnapshot(dataView);
       if (!snapshot) return;
 
@@ -155,24 +136,18 @@ export class ClientGame {
         this.reconcileSystem.update(this.ecsWorld, this.localEntity, snapshot);
       }
 
-      const playersList = snapshot.players || snapshot.entities || [];
-      this._syncRemoteEntities(playersList);
+      this._syncRemoteEntities(snapshot.players || snapshot.entities || []);
     }
   }
 
-  /**
-   * @param {Array} remotePlayers
-   * @private
-   */
   _syncRemoteEntities(remotePlayers) {
     for (const rPlayer of remotePlayers) {
       const remoteId = rPlayer.id ?? rPlayer.entityId;
-      // Skip local player (matched by numeric id)
       if (this.localEntity?.player && remoteId === this.localEntity.player.id) continue;
 
       let exists = false;
       for (const entity of this.ecsWorld.with('player')) {
-        if (entity.player && entity.player.id === remoteId) {
+        if (entity.player?.id === remoteId) {
           exists = true;
           break;
         }
@@ -192,10 +167,7 @@ export class ClientGame {
           false,
           false
         );
-        // Force numeric id from snapshot so future matches work
-        if (remoteEntity.player) {
-          remoteEntity.player.id = remoteId;
-        }
+        if (remoteEntity.player) remoteEntity.player.id = remoteId;
         this.playerEntities.push(remoteEntity);
       }
     }
@@ -203,27 +175,24 @@ export class ClientGame {
 
   _updateHUD() {
     if (!this.localEntity) return;
-
     const playerComp = this.localEntity.player;
     const weaponComp = this.localEntity.weapon;
-
     if (playerComp) {
       this.hud.updateHealth(playerComp.health, playerComp.maxHealth || 100);
       this.hud.setDeathOverlay(playerComp.isDead);
     }
-
     if (weaponComp) {
-      const ammo = weaponComp.ammo ?? weaponComp.currentAmmo ?? 0;
-      const maxAmmo = weaponComp.maxAmmo ?? 12;
-      this.hud.updateAmmo(ammo, maxAmmo);
+      this.hud.updateAmmo(
+        weaponComp.ammo ?? weaponComp.currentAmmo ?? 0,
+        weaponComp.maxAmmo ?? 12
+      );
     }
   }
 
   stop() {
     this.isRunning = false;
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-    }
+    if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
+    this.renderSystem?.dispose();
     this.hud.dispose();
     this.sceneManager.dispose();
     this.peerManager.destroy();

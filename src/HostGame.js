@@ -15,14 +15,9 @@ import { RenderSystem } from './ecs/systems/RenderSystem.js';
 import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
 
 /**
- * HostGame
- * Orchestrates the authoritative host session: full ECS pipeline, physics,
- * client connection management, and local render loop.
+ * HostGame — authoritative host session.
  */
 export class HostGame {
-  /**
-   * @param {HTMLElement} containerElement
-   */
   constructor(containerElement) {
     this.container = containerElement;
 
@@ -38,26 +33,20 @@ export class HostGame {
     this.lastFrameTime = performance.now();
     this.accumulatedTime = 0;
     this.fixedDeltaTime =
-      1 /
-      (NETWORK_CONFIG?.SERVER_TICK_RATE || GAME_CONFIG?.TICK_RATE || 60);
+      1 / (NETWORK_CONFIG?.SERVER_TICK_RATE || GAME_CONFIG?.TICK_RATE || 60);
 
     this.isRunning = false;
     this.animationFrameId = null;
   }
 
-  /**
-   * @returns {Promise<string>} Host Room/Peer ID
-   */
   async initialize() {
     await this.physicsWorld.init();
 
     this.inputSystem = new InputSystem(this.container);
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
     this.healthSystem = new HealthSystem(this.physicsWorld);
-    this.renderSystem = new RenderSystem(
-      this.sceneManager.scene,
-      this.sceneManager.camera
-    );
+    // Pass SceneManager so RenderSystem owns camera + weapon viewmodel
+    this.renderSystem = new RenderSystem(this.sceneManager);
     this.hostNetworkSystem = new HostNetworkSystem(this.peerManager);
 
     createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
@@ -75,16 +64,10 @@ export class HostGame {
 
     const hostRoomId = await this.peerManager.initHost();
 
-    this.peerManager.onConnect((peerId) => {
-      this._handleClientConnect(peerId);
-    });
-
-    this.peerManager.onDisconnect((peerId) => {
-      this._handleClientDisconnect(peerId);
-    });
+    this.peerManager.onConnect((peerId) => this._handleClientConnect(peerId));
+    this.peerManager.onDisconnect((peerId) => this._handleClientDisconnect(peerId));
 
     this.hud.setVisible(true);
-
     return hostRoomId;
   }
 
@@ -101,7 +84,6 @@ export class HostGame {
 
     const frameDelta = (currentTime - this.lastFrameTime) / 1000;
     this.lastFrameTime = currentTime;
-
     this.accumulatedTime += Math.min(frameDelta, 0.25);
 
     if (this.localEntity) {
@@ -115,25 +97,20 @@ export class HostGame {
     }
 
     this.hostNetworkSystem.update(this.ecsWorld, currentTime);
-
-    this.renderSystem.update(this.ecsWorld, this.localEntity);
+    this.renderSystem.update(this.ecsWorld, this.localEntity, currentTime);
     this.sceneManager.render();
-
     this._updateHUD();
 
     this.animationFrameId = requestAnimationFrame(this._gameLoop);
   }
 
   _handleClientConnect(peerId) {
-    const spawnIndex = this.peerManager.connections
-      ? this.peerManager.connections.size
-      : 1;
+    const spawnIndex = this.peerManager.connections?.size || 1;
     const spawnPos = {
       x: (spawnIndex % 2 === 0 ? 1 : -1) * 4,
       y: 3,
       z: Math.floor(spawnIndex / 2) * 4,
     };
-
     createPlayer(
       this.ecsWorld,
       this.physicsWorld,
@@ -146,9 +123,8 @@ export class HostGame {
   }
 
   _handleClientDisconnect(peerId) {
-    const players = this.ecsWorld.with('player');
-    for (const entity of players) {
-      if (entity.player && entity.player.peerId === peerId) {
+    for (const entity of this.ecsWorld.with('player')) {
+      if (entity.player?.peerId === peerId) {
         if (entity.physics) {
           if (entity.physics.collider) {
             this.physicsWorld.world.removeCollider(entity.physics.collider, true);
@@ -168,27 +144,24 @@ export class HostGame {
 
   _updateHUD() {
     if (!this.localEntity) return;
-
     const playerComp = this.localEntity.player;
     const weaponComp = this.localEntity.weapon;
-
     if (playerComp) {
       this.hud.updateHealth(playerComp.health, playerComp.maxHealth || 100);
       this.hud.setDeathOverlay(playerComp.isDead);
     }
-
     if (weaponComp) {
-      const ammo = weaponComp.ammo ?? weaponComp.currentAmmo ?? 0;
-      const maxAmmo = weaponComp.maxAmmo ?? 12;
-      this.hud.updateAmmo(ammo, maxAmmo);
+      this.hud.updateAmmo(
+        weaponComp.ammo ?? weaponComp.currentAmmo ?? 0,
+        weaponComp.maxAmmo ?? 12
+      );
     }
   }
 
   stop() {
     this.isRunning = false;
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-    }
+    if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
+    this.renderSystem?.dispose();
     this.hud.dispose();
     this.sceneManager.dispose();
     this.peerManager.destroy();
