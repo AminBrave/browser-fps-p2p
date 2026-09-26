@@ -2,8 +2,11 @@
 
 import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
+import { GAME_CONFIG } from '../../config/constants.js';
 
-/** Instant tracer from muzzle to impact */
+/** @type {object[]} permanent impact entities for FIFO cap */
+const _permanentDecals = [];
+
 export function createBullet(ecsWorld, sceneOrManager, startPos, endPos) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
 
@@ -31,8 +34,8 @@ export function createBullet(ecsWorld, sceneOrManager, startPos, endPos) {
 }
 
 /**
- * Persistent-looking bullet hole / burn mark on surface.
- * Lives several seconds so impacts are clearly visible.
+ * Permanent bullet hole oriented to surface normal (camera sees it on that face).
+ * Never auto-removed; oldest dropped when MAX_DECALS exceeded.
  */
 export function createImpactDecal(
   ecsWorld,
@@ -42,79 +45,91 @@ export function createImpactDecal(
 ) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
 
-  const group = new THREE.Group();
-  // Offset slightly along normal to avoid z-fighting
   const n = new THREE.Vector3(normal.x, normal.y, normal.z);
-  if (n.lengthSq() < 0.01) n.set(0, 1, 0);
+  if (n.lengthSq() < 1e-6) n.set(0, 1, 0);
   n.normalize();
 
+  const group = new THREE.Group();
+  // Sit slightly off the surface along the normal to avoid z-fight
   group.position.set(
-    position.x + n.x * 0.02,
-    position.y + n.y * 0.02,
-    position.z + n.z * 0.02
+    position.x + n.x * 0.025,
+    position.y + n.y * 0.025,
+    position.z + n.z * 0.025
   );
 
-  // Dark bullet hole
-  const hole = new THREE.Mesh(
-    new THREE.CircleGeometry(0.07, 16),
-    new THREE.MeshBasicMaterial({
-      color: 0x1a120c,
-      transparent: true,
-      opacity: 0.92,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-    })
-  );
-  // Orient circle to face outward along normal
-  hole.lookAt(n.clone().add(new THREE.Vector3()));
-  // lookAt makes local +Z face target; we want plane along normal
-  hole.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+  // Align local +Z with surface normal so the disc lies on the plane
+  group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+
+  const holeMat = new THREE.MeshBasicMaterial({
+    color: 0x1a1008,
+    transparent: true,
+    opacity: 0.95,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+  });
+  const hole = new THREE.Mesh(new THREE.CircleGeometry(0.08, 18), holeMat);
   group.add(hole);
 
-  // Scorch ring
-  const scorch = new THREE.Mesh(
-    new THREE.RingGeometry(0.06, 0.14, 20),
-    new THREE.MeshBasicMaterial({
-      color: 0x3d2a1a,
-      transparent: true,
-      opacity: 0.75,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-    })
-  );
-  scorch.quaternion.copy(hole.quaternion);
+  const scorchMat = new THREE.MeshBasicMaterial({
+    color: 0x3a2818,
+    transparent: true,
+    opacity: 0.7,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+  });
+  const scorch = new THREE.Mesh(new THREE.RingGeometry(0.07, 0.16, 22), scorchMat);
   group.add(scorch);
 
-  // Brief bright flash core
+  // Brief flash (this one CAN fade via a short lifespan flag on a child only)
   const flash = new THREE.Mesh(
-    new THREE.SphereGeometry(0.04, 6, 6),
+    new THREE.SphereGeometry(0.035, 6, 6),
     new THREE.MeshBasicMaterial({
       color: 0xffaa44,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.95,
     })
   );
+  flash.name = 'impactFlash';
   group.add(flash);
 
   if (scene?.add) scene.add(group);
 
-  return ecsWorld.add({
+  const entity = ecsWorld.add({
     isImpact: true,
+    isPermanentDecal: true,
     transform: createTransform(position.x, position.y, position.z),
     renderMesh: { mesh: group },
-    lifespan: {
-      createdAt: performance.now(),
-      durationMs: 8000, // long-lived decal
-      flashDurationMs: 120,
-    },
+    // Only the flash fades; decal itself is permanent (no entity removal)
+    impactFlashUntil: performance.now() + 100,
   });
+
+  _permanentDecals.push(entity);
+  const max = GAME_CONFIG.MAX_DECALS || 400;
+  while (_permanentDecals.length > max) {
+    const old = _permanentDecals.shift();
+    if (old?.renderMesh?.mesh) {
+      scene?.remove(old.renderMesh.mesh);
+      old.renderMesh.mesh.traverse?.((c) => {
+        c.geometry?.dispose();
+        c.material?.dispose?.();
+      });
+    }
+    try {
+      ecsWorld.remove(old);
+    } catch {
+      /* already gone */
+    }
+  }
+
+  return entity;
 }
 
-/** @deprecated use createImpactDecal */
 export function createImpact(ecsWorld, sceneOrManager, position, normal) {
   return createImpactDecal(ecsWorld, sceneOrManager, position, normal);
 }
