@@ -2,9 +2,6 @@
 
 import { DEFAULT_WEAPON, FIRE_MODE, WEAPON_LOADOUT } from '../../config/constants.js';
 
-/**
- * Build weapon runtime state from a config preset.
- */
 export function createWeapon(config = DEFAULT_WEAPON) {
   const mag = config.MAGAZINE_SIZE ?? 12;
   const reserve = config.RESERVE_AMMO ?? mag * 3;
@@ -40,7 +37,6 @@ export function createWeapon(config = DEFAULT_WEAPON) {
     spreadDecay: config.SPREAD_DECAY ?? 0.12,
     pelletCount: config.PELLETS ?? 1,
 
-    // Runtime accuracy state
     currentSpread: 0,
     shotsInBurst: 0,
     shootHeldPrev: false,
@@ -54,15 +50,24 @@ export function createWeapon(config = DEFAULT_WEAPON) {
   };
 }
 
-/** Full 4-weapon loadout; active slot index */
+// Ensure pelletCount reads PELLETS key from config
+export function createWeaponFixed(config = DEFAULT_WEAPON) {
+  const w = createWeapon(config);
+  w.pelletCount = config.PELLETS ?? config.PELLETS ?? 1;
+  return w;
+}
+
 export function createLoadout() {
   return {
-    slots: WEAPON_LOADOUT.map((cfg) => createWeapon(cfg)),
+    slots: WEAPON_LOADOUT.map((cfg) => {
+      const w = createWeapon(cfg);
+      w.pelletCount = cfg.PELLETS ?? 1;
+      return w;
+    }),
     active: 0,
   };
 }
 
-/** Copy config into an existing weapon object (used when switching) */
 export function copyWeaponState(target, source) {
   const keys = [
     'typeId', 'slot', 'name',

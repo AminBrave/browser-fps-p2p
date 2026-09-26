@@ -113,7 +113,11 @@ export class ClientGame {
 
     while (this.accumulatedTime >= this.fixedDeltaTime) {
       this.physicsSystem.update(this.ecsWorld, this.fixedDeltaTime);
-      this.weaponSystem.update(this.ecsWorld, performance.now());
+      this.weaponSystem.update(
+        this.ecsWorld,
+        performance.now(),
+        this.fixedDeltaTime
+      );
       this.accumulatedTime -= this.fixedDeltaTime;
     }
 
@@ -205,10 +209,12 @@ export class ClientGame {
     }
     if (w) {
       this.hud.updateAmmo(
-        w.magazine ?? w.ammo ?? 0,
+        w.magazine ?? 0,
         w.reserveAmmo ?? 0,
         !!w.isReloading,
-        w.fireMode
+        w.fireMode,
+        w.name,
+        this.localEntity.loadout?.active ?? 0
       );
     }
   }

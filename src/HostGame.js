@@ -36,7 +36,6 @@ export class HostGame {
     this.isRunning = false;
     this.animationFrameId = null;
 
-    // Unlock audio on first click
     const unlock = () => {
       audio.unlock();
       window.removeEventListener('click', unlock);
@@ -101,7 +100,11 @@ export class HostGame {
 
     while (this.accumulatedTime >= this.fixedDeltaTime) {
       this.physicsSystem.update(this.ecsWorld, this.fixedDeltaTime);
-      this.weaponSystem.update(this.ecsWorld, performance.now());
+      this.weaponSystem.update(
+        this.ecsWorld,
+        performance.now(),
+        this.fixedDeltaTime
+      );
       this.healthSystem.update(this.ecsWorld);
       this.accumulatedTime -= this.fixedDeltaTime;
     }
@@ -160,10 +163,12 @@ export class HostGame {
     }
     if (w) {
       this.hud.updateAmmo(
-        w.magazine ?? w.ammo ?? 0,
+        w.magazine ?? 0,
         w.reserveAmmo ?? 0,
         !!w.isReloading,
-        w.fireMode
+        w.fireMode,
+        w.name,
+        this.localEntity.loadout?.active ?? 0
       );
     }
   }

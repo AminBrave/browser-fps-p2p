@@ -41,13 +41,30 @@ export class RenderSystem {
     const dt = Math.min(0.05, (now - this._lastTime) / 1000);
     this._lastTime = now;
 
-    let localEntity =
-      localEntityArg?.transform ? localEntityArg : null;
+    let localEntity = localEntityArg?.transform ? localEntityArg : null;
 
     for (const entity of ecsWorld.with('transform', 'renderMesh')) {
       const transform = entity.transform;
       const renderMesh = entity.renderMesh;
       const lifespan = entity.lifespan;
+
+      // Permanent decals: only fade the flash sphere, never remove
+      if (entity.isPermanentDecal && renderMesh?.mesh) {
+        if (entity.impactFlashUntil && now < entity.impactFlashUntil) {
+          const t = 1 - (entity.impactFlashUntil - now) / 100;
+          renderMesh.mesh.traverse((c) => {
+            if (c.name === 'impactFlash' && c.material) {
+              c.material.opacity = Math.max(0, 1 - t);
+            }
+          });
+        } else if (entity.impactFlashUntil && now >= entity.impactFlashUntil) {
+          renderMesh.mesh.traverse((c) => {
+            if (c.name === 'impactFlash') c.visible = false;
+          });
+          entity.impactFlashUntil = 0;
+        }
+        continue;
+      }
 
       if (lifespan) {
         const elapsed = now - lifespan.createdAt;
@@ -67,15 +84,6 @@ export class RenderSystem {
           ecsWorld.remove(entity);
           continue;
         }
-        // Fade impact flash quickly; decals stay opaque longer
-        if (entity.isImpact && renderMesh?.mesh) {
-          const flashMs = lifespan.flashDurationMs || 100;
-          renderMesh.mesh.traverse((c) => {
-            if (c.material && c.geometry?.type === 'SphereGeometry') {
-              c.material.opacity = Math.max(0, 1 - elapsed / flashMs);
-            }
-          });
-        }
         if (entity.isBullet && renderMesh?.mesh?.material) {
           renderMesh.mesh.material.opacity = 1 - elapsed / lifespan.durationMs;
         }
@@ -86,7 +94,7 @@ export class RenderSystem {
         renderMesh.mesh.visible = false;
         continue;
       }
-      if (entity.isBullet || entity.isImpact) continue; // already in world space
+      if (entity.isBullet || entity.isImpact) continue;
 
       renderMesh.mesh.position.set(
         transform.position.x,
@@ -119,9 +127,8 @@ export class RenderSystem {
         transform.position.z
       );
 
-      // Recover camera punch
       if (weapon) {
-        const recovery = (GAME_CONFIG.RECOIL_RECOVERY || 8) * dt;
+        const recovery = (GAME_CONFIG.RECOIL_RECOVERY || 10) * dt;
         if (weapon.cameraRecoilPitch) {
           const d = Math.min(Math.abs(weapon.cameraRecoilPitch), recovery);
           weapon.cameraRecoilPitch -=
@@ -134,10 +141,11 @@ export class RenderSystem {
         }
       }
 
+      // Visual punch only — does not affect hitscan aim angles stored on input
       const pitch =
-        (input.pitch || 0) + (weapon?.cameraRecoilPitch || 0) * 0.25;
+        (input.pitch || 0) + (weapon?.cameraRecoilPitch || 0) * 0.2;
       const yaw =
-        (input.yaw || 0) + (weapon?.cameraRecoilYaw || 0) * 0.25;
+        (input.yaw || 0) + (weapon?.cameraRecoilYaw || 0) * 0.2;
 
       this._euler.set(pitch, yaw, 0, 'YXZ');
       this.camera.quaternion.setFromEuler(this._euler);
@@ -145,11 +153,6 @@ export class RenderSystem {
       if (this.weaponViewModel) {
         const isDead = !!localEntity.player?.isDead;
         this.weaponViewModel.setVisible(!isDead);
-        this.weaponViewModel.update(
-          dt,
-          false, // bob driven below with movement
-          !!weapon?.isReloading
-        );
 
         const mask = input.inputMask || 0;
         const isMoving =
@@ -158,29 +161,20 @@ export class RenderSystem {
           hasFlag(mask, INPUT_FLAGS.LEFT) ||
           hasFlag(mask, INPUT_FLAGS.RIGHT);
 
-        // Re-apply bob with movement (update already ran — call again lightly via flags)
-        this.weaponViewModel.update(0, isMoving, !!weapon?.isReloading);
+        this.weaponViewModel.update(dt, isMoving, !!weapon?.isReloading);
 
         const grounded = physics?.isGrounded !== false;
         audio.updateFootsteps(dt, isMoving, grounded);
-
         if (!this._wasGrounded && grounded) audio.playLand();
-        if (
-          this._wasGrounded &&
-          !grounded &&
-          hasFlag(mask, INPUT_FLAGS.JUMP)
-        ) {
+        if (this._wasGrounded && !grounded && hasFlag(mask, INPUT_FLAGS.JUMP)) {
           audio.playJump();
         }
         this._wasGrounded = grounded;
       }
 
-      // Unlock audio on first frame after pointer activity
-      if (!this._audioUnlocked && typeof document !== 'undefined') {
-        if (document.pointerLockElement) {
-          audio.unlock();
-          this._audioUnlocked = true;
-        }
+      if (!this._audioUnlocked && document.pointerLockElement) {
+        audio.unlock();
+        this._audioUnlocked = true;
       }
     }
   }
