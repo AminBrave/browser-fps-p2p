@@ -20,90 +20,77 @@ import { CircularBuffer } from './utils/CircularBuffer.js';
 
 /**
  * ClientGame
- * Orchestrates the client session, executing local input prediction, state reconciliation
+ * Orchestrates the client session: local input prediction, state reconciliation
  * against authoritative host snapshots, entity interpolation for remote players, and local rendering.
  */
 export class ClientGame {
   /**
-   * @param {HTMLElement} containerElement - Parent DOM element for WebGL scene.
+   * @param {HTMLElement} containerElement
    */
   constructor(containerElement) {
     this.container = containerElement;
 
-    // Core Subsystems
     this.ecsWorld = new World();
     this.physicsWorld = new PhysicsWorld();
     this.sceneManager = new SceneManager(this.container);
     this.peerManager = new PeerManager();
     this.hud = new HUD();
 
-    // Client tracking
     this.localPlayerId = null;
     this.localEntity = null;
     this.playerEntities = [];
 
-    // Netcode prediction history buffer
     this.pendingInputBuffer = new CircularBuffer(128);
 
-    // Fixed timestep control
     this.lastFrameTime = performance.now();
     this.accumulatedTime = 0;
-    this.fixedDeltaTime = 1 / GAME_CONFIG.TICK_RATE;
+    this.fixedDeltaTime = 1 / (GAME_CONFIG.TICK_RATE || 60);
 
-    // Execution loop control
     this.isRunning = false;
     this.animationFrameId = null;
   }
 
   /**
-   * Initializes local client, connects to WebRTC host peer, and sets up network handlers.
-   * 
-   * @param {string} hostRoomId - Peer ID of the Host session.
+   * @param {string} hostRoomId
    * @returns {Promise<void>}
    */
   async initialize(hostRoomId) {
-    // 1. Initialize client-side prediction physics world WASM
     await this.physicsWorld.init();
 
-    // 2. Instantiate ECS Systems
     this.inputSystem = new InputSystem(this.container);
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
     this.renderSystem = new RenderSystem(this.sceneManager.scene, this.sceneManager.camera);
-    
+
     this.predictSystem = new ClientPredictSystem(this.physicsWorld, this.pendingInputBuffer);
     this.reconcileSystem = new ClientReconcileSystem(this.physicsWorld, this.pendingInputBuffer);
     this.interpolationSystem = new InterpolationSystem();
 
-    // 3. Setup static environment geometry
-    createMap(this.ecsWorld, this.physicsWorld, this.sceneManager.scene);
+    // Pass SceneManager so createMap can use .scene consistently
+    createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
 
-    // 4. Connect WebRTC P2P to Host
+    // initializeClient now resolves with local PeerJS id
     this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
 
-    // Register network packet listeners
-    this.peerManager.onData((data) => {
-      this._handleServerPacket(data);
+    // PeerManager always invokes (peerId, dataView) — ignore peerId on client (only host talks)
+    this.peerManager.onData((_peerId, dataView) => {
+      this._handleServerPacket(dataView);
     });
 
-    // Spawn local player prediction entity
     const spawnPos = { x: 0, y: 3, z: 0 };
     this.localEntity = createPlayer(
       this.ecsWorld,
       this.physicsWorld,
-      this.sceneManager.scene,
+      this.sceneManager,
       this.localPlayerId,
       spawnPos,
-      true
+      true,
+      false
     );
     this.playerEntities.push(this.localEntity);
 
-    // Display client HUD
     this.hud.setVisible(true);
   }
 
-  /**
-   * Starts the client execution and rendering loop.
-   */
   start() {
     if (this.isRunning) return;
     this.isRunning = true;
@@ -112,11 +99,6 @@ export class ClientGame {
     this.animationFrameId = requestAnimationFrame(this._gameLoop);
   }
 
-  /**
-   * Client loop performing local input sampling, client prediction, WebRTC transmission,
-   * interpolation of remote entities, and scene rendering.
-   * @private
-   */
   _gameLoop(currentTime) {
     if (!this.isRunning) return;
 
@@ -125,31 +107,22 @@ export class ClientGame {
 
     this.accumulatedTime += Math.min(frameDelta, 0.25);
 
-    // 1. Process inputs and sample payload
     const inputPayload = this.inputSystem.update(this.ecsWorld, this.localEntity);
 
     if (inputPayload && this.localEntity) {
       inputPayload.deltaTime = this.fixedDeltaTime;
 
-      // Predict local movement step on physics body
-      if (typeof this.predictSystem.update === 'function') {
-        this.predictSystem.update(this.ecsWorld, this.localEntity, this.fixedDeltaTime);
-      }
+      this.predictSystem.update(this.ecsWorld, this.localEntity, this.fixedDeltaTime);
 
-      // Transmit input payload to Host over WebRTC DataChannel
       const encodedInput = Protocol.encodeInput(inputPayload);
-      if (typeof this.peerManager.sendToHost === 'function') {
-        this.peerManager.sendToHost(encodedInput);
-      }
+      this.peerManager.sendToHost(encodedInput);
     }
 
-    // Fixed timestep step for client prediction engine physics
     while (this.accumulatedTime >= this.fixedDeltaTime) {
       this.physicsSystem.update(this.ecsWorld, this.fixedDeltaTime);
       this.accumulatedTime -= this.fixedDeltaTime;
     }
 
-    // 2. Interpolate remote player states using snapshot buffer
     this.interpolationSystem.update(
       this.ecsWorld,
       this.playerEntities,
@@ -157,60 +130,48 @@ export class ClientGame {
       currentTime
     );
 
-    // 3. Synchronize visual meshes & render
     this.renderSystem.update(this.ecsWorld, this.localEntity);
+    this.sceneManager.render();
 
-    // 4. Synchronize HUD
     this._updateHUD();
 
     this.animationFrameId = requestAnimationFrame(this._gameLoop);
   }
 
   /**
-   * Decodes incoming network packets sent by the Host.
+   * @param {DataView} dataView
    * @private
    */
-  _handleServerPacket(data) {
-    const packetType = Protocol.getPacketType(data);
+  _handleServerPacket(dataView) {
+    const packetType = Protocol.getPacketType(dataView);
 
-    if (packetType === PACKET_TYPES.STATE_SNAPSHOT) {
-      const snapshot = Protocol.decodeSnapshot ? Protocol.decodeSnapshot(data) : Protocol.decodeWorldSnapshot(data);
-
+    if (packetType === PACKET_TYPES.WORLD_SNAPSHOT || packetType === PACKET_TYPES.STATE_SNAPSHOT) {
+      const snapshot = Protocol.decodeWorldSnapshot(dataView);
       if (!snapshot) return;
 
-      // Store snapshot in buffer for remote entity LERP interpolation
-      if (typeof this.interpolationSystem.addSnapshot === 'function') {
-        this.interpolationSystem.addSnapshot(snapshot);
+      this.interpolationSystem.addSnapshot(snapshot);
+
+      if (this.localEntity) {
+        this.reconcileSystem.update(this.ecsWorld, this.localEntity, snapshot);
       }
 
-      // Perform Authoritative Host Reconciliation for local predicted player state
-      if (this.localEntity !== null) {
-        this.reconcileSystem.update(
-          this.ecsWorld,
-          this.localEntity,
-          snapshot
-        );
-      }
-
-      // Synchronize remote player entity registration
       const playersList = snapshot.players || snapshot.entities || [];
       this._syncRemoteEntities(playersList);
     }
   }
 
   /**
-   * Dynamically instantiates or cleans up remote player entities derived from host state snapshots.
+   * @param {Array} remotePlayers
    * @private
    */
   _syncRemoteEntities(remotePlayers) {
     for (const rPlayer of remotePlayers) {
-      const remoteId = rPlayer.id || rPlayer.entityId;
-      if (remoteId === this.localPlayerId) continue;
+      const remoteId = rPlayer.id ?? rPlayer.entityId;
+      // Skip local player (matched by numeric id)
+      if (this.localEntity?.player && remoteId === this.localEntity.player.id) continue;
 
       let exists = false;
-      const players = this.ecsWorld.with('player');
-
-      for (const entity of players) {
+      for (const entity of this.ecsWorld.with('player')) {
         if (entity.player && entity.player.id === remoteId) {
           exists = true;
           break;
@@ -221,20 +182,25 @@ export class ClientGame {
         const remoteEntity = createPlayer(
           this.ecsWorld,
           this.physicsWorld,
-          this.sceneManager.scene,
+          this.sceneManager,
           remoteId,
-          rPlayer.position || { x: rPlayer.x || 0, y: rPlayer.y || 3, z: rPlayer.z || 0 },
+          rPlayer.position || {
+            x: rPlayer.x || 0,
+            y: rPlayer.y || 3,
+            z: rPlayer.z || 0,
+          },
+          false,
           false
         );
+        // Force numeric id from snapshot so future matches work
+        if (remoteEntity.player) {
+          remoteEntity.player.id = remoteId;
+        }
         this.playerEntities.push(remoteEntity);
       }
     }
   }
 
-  /**
-   * Updates Client HUD.
-   * @private
-   */
   _updateHUD() {
     if (!this.localEntity) return;
 
@@ -242,18 +208,17 @@ export class ClientGame {
     const weaponComp = this.localEntity.weapon;
 
     if (playerComp) {
-      this.hud.updateHealth(playerComp.health, playerComp.maxHealth);
+      this.hud.updateHealth(playerComp.health, playerComp.maxHealth || 100);
       this.hud.setDeathOverlay(playerComp.isDead);
     }
 
     if (weaponComp) {
-      this.hud.updateAmmo(weaponComp.ammo, weaponComp.maxAmmo);
+      const ammo = weaponComp.ammo ?? weaponComp.currentAmmo ?? 0;
+      const maxAmmo = weaponComp.maxAmmo ?? 12;
+      this.hud.updateAmmo(ammo, maxAmmo);
     }
   }
 
-  /**
-   * Stops loop and destroys allocated client resources.
-   */
   stop() {
     this.isRunning = false;
     if (this.animationFrameId) {

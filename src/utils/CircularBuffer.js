@@ -1,7 +1,7 @@
 // src/utils/CircularBuffer.js
 
 /**
- * Fixed-size Circular Buffer (Ring Buffer) for storing historical client inputs 
+ * Fixed-size Circular Buffer (Ring Buffer) for storing historical client inputs
  * and predicted entity states for client-side prediction and server reconciliation.
  */
 export class CircularBuffer {
@@ -11,14 +11,14 @@ export class CircularBuffer {
   constructor(capacity) {
     this.capacity = capacity;
     this.buffer = new Array(capacity);
-    this.head = 0; // Points to the next write position
-    this.tail = 0; // Points to the oldest item
+    this.head = 0;
+    this.tail = 0;
     this.size = 0;
   }
 
   /**
    * Appends an item to the buffer. Overwrites the oldest item if full.
-   * @param {*} item - Data frame to push.
+   * @param {*} item
    */
   push(item) {
     this.buffer[this.head] = item;
@@ -27,15 +27,36 @@ export class CircularBuffer {
     if (this.size < this.capacity) {
       this.size++;
     } else {
-      // Buffer is full; advance tail to drop oldest entry
       this.tail = (this.tail + 1) % this.capacity;
     }
   }
 
   /**
+   * Peek at the oldest item without removing it.
+   * @returns {*|null}
+   */
+  peek() {
+    if (this.size === 0) return null;
+    return this.buffer[this.tail];
+  }
+
+  /**
+   * Remove and return the oldest item.
+   * @returns {*|null}
+   */
+  shift() {
+    if (this.size === 0) return null;
+    const item = this.buffer[this.tail];
+    this.buffer[this.tail] = null;
+    this.tail = (this.tail + 1) % this.capacity;
+    this.size--;
+    return item;
+  }
+
+  /**
    * Retrieves an item relative to current head index (0 = newest item).
-   * @param {number} offset - Offset backwards from newest item.
-   * @returns {*} Item stored at index, or null if offset is out of bounds.
+   * @param {number} offset
+   * @returns {*|null}
    */
   get(offset = 0) {
     if (offset < 0 || offset >= this.size) return null;
@@ -44,8 +65,22 @@ export class CircularBuffer {
   }
 
   /**
-   * Removes and discards all items up to and including the specified sequence/tick number.
-   * @param {function(item): boolean} predicate - Callback returning true for items to discard.
+   * Returns a chronological array (oldest → newest) of all items.
+   * Used by ClientReconcileSystem for re-simulation.
+   * @returns {Array}
+   */
+  toArray() {
+    const result = [];
+    for (let i = 0; i < this.size; i++) {
+      const index = (this.tail + i) % this.capacity;
+      result.push(this.buffer[index]);
+    }
+    return result;
+  }
+
+  /**
+   * Removes and discards all items for which predicate returns true (from oldest).
+   * @param {function(item): boolean} predicate
    */
   discardUpTo(predicate) {
     while (this.size > 0) {
@@ -60,9 +95,6 @@ export class CircularBuffer {
     }
   }
 
-  /**
-   * Resets the buffer state without reallocating array memory.
-   */
   clear() {
     this.head = 0;
     this.tail = 0;

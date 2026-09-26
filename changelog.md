@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.3] - 2026-09-26
+
+### Fixed (comprehensive runtime bug pass)
+
+* **Constants:**
+  * Added missing `GAME_CONFIG.TICK_RATE`, `FOV`, `NEAR_PLANE`, `FAR_PLANE`, `INTERPOLATION_DELAY_MS`, `RECONCILIATION_THRESHOLD` (prevented NaN camera and broken fixed timestep).
+  * Added `peerIdToNumeric()` for stable numeric entity IDs from PeerJS string IDs.
+
+* **Player / Weapon identity:**
+  * `createPlayer` now hashes peer ID strings to unique numeric `player.id` values so host snapshots and client reconciliation can match entities.
+  * Weapon component exposes both `ammo` and `currentAmmo` (HUD was reading `weapon.ammo` which was always undefined).
+  * Player component includes `maxHealth`.
+
+* **PeerManager:**
+  * `initClient` / `initializeClient` now resolves with the local PeerJS id (was resolving `undefined`).
+  * Added `sendToHost()` used by ClientGame.
+  * Stores `hostPeerId` for reliable client→host sends.
+
+* **Protocol:**
+  * Added `getPacketType()`, `encodeInput(payload object)`, `decodeSnapshot` alias.
+  * `decodeWorldSnapshot` accepts ArrayBuffer or DataView, stamps `timestamp`, and provides `players` alias.
+  * `PACKET_TYPES.STATE_SNAPSHOT` alias for `WORLD_SNAPSHOT`.
+
+* **CircularBuffer:**
+  * Added `peek()`, `shift()`, `toArray()` required by ClientReconcileSystem.
+
+* **ClientPredictSystem / InterpolationSystem:**
+  * Fully migrated to Miniplex v2 entity objects (removed non-existent `ecsWorld.getComponent`).
+  * Rapier API fallbacks for `computedMovement` / `computedGrounded`.
+  * Interpolation uses entity object arrays and snapshot `players`/`entities` + timestamps.
+
+* **ClientGame:**
+  * Fixed `onData` callback signature `(peerId, dataView)`.
+  * Fixed Protocol encode/decode calls and packet type checks.
+  * Passes SceneManager consistently into `createMap` / `createPlayer`.
+  * Calls `sceneManager.render()` in the client loop.
+  * Remote entity sync matches on numeric id.
+
+* **HostNetworkSystem:**
+  * Constructor no longer mis-treats physicsWorld as Protocol.
+  * Matches remote inputs by `player.peerId`.
+  * Rate-limits snapshot broadcast to ~30 Hz.
+  * Uses latest input per tick instead of only shifting one frame.
+
+* **HostGame:**
+  * Disconnect cleanup matches on `peerId`.
+  * Consistent SceneManager usage and HUD ammo aliases.
+
+---
+
 ## [1.0.2] - 2026-09-26
 
 ### Fixed

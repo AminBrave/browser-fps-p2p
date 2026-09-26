@@ -10,34 +10,26 @@ import { Protocol } from '../../../network/Protocol.js';
  */
 export class HostNetworkSystem {
   /**
-   * @param {object} peerManager - The WebRTC PeerManager instance.
-   * @param {object} [protocol] - Protocol utility for binary packet encoding/decoding.
+   * @param {object} peerManager
+   * @param {object} [_unused] - kept for call-site compatibility (was physicsWorld)
    */
-  constructor(peerManager, protocol) {
+  constructor(peerManager, _unused) {
     this.peerManager = peerManager;
-    this.protocol = protocol || Protocol;
-    this.incomingInputs = new Map(); // Map<peerId, Array<{inputMask, yaw, pitch, sequence}>>
+    this.protocol = Protocol;
+    this.incomingInputs = new Map();
     this.serverTick = 0;
+    this.lastBroadcastTime = 0;
+    this.broadcastIntervalMs = 1000 / 30; // SNAPSHOT_BROADCAST_RATE
 
     this._setupNetworkListeners();
   }
 
-  /**
-   * Registers WebRTC data channel event listeners for incoming client packet streams.
-   * @private
-   */
   _setupNetworkListeners() {
     this.peerManager.onData((peerId, dataView) => {
       const packetType = dataView.getUint8(0);
 
       if (packetType === PACKET_TYPES.CLIENT_INPUT) {
-        // Support both decodeClientInput and decodeInput aliases
-        const decodeMethod = this.protocol.decodeClientInput 
-          || this.protocol.decodeInput 
-          || Protocol.decodeClientInput;
-          
-        const inputData = decodeMethod.call(this.protocol, dataView);
-        
+        const inputData = Protocol.decodeClientInput(dataView);
         if (!this.incomingInputs.has(peerId)) {
           this.incomingInputs.set(peerId, []);
         }
@@ -47,32 +39,24 @@ export class HostNetworkSystem {
   }
 
   /**
-   * System update loop executed every server tick frame.
-   * Consumes queued client input commands and broadcasts world snapshots.
-   * 
-   * @param {object} ecsWorld - The Miniplex ECS world instance.
-   * @param {number} [currentTime] - Current performance frame timestamp or server tick.
+   * @param {object} ecsWorld
+   * @param {number} [currentTime]
    */
   update(ecsWorld, currentTime) {
     this.serverTick++;
 
-    // Query active player entities in Miniplex v2
     const players = ecsWorld.with('player', 'transform', 'input');
 
-    // 1. Consume and apply incoming client inputs to corresponding remote player entities
+    // 1. Apply latest queued inputs to remote players (match by peerId string)
     for (const entity of players) {
       const playerComp = entity.player;
       const inputComp = entity.input;
-
-      if (!playerComp || !inputComp) continue;
-
-      // Skip local host player entity as local InputSystem handles it directly
-      if (playerComp.isLocal) continue;
+      if (!playerComp || !inputComp || playerComp.isLocal) continue;
 
       const queue = this.incomingInputs.get(playerComp.peerId);
       if (queue && queue.length > 0) {
-        // Process latest incoming input command from client stream
-        const latestInput = queue.shift();
+        const latestInput = queue[queue.length - 1];
+        queue.length = 0; // drop older frames; keep only latest for this tick
         inputComp.inputMask = latestInput.inputMask;
         inputComp.yaw = latestInput.yaw;
         inputComp.pitch = latestInput.pitch;
@@ -80,7 +64,13 @@ export class HostNetworkSystem {
       }
     }
 
-    // 2. Serialize full authoritative world snapshot state
+    // 2. Rate-limit snapshot broadcast
+    const now = typeof currentTime === 'number' ? currentTime : performance.now();
+    if (now - this.lastBroadcastTime < this.broadcastIntervalMs) {
+      return;
+    }
+    this.lastBroadcastTime = now;
+
     const playerSnapshots = [];
     let maxAckedSeq = 0;
 
@@ -91,15 +81,17 @@ export class HostNetworkSystem {
 
       if (playerComp && transformComp) {
         playerSnapshots.push({
-          entityId: playerComp.id || 1,
-          id: playerComp.id || 1,
+          entityId: playerComp.id,
+          id: playerComp.id,
           x: transformComp.position.x,
           y: transformComp.position.y,
           z: transformComp.position.z,
           position: transformComp.position,
-          yaw: transformComp.rotation ? transformComp.rotation.y || transformComp.rotation.yaw : 0,
+          yaw: transformComp.rotation
+            ? transformComp.rotation.yaw ?? transformComp.rotation.y ?? 0
+            : 0,
           rotation: transformComp.rotation,
-          health: playerComp.health || 100,
+          health: playerComp.health ?? 100,
         });
 
         if (inputComp && inputComp.sequence > maxAckedSeq) {
@@ -108,20 +100,12 @@ export class HostNetworkSystem {
       }
     }
 
-    // Resolve encode method across Protocol class variants
-    const encodeMethod = this.protocol.encodeWorldSnapshot 
-      || this.protocol.encodeSnapshot 
-      || Protocol.encodeWorldSnapshot;
-
-    // Encode world snapshot into binary ArrayBuffer
-    const snapshotBuffer = encodeMethod.call(
-      this.protocol,
+    const snapshotBuffer = Protocol.encodeWorldSnapshot(
       this.serverTick,
       maxAckedSeq,
       playerSnapshots
     );
 
-    // Broadcast snapshot packet to all connected clients over WebRTC DataChannel
     this.peerManager.broadcast(snapshotBuffer);
   }
 }

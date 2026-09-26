@@ -1,13 +1,14 @@
 // src/ecs/systems/network/ClientPredictSystem.js
 
-import { GAME_CONFIG } from '../../../config/constants.js';
+import { GAME_CONFIG, INPUT_FLAGS } from '../../../config/constants.js';
 import { hasFlag } from '../../../utils/BitFlags.js';
-import { INPUT_FLAGS } from '../../../config/constants.js';
 
 /**
  * ClientPredictSystem (Client-Only)
  * Executes immediate local prediction for the local player entity using unacknowledged inputs,
  * pushing each prediction snapshot into a ring buffer for server reconciliation.
+ *
+ * Uses Miniplex v2 entity objects (not getComponent + entity IDs).
  */
 export class ClientPredictSystem {
   /**
@@ -20,25 +21,27 @@ export class ClientPredictSystem {
   }
 
   /**
-   * Predicts local movement for the current local player entity.
-   * 
-   * @param {object} ecsWorld - The ECS world instance.
-   * @param {number|null} localEntityId - The local player's entity ID.
-   * @param {number} deltaTime - Frame time delta in seconds.
+   * @param {object} ecsWorld
+   * @param {object} localEntity - Miniplex entity object (or null)
+   * @param {number} deltaTime
    */
-  update(ecsWorld, localEntityId, deltaTime) {
-    if (localEntityId === null || !this.physicsWorld.initialized) return;
+  update(ecsWorld, localEntity, deltaTime) {
+    if (!localEntity || !this.physicsWorld?.initialized) return;
 
-    const playerComp = ecsWorld.getComponent(localEntityId, 'Player');
-    const physComp = ecsWorld.getComponent(localEntityId, 'Physics');
-    const transformComp = ecsWorld.getComponent(localEntityId, 'Transform');
-    const inputComp = ecsWorld.getComponent(localEntityId, 'Input');
+    const playerComp = localEntity.player;
+    const physComp = localEntity.physics;
+    const transformComp = localEntity.transform;
+    const inputComp = localEntity.input;
 
-    if (!physComp || !transformComp || !inputComp || (playerComp && playerComp.isDead)) return;
+    if (!physComp || !transformComp || !inputComp) return;
+    if (playerComp && playerComp.isDead) return;
 
-    const { yaw, pitch, inputMask, sequence } = inputComp;
+    const yaw = inputComp.yaw || 0;
+    const pitch = inputComp.pitch || 0;
+    const inputMask = inputComp.inputMask || 0;
+    const sequence = inputComp.sequence || 0;
+    const dt = deltaTime || (1 / 60);
 
-    // 1. Calculate relative movement vector
     let moveX = 0;
     let moveZ = 0;
 
@@ -47,77 +50,90 @@ export class ClientPredictSystem {
     if (hasFlag(inputMask, INPUT_FLAGS.LEFT)) moveX -= 1;
     if (hasFlag(inputMask, INPUT_FLAGS.RIGHT)) moveX += 1;
 
-    // Normalize diagonal velocity
     const moveLen = Math.hypot(moveX, moveZ);
     if (moveLen > 0) {
       moveX /= moveLen;
       moveZ /= moveLen;
     }
 
-    // 2. Rotate relative movement into world coordinates using view yaw
     const cosYaw = Math.cos(yaw);
     const sinYaw = Math.sin(yaw);
     const worldMoveX = moveX * cosYaw - moveZ * sinYaw;
     const worldMoveZ = moveX * sinYaw + moveZ * cosYaw;
 
-    // Apply speed
-    const speed = GAME_CONFIG.PLAYER_SPEED;
+    const speed = GAME_CONFIG.PLAYER_SPEED || 8.0;
+    if (!physComp.velocity) physComp.velocity = { x: 0, y: 0, z: 0 };
     physComp.velocity.x = worldMoveX * speed;
     physComp.velocity.z = worldMoveZ * speed;
 
-    // Vertical gravity and jump dynamics
     if (physComp.isGrounded) {
       physComp.velocity.y = -0.1;
       if (hasFlag(inputMask, INPUT_FLAGS.JUMP)) {
-        physComp.velocity.y = GAME_CONFIG.PLAYER_JUMP_FORCE;
+        physComp.velocity.y = GAME_CONFIG.PLAYER_JUMP_FORCE || 6.5;
         physComp.isGrounded = false;
       }
     } else {
-      physComp.velocity.y += GAME_CONFIG.GRAVITY * deltaTime;
+      physComp.velocity.y += (GAME_CONFIG.GRAVITY || -19.62) * dt;
     }
 
-    // 3. Compute predicted displacement via local Rapier Character Controller
     const movementDelta = {
-      x: physComp.velocity.x * deltaTime,
-      y: physComp.velocity.y * deltaTime,
-      z: physComp.velocity.z * deltaTime,
+      x: physComp.velocity.x * dt,
+      y: physComp.velocity.y * dt,
+      z: physComp.velocity.z * dt,
     };
 
-    physComp.controller.computeColliderMovement(
-      physComp.collider,
-      movementDelta
-    );
-
-    const correctedMovement = physComp.controller.getComputedMovement();
-    const currentPos = physComp.rigidBody.translation();
-
-    const predictedPos = {
-      x: currentPos.x + correctedMovement.x,
-      y: currentPos.y + correctedMovement.y,
-      z: currentPos.z + correctedMovement.z,
+    let predictedPos = {
+      x: transformComp.position.x,
+      y: transformComp.position.y,
+      z: transformComp.position.z,
     };
 
-    // Update local physics state and grounded status
-    physComp.rigidBody.setNextKinematicTranslation(predictedPos);
-    physComp.isGrounded = physComp.controller.isGrounded();
+    if (physComp.controller && physComp.collider && physComp.rigidBody) {
+      physComp.controller.computeColliderMovement(physComp.collider, movementDelta);
 
-    // Direct sync to Transform component
+      const correctedMovement =
+        typeof physComp.controller.computedMovement === 'function'
+          ? physComp.controller.computedMovement()
+          : typeof physComp.controller.getComputedMovement === 'function'
+            ? physComp.controller.getComputedMovement()
+            : movementDelta;
+
+      const currentPos = physComp.rigidBody.translation();
+      predictedPos = {
+        x: currentPos.x + correctedMovement.x,
+        y: currentPos.y + correctedMovement.y,
+        z: currentPos.z + correctedMovement.z,
+      };
+
+      physComp.rigidBody.setNextKinematicTranslation(predictedPos);
+
+      physComp.isGrounded =
+        typeof physComp.controller.computedGrounded === 'function'
+          ? physComp.controller.computedGrounded()
+          : typeof physComp.controller.isGrounded === 'function'
+            ? physComp.controller.isGrounded()
+            : true;
+    }
+
     transformComp.position.x = predictedPos.x;
     transformComp.position.y = predictedPos.y;
     transformComp.position.z = predictedPos.z;
-    transformComp.rotation.yaw = yaw;
-    transformComp.rotation.pitch = pitch;
+    if (transformComp.rotation) {
+      transformComp.rotation.yaw = yaw;
+      transformComp.rotation.pitch = pitch;
+    }
 
-    // 4. Save state snapshot & input frame into prediction ring buffer
-    this.inputBuffer.push({
-      sequence,
-      inputMask,
-      yaw,
-      pitch,
-      deltaTime,
-      predictedPosition: { ...predictedPos },
-      velocity: { ...physComp.velocity },
-      isGrounded: physComp.isGrounded,
-    });
+    if (this.inputBuffer && typeof this.inputBuffer.push === 'function') {
+      this.inputBuffer.push({
+        sequence,
+        inputMask,
+        yaw,
+        pitch,
+        deltaTime: dt,
+        predictedPosition: { ...predictedPos },
+        velocity: { ...physComp.velocity },
+        isGrounded: physComp.isGrounded,
+      });
+    }
   }
 }

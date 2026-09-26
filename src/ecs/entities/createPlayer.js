@@ -6,13 +6,13 @@ import { createPhysics } from '../components/Physics.js';
 import { createPlayer as createPlayerComponent } from '../components/Player.js';
 import { createWeapon } from '../components/Weapon.js';
 import { createInput } from '../components/Input.js';
-import { GAME_CONFIG } from '../../config/constants.js';
+import { GAME_CONFIG, peerIdToNumeric } from '../../config/constants.js';
 
 /**
  * Entity Assembler: Player
  * Assembles a player entity with transform, physics kinematic controller,
  * network status, weapon state, input tracking, and Three.js visual mesh.
- * 
+ *
  * @param {object} ecsWorld - The Miniplex ECS world instance.
  * @param {object} physicsWorld - Wrapper class for Rapier3D.
  * @param {object|THREE.Scene} sceneOrManager - SceneManager instance or direct THREE.Scene instance.
@@ -31,10 +31,8 @@ export function createPlayer(
   isLocal = false,
   isHost = false
 ) {
-  // Resolve scene object depending on whether sceneManager or raw THREE.Scene was passed
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
 
-  // 1. Create Rapier3D Kinematic Physics Capsule
   const phys = physicsWorld.createPlayerBody(
     spawnPos.x,
     spawnPos.y,
@@ -43,8 +41,6 @@ export function createPlayer(
     GAME_CONFIG.PLAYER_HEIGHT
   );
 
-  // 2. Create Three.js Visual Representation
-  // Simple capsule representation with color variation based on local vs remote
   const geometry = new THREE.CapsuleGeometry(
     GAME_CONFIG.PLAYER_RADIUS,
     GAME_CONFIG.PLAYER_HEIGHT - GAME_CONFIG.PLAYER_RADIUS * 2,
@@ -52,7 +48,6 @@ export function createPlayer(
     16
   );
 
-  // Local player is blue, remote players are red
   const color = isLocal ? 0x0088ff : 0xff3333;
   const material = new THREE.MeshStandardMaterial({
     color,
@@ -65,7 +60,6 @@ export function createPlayer(
   mesh.castShadow = true;
   mesh.receiveShadow = true;
 
-  // Hide mesh visually for local FPS camera, keep active in scene tree
   if (isLocal) {
     mesh.visible = false;
   }
@@ -74,9 +68,9 @@ export function createPlayer(
     scene.add(mesh);
   }
 
-  // 3. Instantiate Components & Register Entity in Miniplex ECS
-  const peerId = typeof playerId === 'string' ? playerId : '';
-  const numericId = typeof playerId === 'number' ? playerId : 1;
+  // Stable numeric id from peer string so host snapshots and client entities match
+  const peerId = typeof playerId === 'string' ? playerId : String(playerId ?? '');
+  const numericId = peerIdToNumeric(playerId);
 
   const playerEntity = ecsWorld.add({
     player: createPlayerComponent(numericId, peerId, isLocal, isHost, GAME_CONFIG.MAX_HEALTH),

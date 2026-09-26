@@ -16,6 +16,8 @@ export const NETWORK_CONFIG = {
 };
 
 export const GAME_CONFIG = {
+  // Simulation tick rate (shared by host and client fixed-step loops)
+  TICK_RATE: 60,
   MAX_PLAYERS: 4,
   PLAYER_SPEED: 8.0,
   PLAYER_JUMP_FORCE: 6.5,
@@ -25,11 +27,19 @@ export const GAME_CONFIG = {
   CAMERA_HEIGHT_OFFSET: 1.6,
   MAX_HEALTH: 100,
   RESPAWN_TIME_MS: 3000,
+  // Camera / renderer defaults (were missing — caused NaN aspect/FOV)
+  FOV: 75,
+  NEAR_PLANE: 0.1,
+  FAR_PLANE: 1000,
   MAP_BOUNDS: {
     WIDTH: 50,
     LENGTH: 50,
     HEIGHT: 15,
   },
+  // Alias used by InterpolationSystem constructor default
+  INTERPOLATION_DELAY_MS: 100,
+  // Alias for reconciliation threshold
+  RECONCILIATION_THRESHOLD: 0.15,
 };
 
 export const INPUT_FLAGS = {
@@ -55,3 +65,18 @@ export const WEAPON_CONFIG = {
     RECOIL_PITCH: 0.05,
   },
 };
+
+/**
+ * Deterministic numeric ID from a peer ID string (or passthrough if already numeric).
+ * Ensures host snapshots and client entities can match on the same integer key.
+ */
+export function peerIdToNumeric(peerId) {
+  if (typeof peerId === 'number' && Number.isFinite(peerId)) return peerId >>> 0;
+  if (!peerId || typeof peerId !== 'string') return 1;
+  let hash = 2166136261;
+  for (let i = 0; i < peerId.length; i++) {
+    hash ^= peerId.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) || 1;
+}

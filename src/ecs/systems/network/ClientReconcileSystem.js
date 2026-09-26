@@ -10,8 +10,8 @@ import { hasFlag } from '../../../utils/BitFlags.js';
  */
 export class ClientReconcileSystem {
   /**
-   * @param {object} physicsWorld - Rapier3D physics world wrapper instance.
-   * @param {object} inputBuffer - CircularBuffer holding pending unacknowledged inputs.
+   * @param {object} physicsWorld
+   * @param {object} inputBuffer - CircularBuffer
    */
   constructor(physicsWorld, inputBuffer) {
     this.physicsWorld = physicsWorld;
@@ -19,18 +19,15 @@ export class ClientReconcileSystem {
   }
 
   /**
-   * Evaluates server state snapshot and reconciles client prediction errors.
-   * 
-   * @param {object} ecsWorld - The ECS world instance.
-   * @param {object|number} localEntityOrId - Local player entity object or ID.
-   * @param {object} latestSnapshot - Latest decoded snapshot received from host server.
+   * @param {object} ecsWorld
+   * @param {object|number} localEntityOrId - Miniplex entity object preferred
+   * @param {object} latestSnapshot
    */
   update(ecsWorld, localEntityOrId, latestSnapshot) {
     if (!localEntityOrId || !latestSnapshot || !this.physicsWorld) return;
 
-    // Resolve local player entity in Miniplex v2
     let localEntity = null;
-    if (typeof localEntityOrId === 'object') {
+    if (typeof localEntityOrId === 'object' && localEntityOrId.player) {
       localEntity = localEntityOrId;
     } else {
       const players = ecsWorld.with('player', 'physics', 'transform');
@@ -42,44 +39,49 @@ export class ClientReconcileSystem {
       }
     }
 
-    if (!localEntity || !localEntity.player || !localEntity.physics || !localEntity.transform) return;
+    if (!localEntity?.player || !localEntity.physics || !localEntity.transform) return;
 
     const playerComp = localEntity.player;
     const physComp = localEntity.physics;
     const transformComp = localEntity.transform;
 
-    // Support both entities array or players array from snapshot decoder variants
     const snapshotEntities = latestSnapshot.entities || latestSnapshot.players || [];
-    const serverPlayerData = snapshotEntities.find(p => (p.entityId || p.id) === playerComp.id);
+    const serverPlayerData = snapshotEntities.find(
+      (p) => (p.entityId ?? p.id) === playerComp.id
+    );
     if (!serverPlayerData) return;
 
-    // Update health and death states from authoritative server state
     if (serverPlayerData.health !== undefined) {
       playerComp.health = serverPlayerData.health;
-      if (playerComp.health <= 0) {
-        playerComp.isDead = true;
-      }
+      playerComp.isDead = playerComp.health <= 0;
     }
 
-    const lastAcknowledgedSeq = latestSnapshot.lastAckedSeq || latestSnapshot.lastProcessedSequence || serverPlayerData.lastProcessedSequence || 0;
+    const lastAcknowledgedSeq =
+      latestSnapshot.lastAckedSeq ??
+      latestSnapshot.lastProcessedSequence ??
+      serverPlayerData.lastProcessedSequence ??
+      0;
 
-    // Discard acknowledged inputs from ring buffer up to host-processed sequence
-    if (this.inputBuffer && typeof this.inputBuffer.size === 'number') {
+    // Discard acknowledged inputs
+    if (this.inputBuffer && this.inputBuffer.size > 0) {
       while (this.inputBuffer.size > 0) {
-        const head = typeof this.inputBuffer.peek === 'function' ? this.inputBuffer.peek() : null;
+        const head =
+          typeof this.inputBuffer.peek === 'function'
+            ? this.inputBuffer.peek()
+            : null;
         if (head && head.sequence <= lastAcknowledgedSeq) {
           if (typeof this.inputBuffer.shift === 'function') this.inputBuffer.shift();
+          else break;
         } else {
           break;
         }
       }
     }
 
-    // Resolve position coordinates from server data
     const serverPos = {
-      x: serverPlayerData.x !== undefined ? serverPlayerData.x : serverPlayerData.position?.x || 0,
-      y: serverPlayerData.y !== undefined ? serverPlayerData.y : serverPlayerData.position?.y || 0,
-      z: serverPlayerData.z !== undefined ? serverPlayerData.z : serverPlayerData.position?.z || 0,
+      x: serverPlayerData.x ?? serverPlayerData.position?.x ?? 0,
+      y: serverPlayerData.y ?? serverPlayerData.position?.y ?? 0,
+      z: serverPlayerData.z ?? serverPlayerData.position?.z ?? 0,
     };
     const currentPos = transformComp.position;
 
@@ -89,11 +91,10 @@ export class ClientReconcileSystem {
       serverPos.z - currentPos.z
     );
 
-    const threshold = GAME_CONFIG.RECONCILIATION_THRESHOLD || 0.1;
+    const threshold =
+      GAME_CONFIG.RECONCILIATION_THRESHOLD ?? 0.15;
 
-    // Re-simulate inputs if error exceeds threshold
     if (distError > threshold) {
-      // 1. Teleport local body to server position
       if (physComp.rigidBody && typeof physComp.rigidBody.setNextKinematicTranslation === 'function') {
         physComp.rigidBody.setNextKinematicTranslation(serverPos);
       }
@@ -101,22 +102,17 @@ export class ClientReconcileSystem {
       transformComp.position.y = serverPos.y;
       transformComp.position.z = serverPos.z;
 
-      // 2. Re-simulate remaining unacknowledged inputs in sequence
       if (this.inputBuffer && typeof this.inputBuffer.toArray === 'function') {
         const unacknowledgedInputs = this.inputBuffer.toArray();
         for (let i = 0; i < unacknowledgedInputs.length; i++) {
-          const inputFrame = unacknowledgedInputs[i];
-          this._reSimulateInputFrame(physComp, transformComp, inputFrame);
+          this._reSimulateInputFrame(physComp, transformComp, unacknowledgedInputs[i]);
         }
       }
     }
   }
 
-  /**
-   * Single frame physics replay step during client reconciliation.
-   * @private
-   */
   _reSimulateInputFrame(physComp, transformComp, inputFrame) {
+    if (!inputFrame) return;
     const { yaw, pitch, inputMask, deltaTime } = inputFrame;
     const dt = deltaTime || (1 / 60);
 
@@ -147,11 +143,11 @@ export class ClientReconcileSystem {
     if (physComp.isGrounded) {
       physComp.velocity.y = -0.1;
       if (hasFlag(inputMask, INPUT_FLAGS.JUMP)) {
-        physComp.velocity.y = GAME_CONFIG.PLAYER_JUMP_FORCE || 7.0;
+        physComp.velocity.y = GAME_CONFIG.PLAYER_JUMP_FORCE || 6.5;
         physComp.isGrounded = false;
       }
     } else {
-      physComp.velocity.y += (GAME_CONFIG.GRAVITY || -20.0) * dt;
+      physComp.velocity.y += (GAME_CONFIG.GRAVITY || -19.62) * dt;
     }
 
     const movementDelta = {
@@ -162,14 +158,17 @@ export class ClientReconcileSystem {
 
     if (physComp.controller && physComp.collider) {
       physComp.controller.computeColliderMovement(physComp.collider, movementDelta);
-      
-      const correctedMovement = typeof physComp.controller.computedMovement === 'function'
-        ? physComp.controller.computedMovement()
-        : (typeof physComp.controller.getComputedMovement === 'function' 
-            ? physComp.controller.getComputedMovement() 
-            : movementDelta);
-      
-      const currentPos = physComp.rigidBody ? physComp.rigidBody.translation() : transformComp.position;
+
+      const correctedMovement =
+        typeof physComp.controller.computedMovement === 'function'
+          ? physComp.controller.computedMovement()
+          : typeof physComp.controller.getComputedMovement === 'function'
+            ? physComp.controller.getComputedMovement()
+            : movementDelta;
+
+      const currentPos = physComp.rigidBody
+        ? physComp.rigidBody.translation()
+        : transformComp.position;
 
       const reconciledPos = {
         x: currentPos.x + correctedMovement.x,
@@ -180,12 +179,13 @@ export class ClientReconcileSystem {
       if (physComp.rigidBody && typeof physComp.rigidBody.setNextKinematicTranslation === 'function') {
         physComp.rigidBody.setNextKinematicTranslation(reconciledPos);
       }
-      
-      physComp.isGrounded = typeof physComp.controller.computedGrounded === 'function'
-        ? physComp.controller.computedGrounded()
-        : (typeof physComp.controller.isGrounded === 'function' 
-            ? physComp.controller.isGrounded() 
-            : true);
+
+      physComp.isGrounded =
+        typeof physComp.controller.computedGrounded === 'function'
+          ? physComp.controller.computedGrounded()
+          : typeof physComp.controller.isGrounded === 'function'
+            ? physComp.controller.isGrounded()
+            : true;
 
       transformComp.position.x = reconciledPos.x;
       transformComp.position.y = reconciledPos.y;

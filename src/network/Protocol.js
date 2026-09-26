@@ -4,15 +4,25 @@ import { PACKET_TYPES } from './PacketTypes.js';
 
 /**
  * Binary Serialization & Deserialization Protocol
- * Packs and unpacks game networking structures using ArrayBuffers and DataViews 
+ * Packs and unpacks game networking structures using ArrayBuffers and DataViews
  * to minimize bandwidth overhead over WebRTC DataChannels.
  */
 export class Protocol {
   /**
-   * Encodes a Join Request packet.
-   * Format: [PacketType: u8]
-   * @returns {ArrayBuffer}
+   * Read packet type byte from ArrayBuffer or DataView.
+   * @param {ArrayBuffer|DataView} data
+   * @returns {number}
    */
+  static getPacketType(data) {
+    if (data instanceof DataView) {
+      return data.getUint8(0);
+    }
+    if (data instanceof ArrayBuffer) {
+      return new DataView(data).getUint8(0);
+    }
+    return 0;
+  }
+
   static encodeJoinRequest() {
     const buffer = new ArrayBuffer(1);
     const view = new DataView(buffer);
@@ -20,13 +30,6 @@ export class Protocol {
     return buffer;
   }
 
-  /**
-   * Encodes a Join Accept packet.
-   * Format: [PacketType: u8, PlayerId: u8, EntityId: u32]
-   * @param {number} playerId 
-   * @param {number} entityId 
-   * @returns {ArrayBuffer}
-   */
   static encodeJoinAccept(playerId, entityId) {
     const buffer = new ArrayBuffer(6);
     const view = new DataView(buffer);
@@ -36,11 +39,6 @@ export class Protocol {
     return buffer;
   }
 
-  /**
-   * Decodes a Join Accept packet payload.
-   * @param {DataView} view 
-   * @returns {{ playerId: number, entityId: number }}
-   */
   static decodeJoinAccept(view) {
     return {
       playerId: view.getUint8(1),
@@ -51,11 +49,6 @@ export class Protocol {
   /**
    * Encodes client input frame.
    * Format: [PacketType: u8, SequenceNum: u32, InputMask: u8, Yaw: f32, Pitch: f32]
-   * @param {number} sequence 
-   * @param {number} inputMask 
-   * @param {number} yaw 
-   * @param {number} pitch 
-   * @returns {ArrayBuffer}
    */
   static encodeClientInput(sequence, inputMask, yaw, pitch) {
     const buffer = new ArrayBuffer(14);
@@ -69,24 +62,38 @@ export class Protocol {
   }
 
   /**
-   * Decodes a client input packet payload.
-   * @param {DataView} view 
-   * @returns {{ sequence: number, inputMask: number, yaw: number, pitch: number }}
+   * Object-form alias used by ClientGame: Protocol.encodeInput(inputPayload)
+   * @param {{ sequence: number, inputMask: number, yaw: number, pitch: number }} payload
+   * @returns {ArrayBuffer}
    */
+  static encodeInput(payload) {
+    if (payload && typeof payload === 'object') {
+      return Protocol.encodeClientInput(
+        payload.sequence ?? 0,
+        payload.inputMask ?? 0,
+        payload.yaw ?? 0,
+        payload.pitch ?? 0
+      );
+    }
+    // Fallback positional args if someone calls encodeInput(seq, mask, yaw, pitch)
+    return Protocol.encodeClientInput(
+      arguments[0] ?? 0,
+      arguments[1] ?? 0,
+      arguments[2] ?? 0,
+      arguments[3] ?? 0
+    );
+  }
+
   static decodeClientInput(view) {
+    const v = view instanceof DataView ? view : new DataView(view);
     return {
-      sequence: view.getUint32(1, true),
-      inputMask: view.getUint8(5),
-      yaw: view.getFloat32(6, true),
-      pitch: view.getFloat32(10, true),
+      sequence: v.getUint32(1, true),
+      inputMask: v.getUint8(5),
+      yaw: v.getFloat32(6, true),
+      pitch: v.getFloat32(10, true),
     };
   }
 
-  /**
-   * Alias for decodeClientInput.
-   * @param {DataView} view 
-   * @returns {{ sequence: number, inputMask: number, yaw: number, pitch: number }}
-   */
   static decodeInput(view) {
     return Protocol.decodeClientInput(view);
   }
@@ -94,11 +101,7 @@ export class Protocol {
   /**
    * Encodes authoritative world state snapshot.
    * Format: [PacketType: u8, ServerTick: u32, LastAckedInputSeq: u32, EntityCount: u8, ...Entities]
-   * Entity Format: [EntityId: u32, PosX: f32, PosY: f32, PosZ: f32, Yaw: f32, Health: u8]
-   * @param {number} serverTick 
-   * @param {number|Array} lastAckedSeqOrEntities - Sequence number OR entities array if 2 args passed.
-   * @param {Array} [entitiesList] - Entity state array if 3 args passed.
-   * @returns {ArrayBuffer}
+   * Entity: [EntityId: u32, PosX: f32, PosY: f32, PosZ: f32, Yaw: f32, Health: u8]
    */
   static encodeWorldSnapshot(serverTick, lastAckedSeqOrEntities, entitiesList) {
     let lastAckedSeq = 0;
@@ -136,29 +139,23 @@ export class Protocol {
       view.setFloat32(offset + 8, posY, true);
       view.setFloat32(offset + 12, posZ, true);
       view.setFloat32(offset + 16, yaw, true);
-      view.setUint8(offset + 20, health);
+      view.setUint8(offset + 20, Math.max(0, Math.min(255, health | 0)));
       offset += entitySize;
     }
 
     return buffer;
   }
 
-  /**
-   * Alias for encodeWorldSnapshot.
-   * @param {number} serverTick 
-   * @param {Array} entities 
-   * @returns {ArrayBuffer}
-   */
   static encodeSnapshot(serverTick, entities) {
     return Protocol.encodeWorldSnapshot(serverTick, 0, entities);
   }
 
   /**
-   * Decodes a world state snapshot packet payload.
-   * @param {DataView} view 
-   * @returns {{ serverTick: number, lastAckedSeq: number, entities: Array }}
+   * Decodes a world state snapshot. Accepts DataView or ArrayBuffer.
+   * Adds `timestamp` (client receive time) and `players` alias for interpolator.
    */
-  static decodeWorldSnapshot(view) {
+  static decodeWorldSnapshot(data) {
+    const view = data instanceof DataView ? data : new DataView(data);
     const serverTick = view.getUint32(1, true);
     const lastAckedSeq = view.getUint32(5, true);
     const entityCount = view.getUint8(9);
@@ -169,16 +166,36 @@ export class Protocol {
 
     for (let i = 0; i < entityCount; i++) {
       const offset = headerSize + i * entitySize;
+      const entityId = view.getUint32(offset, true);
+      const x = view.getFloat32(offset + 4, true);
+      const y = view.getFloat32(offset + 8, true);
+      const z = view.getFloat32(offset + 12, true);
+      const yaw = view.getFloat32(offset + 16, true);
+      const health = view.getUint8(offset + 20);
       entities.push({
-        entityId: view.getUint32(offset, true),
-        x: view.getFloat32(offset + 4, true),
-        y: view.getFloat32(offset + 8, true),
-        z: view.getFloat32(offset + 12, true),
-        yaw: view.getFloat32(offset + 16, true),
-        health: view.getUint8(offset + 20),
+        entityId,
+        id: entityId,
+        x,
+        y,
+        z,
+        position: { x, y, z },
+        yaw,
+        rotation: { yaw, pitch: 0 },
+        health,
       });
     }
 
-    return { serverTick, lastAckedSeq, entities };
+    return {
+      serverTick,
+      lastAckedSeq,
+      lastProcessedSequence: lastAckedSeq,
+      entities,
+      players: entities, // alias for InterpolationSystem / ClientGame
+      timestamp: performance.now(),
+    };
+  }
+
+  static decodeSnapshot(data) {
+    return Protocol.decodeWorldSnapshot(data);
   }
 }
