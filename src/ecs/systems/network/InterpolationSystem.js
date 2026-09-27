@@ -15,7 +15,7 @@ export class InterpolationSystem {
       100;
 
     this.snapshotBuffer = [];
-    this.maxSnapshots = 30;
+    this.maxSnapshots = Math.max(8, NETWORK_CONFIG.MAX_SNAPSHOT_HISTORY || Math.ceil((this.renderDelayMs / 1000) * NETWORK_CONFIG.SNAPSHOT_BROADCAST_RATE) + 4);
   }
 
   addSnapshot(snapshot) {
