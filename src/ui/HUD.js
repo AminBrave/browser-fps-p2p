@@ -104,7 +104,7 @@ export class HUD {
     this._crosshairLength = 7;
   }
 
-  updateCrosshair(speed = 0, isAiming = false, weaponSpread = 0, weaponSpreadMax = 0.05, isFiring = false, recoil = 0) {
+  updateCrosshair(speed = 0, isAiming = false, weaponSpread = 0, weaponSpreadMax = 0.05, isFiring = false, recoil = 0, isSprinting = false) {
     if (!this.crosshair) return;
 
     const cfg = RENDER_CONFIG.CROSSHAIR;
@@ -114,10 +114,12 @@ export class HUD {
       Math.min(1, (safeSpeed - cfg.MIN_SPEED) / Math.max(0.001, cfg.MAX_SPEED - cfg.MIN_SPEED))
     );
     const spreadT = Math.max(0, Math.min(1, (Number(weaponSpread) || 0) / Math.max(0.001, Number(weaponSpreadMax) || 0.05)));
+    const movementGap = isSprinting
+      ? cfg.MAX_SPRINT_GAP_PX
+      : cfg.RESTING_GAP_PX + speedT * (cfg.MAX_MOVEMENT_GAP_PX - cfg.RESTING_GAP_PX);
     const targetGap = isAiming
       ? cfg.AIM_GAP_PX
-      : cfg.RESTING_GAP_PX +
-        speedT * (cfg.MAX_MOVEMENT_GAP_PX - cfg.RESTING_GAP_PX) +
+      : movementGap +
         spreadT * cfg.MAX_BLOOM_GAP_PX +
         (isFiring ? cfg.FIRE_BLOOM_PX : 0) +
         Math.min(1, Math.abs(Number(recoil) || 0) * 4) * cfg.RECOIL_BLOOM_PX;
