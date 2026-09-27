@@ -1,5 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { GAME_CONFIG, WORLD_CONFIG } from '../config/index.js';
+import { GAME_CONFIG, WORLD_CONFIG, PHYSICS_CONFIG, STANCE } from '../config/index.js';
 
 export class PhysicsWorld {
   constructor() {
@@ -37,7 +37,7 @@ export class PhysicsWorld {
     this.colliderToHitZone.delete(handle);
   }
 
-  createPlayerBody(x, y, z, radius = 0.4, height = 1.8) {
+  createPlayerBody(x, y, z, radius = PHYSICS_CONFIG.DEFAULT_PLAYER_RADIUS, height = PHYSICS_CONFIG.DEFAULT_PLAYER_HEIGHT) {
     if (!this.world) throw new Error('Physics world is not initialized');
 
     const body = this.world.createRigidBody(
@@ -50,11 +50,9 @@ export class PhysicsWorld {
     // The locomotion capsule is the authoritative solid envelope: exactly
     // PLAYER_HEIGHT high and PLAYER_RADIUS wide. Anatomical hit colliders are
     // separate so movement solidity and hit-zone precision cannot conflict.
-    const movementRadius = Math.min(radius, height * 0.25);
-    const movementHalfSegment = Math.max(0.08, height / 2 - movementRadius);
-    const WORLD_GROUP = 0x0001;
-    const PLAYER_SOLID_GROUP = 0x0002;
-    const HITBOX_GROUP = 0x0004;
+    const movementRadius = Math.min(radius, height * PHYSICS_CONFIG.MOVEMENT_RADIUS_FACTOR);
+    const movementHalfSegment = Math.max(PHYSICS_CONFIG.MIN_MOVEMENT_HALF_SEGMENT, height / 2 - movementRadius);
+    const { WORLD: WORLD_GROUP, PLAYER_SOLID: PLAYER_SOLID_GROUP, HITBOX: HITBOX_GROUP } = PHYSICS_CONFIG.COLLISION_GROUPS;
 
     const movementCollider = this.world.createCollider(
       RAPIER.ColliderDesc.capsule(movementHalfSegment, movementRadius),
@@ -66,29 +64,29 @@ export class PhysicsWorld {
       (PLAYER_SOLID_GROUP << 16) | WORLD_GROUP
     );
 
-    const torsoHalfHeight = Math.max(0.12, height * 0.20);
-    const torsoRadius = Math.min(radius * 0.72, 0.24);
-    const headRadius = Math.min(radius * 0.52, 0.20);
+    const torsoHalfHeight = Math.max(PHYSICS_CONFIG.HITBOX.TORSO_MIN_HALF_HEIGHT, height * PHYSICS_CONFIG.HITBOX.TORSO_HALF_HEIGHT_FACTOR);
+    const torsoRadius = Math.min(radius * PHYSICS_CONFIG.HITBOX.TORSO_RADIUS_FACTOR, PHYSICS_CONFIG.HITBOX.TORSO_MAX_RADIUS);
+    const headRadius = Math.min(radius * PHYSICS_CONFIG.HITBOX.HEAD_RADIUS_FACTOR, PHYSICS_CONFIG.HITBOX.HEAD_MAX_RADIUS);
     const torso = this.world.createCollider(
       RAPIER.ColliderDesc.capsule(torsoHalfHeight, torsoRadius)
-        .setTranslation(0, height * 0.08, 0),
+        .setTranslation(0, height * PHYSICS_CONFIG.HITBOX.TORSO_Y_FACTOR, 0),
       body
     );
     const head = this.world.createCollider(
       RAPIER.ColliderDesc.ball(headRadius)
-        .setTranslation(0, height * 0.36, 0),
+        .setTranslation(0, height * PHYSICS_CONFIG.HITBOX.HEAD_Y_FACTOR, 0),
       body
     );
 
-    const limbRadius = Math.max(0.055, radius * 0.20);
-    const armHalf = Math.max(0.08, height * 0.18);
-    const legHalf = Math.max(0.10, height * 0.19);
-    const armX = radius * 0.86;
-    const legX = radius * 0.34;
+    const limbRadius = Math.max(PHYSICS_CONFIG.HITBOX.LIMB_MIN_RADIUS, radius * PHYSICS_CONFIG.HITBOX.LIMB_RADIUS_FACTOR);
+    const armHalf = Math.max(PHYSICS_CONFIG.HITBOX.ARM_MIN_HALF_HEIGHT, height * PHYSICS_CONFIG.HITBOX.ARM_HALF_HEIGHT_FACTOR);
+    const legHalf = Math.max(PHYSICS_CONFIG.HITBOX.LEG_MIN_HALF_HEIGHT, height * PHYSICS_CONFIG.HITBOX.LEG_HALF_HEIGHT_FACTOR);
+    const armX = radius * PHYSICS_CONFIG.HITBOX.ARM_X_FACTOR;
+    const legX = radius * PHYSICS_CONFIG.HITBOX.LEG_X_FACTOR;
 
     const leftArm = this.world.createCollider(
       RAPIER.ColliderDesc.capsule(armHalf, limbRadius)
-        .setTranslation(-armX, height * 0.02, 0),
+        .setTranslation(-armX, height * PHYSICS_CONFIG.HITBOX.ARM_Y_FACTOR, 0),
       body
     );
     const rightArm = this.world.createCollider(
@@ -98,7 +96,7 @@ export class PhysicsWorld {
     );
     const leftLeg = this.world.createCollider(
       RAPIER.ColliderDesc.capsule(legHalf, limbRadius)
-        .setTranslation(-legX, -height * 0.38, 0),
+        .setTranslation(-legX, height * PHYSICS_CONFIG.HITBOX.LEG_Y_FACTOR, 0),
       body
     );
     const rightLeg = this.world.createCollider(
@@ -119,9 +117,9 @@ export class PhysicsWorld {
 
     // Character controller uses the full-height movement envelope; anatomical
     // colliders remain the authoritative bullet hit geometry.
-    const controller = this.world.createCharacterController(0.01);
-    controller.enableAutostep(0.5, 0.2, true);
-    controller.enableSnapToGround(0.5);
+    const controller = this.world.createCharacterController(PHYSICS_CONFIG.CONTROLLER.OFFSET);
+    controller.enableAutostep(PHYSICS_CONFIG.CONTROLLER.AUTOSTEP_HEIGHT, PHYSICS_CONFIG.CONTROLLER.AUTOSTEP_WIDTH, true);
+    controller.enableSnapToGround(PHYSICS_CONFIG.CONTROLLER.SNAP_TO_GROUND_DISTANCE);
     controller.setUp({ x: 0.0, y: 1.0, z: 0.0 });
 
     return { body, collider: movementCollider, colliders, hitZones, controller };
@@ -138,22 +136,22 @@ export class PhysicsWorld {
 
     const height = GAME_CONFIG.PLAYER_HEIGHT;
     const radius = GAME_CONFIG.PLAYER_RADIUS;
-    const pose = stance === 2
-      ? { offsetY: -0.58, scaleY: 0.72 }
-      : stance === 1
-        ? { offsetY: -0.28, scaleY: 0.9 }
+    const pose = stance === STANCE.PRONE
+      ? { offsetY: PHYSICS_CONFIG.HITBOX.PRONE_OFFSET_Y, scaleY: PHYSICS_CONFIG.HITBOX.PRONE_SCALE_Y }
+      : stance === STANCE.CROUCH
+        ? { offsetY: PHYSICS_CONFIG.HITBOX.CROUCH_OFFSET_Y, scaleY: PHYSICS_CONFIG.HITBOX.CROUCH_SCALE_Y }
         : { offsetY: 0, scaleY: 1 };
     const scale = pose.scaleY;
-    const radialScale = 0.82 + 0.18 * scale;
+    const radialScale = PHYSICS_CONFIG.HITBOX.RADIAL_BASE + PHYSICS_CONFIG.HITBOX.RADIAL_SCALE * scale;
 
-    const torsoHalf = Math.max(0.12, height * 0.20) * scale;
-    const torsoRadius = Math.min(radius * 0.72, 0.24) * radialScale;
-    const headRadius = Math.min(radius * 0.52, 0.20) * radialScale;
-    const limbRadius = Math.max(0.055, radius * 0.20) * radialScale;
-    const armHalf = Math.max(0.08, height * 0.18) * scale;
-    const legHalf = Math.max(0.10, height * 0.19) * scale;
-    const armX = radius * 0.86 * radialScale;
-    const legX = radius * 0.34 * radialScale;
+    const torsoHalf = Math.max(0.12, height * PHYSICS_CONFIG.HITBOX.TORSO_HALF_HEIGHT_FACTOR) * scale;
+    const torsoRadius = Math.min(radius * PHYSICS_CONFIG.HITBOX.TORSO_RADIUS_FACTOR, PHYSICS_CONFIG.HITBOX.TORSO_MAX_RADIUS) * radialScale;
+    const headRadius = Math.min(radius * PHYSICS_CONFIG.HITBOX.HEAD_RADIUS_FACTOR, PHYSICS_CONFIG.HITBOX.HEAD_MAX_RADIUS) * radialScale;
+    const limbRadius = Math.max(0.055, radius * PHYSICS_CONFIG.HITBOX.LIMB_RADIUS_FACTOR) * radialScale;
+    const armHalf = Math.max(0.08, height * PHYSICS_CONFIG.HITBOX.ARM_HALF_HEIGHT_FACTOR) * scale;
+    const legHalf = Math.max(0.10, height * PHYSICS_CONFIG.HITBOX.LEG_HALF_HEIGHT_FACTOR) * scale;
+    const armX = radius * PHYSICS_CONFIG.HITBOX.ARM_X_FACTOR * radialScale;
+    const legX = radius * PHYSICS_CONFIG.HITBOX.LEG_X_FACTOR * radialScale;
 
     const setCapsule = (collider, halfHeight, r, x, y, z = 0) => {
       collider?.setHalfHeight?.(halfHeight);
@@ -165,11 +163,11 @@ export class PhysicsWorld {
       collider?.setTranslationWrtParent?.({ x, y, z });
     };
 
-    setCapsule(colliders[1], torsoHalf, torsoRadius, 0, height * 0.08 * scale + pose.offsetY);
-    setBall(colliders[2], headRadius, 0, height * 0.36 * scale + pose.offsetY + (scale < 1 ? 0.02 : 0));
-    setCapsule(colliders[3], armHalf, limbRadius, -armX, height * 0.02 * scale + pose.offsetY);
+    setCapsule(colliders[1], torsoHalf, torsoRadius, 0, height * PHYSICS_CONFIG.HITBOX.TORSO_Y_FACTOR * scale + pose.offsetY);
+    setBall(colliders[2], headRadius, 0, height * PHYSICS_CONFIG.HITBOX.HEAD_Y_FACTOR * scale + pose.offsetY + (scale < 1 ? PHYSICS_CONFIG.HITBOX.CROUCH_HEAD_Y_BIAS : 0));
+    setCapsule(colliders[3], armHalf, limbRadius, -armX, height * PHYSICS_CONFIG.HITBOX.ARM_Y_FACTOR * scale + pose.offsetY);
     setCapsule(colliders[4], armHalf, limbRadius, armX, height * 0.02 * scale + pose.offsetY);
-    setCapsule(colliders[5], legHalf, limbRadius, -legX, -height * 0.38 * scale + pose.offsetY);
+    setCapsule(colliders[5], legHalf, limbRadius, -legX, height * PHYSICS_CONFIG.HITBOX.LEG_Y_FACTOR * scale + pose.offsetY);
     setCapsule(colliders[6], legHalf, limbRadius, legX, -height * 0.38 * scale + pose.offsetY);
   }
 
@@ -233,7 +231,7 @@ export class PhysicsWorld {
     return this.createStaticBox(0, Y - THICKNESS / 2, 0, WIDTH / 2, THICKNESS / 2, LENGTH / 2);
   }
 
-  castRay(origin, direction, maxDistance = 100, excludeCollider = null) {
+  castRay(origin, direction, maxDistance = PHYSICS_CONFIG.DEFAULT_RAY_DISTANCE, excludeCollider = null) {
     if (!this.world) return null;
     const len = Math.hypot(direction.x, direction.y, direction.z) || 1;
     const dir = { x: direction.x / len, y: direction.y / len, z: direction.z / len };
