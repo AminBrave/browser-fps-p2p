@@ -1,6 +1,8 @@
 // src/audio/AudioManager.js
 
 /** Procedural SFX — distinct profiles per weapon family */
+import { AUDIO_CONFIG } from '../config/index.js';
+
 export class AudioManager {
   constructor() {
     this.ctx = null;
@@ -8,6 +10,9 @@ export class AudioManager {
     this.enabled = true;
     this._unlocked = false;
     this._footstepTimer = 0;
+    this._ambienceStarted = false;
+    this._ambienceSources = [];
+    this._thunderTimer = null;
   }
 
   _ensure() {
@@ -17,8 +22,21 @@ export class AudioManager {
       if (!Ctx) return false;
       this.ctx = new Ctx();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.32;
-      this.master.connect(this.ctx.destination);
+      this.master.gain.value = AUDIO_CONFIG.MASTER_GAIN;
+      this.sfxBus = this.ctx.createGain();
+      this.sfxBus.gain.value = AUDIO_CONFIG.SFX_GAIN;
+      this.ambienceBus = this.ctx.createGain();
+      this.ambienceBus.gain.value = AUDIO_CONFIG.AMBIENCE_GAIN;
+      const compressor = this.ctx.createDynamicsCompressor();
+      compressor.threshold.value = -12;
+      compressor.knee.value = 18;
+      compressor.ratio.value = 4;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.18;
+      this.sfxBus.connect(this.master);
+      this.ambienceBus.connect(this.master);
+      this.master.connect(compressor);
+      compressor.connect(this.ctx.destination);
       return true;
     } catch {
       return false;
@@ -29,6 +47,7 @@ export class AudioManager {
     if (!this._ensure()) return;
     if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
     this._unlocked = true;
+    this._startCombatAmbience();
   }
 
   _noiseBuffer(duration = 0.08) {
@@ -53,7 +72,7 @@ export class AudioManager {
     g.gain.setValueAtTime(gain, t0);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
     osc.connect(g);
-    g.connect(output || this.master);
+    g.connect(output || this.sfxBus);
     osc.start(t0);
     osc.stop(t0 + duration + 0.02);
   }
@@ -80,23 +99,93 @@ export class AudioManager {
   playShoot(sfx = 'pistol', output = null) {
     switch (sfx) {
       case 'smg':
-        this._noise(0.04, 0.18, 2200, output);
+        this._noise(0.045, 0.26 * AUDIO_CONFIG.SFX.SHOOT_MULTIPLIER, 2300, output);
         this._tone(220, 0.04, 'sawtooth', 0.08, 90, output);
         break;
       case 'shotgun':
-        this._noise(0.14, 0.35, 900, output);
+        this._noise(0.16, 0.46 * AUDIO_CONFIG.SFX.SHOOT_MULTIPLIER, 900, output);
         this._tone(90, 0.12, 'sawtooth', 0.2, 40, output);
         this._tone(55, 0.18, 'sine', 0.12, 30, output);
         break;
       case 'rifle':
-        this._noise(0.06, 0.28, 1600, output);
+        this._noise(0.065, 0.38 * AUDIO_CONFIG.SFX.SHOOT_MULTIPLIER, 1600, output);
         this._tone(140, 0.07, 'square', 0.14, 50, output);
         break;
       default: // pistol — sharp crack
-        this._noise(0.06, 0.26, 2400, output);
+        this._noise(0.065, 0.36 * AUDIO_CONFIG.SFX.SHOOT_MULTIPLIER, 2500, output);
         this._tone(200, 0.05, 'square', 0.14, 70, output);
         break;
     }
+  }
+
+  _startCombatAmbience() {
+    if (!AUDIO_CONFIG.COMBAT_BED.ENABLED || this._ambienceStarted || !this._unlocked || !this.ctx) return;
+    this._ambienceStarted = true;
+
+    const wind = new Audio(AUDIO_CONFIG.COMBAT_BED.WIND_URL);
+    wind.crossOrigin = 'anonymous';
+    wind.loop = true;
+    wind.preload = 'auto';
+    wind.volume = 1;
+    try {
+      const source = this.ctx.createMediaElementSource(wind);
+      const gain = this.ctx.createGain();
+      gain.gain.value = AUDIO_CONFIG.COMBAT_BED.WIND_GAIN;
+      source.connect(gain);
+      gain.connect(this.ambienceBus);
+      this._ambienceSources.push({ element: wind, source, gain });
+      wind.play().catch(() => {});
+    } catch {
+      wind.play().catch(() => {});
+    }
+
+    this._scheduleDistantThunder();
+  }
+
+  _scheduleDistantThunder() {
+    if (!this._ambienceStarted || !this._unlocked) return;
+    const cfg = AUDIO_CONFIG.COMBAT_BED;
+    const delay = cfg.THUNDER_MIN_DELAY_MS +
+      Math.random() * (cfg.THUNDER_MAX_DELAY_MS - cfg.THUNDER_MIN_DELAY_MS);
+    this._thunderTimer = setTimeout(() => {
+      if (!this._ambienceStarted || !this._unlocked) return;
+      const thunder = new Audio(cfg.THUNDER_URL);
+      thunder.crossOrigin = 'anonymous';
+      thunder.preload = 'auto';
+      thunder.playbackRate = cfg.PLAYBACK_RATE_MIN +
+        Math.random() * (cfg.PLAYBACK_RATE_MAX - cfg.PLAYBACK_RATE_MIN);
+      thunder.volume = 1;
+      try {
+        const source = this.ctx.createMediaElementSource(thunder);
+        const gain = this.ctx.createGain();
+        gain.gain.value = cfg.THUNDER_GAIN;
+        source.connect(gain);
+        gain.connect(this.ambienceBus);
+        this._ambienceSources.push({ element: thunder, source, gain });
+        thunder.play().catch(() => {});
+        thunder.addEventListener('ended', () => {
+          try { source.disconnect(); } catch {}
+          try { gain.disconnect(); } catch {}
+        }, { once: true });
+      } catch {
+        thunder.play().catch(() => {});
+      }
+      this._scheduleDistantThunder();
+    }, delay);
+  }
+
+  stopCombatAmbience() {
+    this._ambienceStarted = false;
+    if (this._thunderTimer) {
+      clearTimeout(this._thunderTimer);
+      this._thunderTimer = null;
+    }
+    for (const item of this._ambienceSources) {
+      try { item.element.pause(); item.element.currentTime = 0; } catch {}
+      try { item.source.disconnect(); } catch {}
+      try { item.gain.disconnect(); } catch {}
+    }
+    this._ambienceSources.length = 0;
   }
 
   _playAt(position, callback) {
@@ -139,7 +228,7 @@ export class AudioManager {
   playReloadStartAt(position) { this._playAt(position, output => { this._tone(200, 0.07, 'triangle', 0.09, 140, output); }); }
   playReloadEndAt(position) { this._playAt(position, output => { this._tone(300, 0.05, 'square', 0.1, 250, output); }); }
   playFootstepAt(position, stance = 0) {
-    const gain = stance === 2 ? 0.03 : stance === 1 ? 0.05 : 0.07;
+    const gain = (stance === 2 ? 0.03 : stance === 1 ? 0.05 : 0.07) * AUDIO_CONFIG.SFX.FOOTSTEP_MULTIPLIER;
     this._playAt(position, output => {
       this._noise(0.035, gain, 380, output);
       this._tone(80, 0.04, 'sine', gain * 0.7, 45, output);
@@ -166,7 +255,7 @@ export class AudioManager {
   }
 
   playFootstep(stance = 0) {
-    const g = stance === 2 ? 0.03 : stance === 1 ? 0.05 : 0.07;
+    const g = (stance === 2 ? 0.03 : stance === 1 ? 0.05 : 0.07) * AUDIO_CONFIG.SFX.FOOTSTEP_MULTIPLIER;
     this._noise(0.035, g, 380);
     this._tone(80, 0.04, 'sine', g * 0.7, 45);
   }
@@ -189,7 +278,7 @@ export class AudioManager {
   }
 
   playImpact() {
-    this._noise(0.04, 0.09, 1400);
+    this._noise(0.055, 0.13 * AUDIO_CONFIG.SFX.IMPACT_MULTIPLIER, 1500);
   }
 
   updateFootsteps(dt, isMoving, isGrounded, stance = 0) {
