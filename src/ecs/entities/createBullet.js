@@ -18,12 +18,21 @@ function disposeObject3D(root) {
   });
 }
 
-export function createBullet(ecsWorld, sceneOrManager, startPos, endPos) {
+export function createBullet(
+  ecsWorld,
+  sceneOrManager,
+  startPos,
+  endPos,
+  trajectoryPoints = null
+) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
-  const geometry = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(startPos.x, startPos.y, startPos.z),
-    new THREE.Vector3(endPos.x, endPos.y, endPos.z),
-  ]);
+  const points = Array.isArray(trajectoryPoints) && trajectoryPoints.length >= 2
+    ? trajectoryPoints
+    : [startPos, endPos];
+
+  const geometry = new THREE.BufferGeometry().setFromPoints(
+    points.map((point) => new THREE.Vector3(point.x, point.y, point.z))
+  );
   const material = new THREE.LineBasicMaterial({
     color: 0xffe08a,
     transparent: true,
@@ -142,8 +151,12 @@ export function createImpactDecal(
     const normalBias = Math.cos(elevation);
     const tangentSpeed = cfg.TANGENTIAL_SPEED_MIN + Math.random() * (cfg.TANGENTIAL_SPEED_MAX - cfg.TANGENTIAL_SPEED_MIN);
     const normalSpeed = cfg.NORMAL_SPEED_MIN + Math.random() * (cfg.NORMAL_SPEED_MAX - cfg.NORMAL_SPEED_MIN);
-    const size = chunky ? cfg.BLOCK_SIZE_MIN + Math.random() * (cfg.BLOCK_SIZE_MAX - cfg.BLOCK_SIZE_MIN) : cfg.SPARK_SIZE_MIN + Math.random() * (cfg.SPARK_SIZE_MAX - cfg.SPARK_SIZE_MIN);
-    const length = chunky ? size * (0.8 + Math.random() * 0.7) : cfg.SPARK_LENGTH_MIN + Math.random() * (cfg.SPARK_LENGTH_MAX - cfg.SPARK_LENGTH_MIN);
+    const size = chunky
+      ? cfg.BLOCK_SIZE_MIN + Math.random() * (cfg.BLOCK_SIZE_MAX - cfg.BLOCK_SIZE_MIN)
+      : cfg.SPARK_SIZE_MIN + Math.random() * (cfg.SPARK_SIZE_MAX - cfg.SPARK_SIZE_MIN);
+    const length = chunky
+      ? size * (0.8 + Math.random() * 0.7)
+      : cfg.SPARK_LENGTH_MIN + Math.random() * (cfg.SPARK_LENGTH_MAX - cfg.SPARK_LENGTH_MIN);
     const spark = new THREE.Mesh(
       new THREE.BoxGeometry(size, size, length),
       materials[Math.floor(Math.random() * materials.length)].clone()
@@ -156,15 +169,24 @@ export function createImpactDecal(
       .addScaledVector(tangent, Math.cos(azimuth) * radial * cfg.TANGENT_DIRECTION)
       .addScaledVector(bitangent, Math.sin(azimuth) * radial * cfg.TANGENT_DIRECTION)
       .normalize();
-    spark.rotation.set((Math.random() - 0.5) * Math.PI, (Math.random() - 0.5) * Math.PI, Math.random() * Math.PI * 2);
+    spark.rotation.set(
+      (Math.random() - 0.5) * Math.PI,
+      (Math.random() - 0.5) * Math.PI,
+      Math.random() * Math.PI * 2
+    );
     spark.userData.velocity = direction.multiplyScalar(Math.max(normalSpeed, tangentSpeed));
     spark.userData.drag = cfg.DRAG_MIN + Math.random() * (cfg.DRAG_MAX - cfg.DRAG_MIN);
     spark.userData.gravity = cfg.GRAVITY * (0.7 + Math.random() * 0.6);
     spark.userData.age = -(Math.random() * cfg.SPAWN_DELAY_MS / 1000);
     spark.userData.baseScale = 0.75 + Math.random() * 0.7;
-    spark.userData.angularVelocity = { x: (Math.random() - 0.5) * 18, y: (Math.random() - 0.5) * 18, z: (Math.random() - 0.5) * 18 };
+    spark.userData.angularVelocity = {
+      x: (Math.random() - 0.5) * 18,
+      y: (Math.random() - 0.5) * 18,
+      z: (Math.random() - 0.5) * 18,
+    };
     sparkGroup.add(spark);
   };
+
   for (let i = 0; i < cfg.SPARK_COUNT; i++) spawnSpark(false);
   for (let i = 0; i < cfg.BLOCK_COUNT; i++) spawnSpark(true);
   group.add(sparkGroup);
@@ -220,6 +242,7 @@ export function createImpactDecal(
 
   return entity;
 }
+
 export function createImpact(ecsWorld, sceneOrManager, position, normal, targetMesh = null, targetEntity = null) {
   return createImpactDecal(ecsWorld, sceneOrManager, position, normal, targetMesh, targetEntity);
 }
@@ -274,115 +297,20 @@ export function clearPlayerImpactMarks(ecsWorld, playerEntity, fraction) {
   const playerId = playerEntity?.player?.id ?? playerEntity;
   if (!decals || playerId == null) return 0;
   const amount = THREE.MathUtils.clamp(Number(fraction) || 0, 0, 1);
-  const marks = decals.filter((e) => e?.isPlayerImpactMark && e?.impactMarkOwnerId === playerId && e?.renderMesh?.mesh);
+  const marks = decals.filter((e) =>
+    e?.isPlayerImpactMark &&
+    e?.impactMarkOwnerId === playerId &&
+    e?.renderMesh?.mesh
+  );
   const removeCount = Math.min(marks.length, Math.floor(marks.length * amount + 1e-6));
   for (let i = 0; i < removeCount; i++) {
-    const e = marks[i]; const mesh = e.renderMesh.mesh;
-    mesh.parent?.remove?.(mesh); disposeObject3D(mesh);
-    const idx = decals.indexOf(e); if (idx >= 0) decals.splice(idx, 1);
+    const e = marks[i];
+    const mesh = e.renderMesh.mesh;
+    mesh.parent?.remove?.(mesh);
+    disposeObject3D(mesh);
     ecsWorld.remove(e);
+    const index = decals.indexOf(e);
+    if (index >= 0) decals.splice(index, 1);
   }
   return removeCount;
-}
-
-export function disposeImpactDecals(ecsWorld) {
-  const decals = decalRegistry.get(ecsWorld);
-  if (!decals) return;
-
-  for (const entity of decals) {
-    const mesh = entity?.renderMesh?.mesh;
-    if (mesh) {
-      mesh.parent?.remove(mesh);
-      disposeObject3D(mesh);
-    }
-    if (entity) ecsWorld.remove(entity);
-  }
-
-  decals.length = 0;
-  decalRegistry.delete(ecsWorld);
-}
-
-export function createBloodImpact(ecsWorld, sceneOrManager, position, normal, targetMesh = null, targetEntity = null) {
-  const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
-  const n = new THREE.Vector3(normal.x, normal.y, normal.z);
-  if (n.lengthSq() < 1e-8) n.set(0, 1, 0);
-  n.normalize();
-
-  const point = new THREE.Vector3(position.x, position.y, position.z).addScaledVector(n, 0.003);
-  if (targetMesh?.updateWorldMatrix) targetMesh.updateWorldMatrix(true, false);
-
-  const localPoint = targetMesh?.worldToLocal
-    ? targetMesh.worldToLocal(point.clone())
-    : point.clone();
-  let localNormal = n.clone();
-  if (targetMesh?.worldToLocal) {
-    localNormal = targetMesh.worldToLocal(point.clone().addScaledVector(n, 1))
-      .sub(localPoint).normalize();
-  }
-
-  const group = new THREE.Group();
-  group.name = 'bloodImpact';
-  group.renderOrder = 21;
-
-  const stain = new THREE.Mesh(
-    new THREE.CircleGeometry(0.055, 16),
-    new THREE.MeshBasicMaterial({
-      color: 0x8f1010, transparent: true, opacity: 0.88,
-      side: THREE.DoubleSide, depthTest: true, depthWrite: false,
-      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
-    })
-  );
-  stain.position.copy(localPoint);
-  stain.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), localNormal);
-  group.add(stain);
-
-  const tangent = new THREE.Vector3()
-    .crossVectors(Math.abs(localNormal.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0), localNormal)
-    .normalize();
-  const bitangent = new THREE.Vector3().crossVectors(localNormal, tangent).normalize();
-
-  for (let i = 0; i < 5; i++) {
-    const a = i * Math.PI * 2 / 5;
-    const drop = new THREE.Mesh(
-      new THREE.SphereGeometry(0.008 + i * 0.001, 5, 4),
-      new THREE.MeshBasicMaterial({ color: 0x8f1010, transparent: true, opacity: 0.8, depthTest: true, depthWrite: false })
-    );
-    drop.position.copy(localPoint)
-      .addScaledVector(tangent, Math.cos(a) * 0.015)
-      .addScaledVector(bitangent, Math.sin(a) * 0.015)
-      .addScaledVector(localNormal, 0.006);
-    group.add(drop);
-  }
-
-  if (targetMesh) targetMesh.add(group);
-  else scene?.add?.(group);
-
-  const entity = ecsWorld.add({
-    isImpact: true,
-    isBloodImpact: true,
-    isPermanentDecal: true,
-    transform: createTransform(point.x, point.y, point.z),
-    renderMesh: { mesh: group },
-    impactFlashUntil: performance.now() + 70,
-    impactMarkOwnerId: targetEntity?.player?.id ?? null,
-    isPlayerImpactMark: !!targetEntity?.player,
-  });
-
-  let decals = decalRegistry.get(ecsWorld);
-  if (!decals) {
-    decals = [];
-    decalRegistry.set(ecsWorld, decals);
-  }
-  decals.push(entity);
-
-  const max = GAME_CONFIG.MAX_DECALS || 100;
-  while (decals.length > max) {
-    const oldEntity = decals.shift();
-    const oldMesh = oldEntity?.renderMesh?.mesh;
-    oldMesh?.parent?.remove?.(oldMesh);
-    disposeObject3D(oldMesh);
-    if (oldEntity) ecsWorld.remove(oldEntity);
-  }
-
-  return entity;
 }
