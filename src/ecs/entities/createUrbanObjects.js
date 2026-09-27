@@ -133,7 +133,7 @@ const P = [
     box('base',{.62,.07,.62},{x:0,y:.035,z:0},MAT.rubber),
     box('band',{.21,.07,.21},{x:0,y:.43,z:0},MAT.glass),
   ]},
-  { type:'road_sign', name:'RoadSign', x:10, z:-18, parts:[
+  { type:'road_sign', name:'RoadSign', x:10, z:-22, parts:[
     cyl('post',.055,1.8,{x:0,y:.9,z:0},MAT.galvanized,{segments:10}),
     box('sign',{.72,.52,.07},{x:0,y:1.55,z:0},MAT.galvanized),
     box('face',{.56,.36,.012},{x:0,y:1.55,z:-.041},MAT.painted),
