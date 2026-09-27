@@ -6,7 +6,7 @@ import { createPhysics } from '../components/Physics.js';
 import { createPlayer as createPlayerComponent } from '../components/Player.js';
 import { createWeapon, createLoadout } from '../components/Weapon.js';
 import { createInput } from '../components/Input.js';
-import { GAME_CONFIG, peerIdToNumeric, DEFAULT_WEAPON } from '../../config/constants.js';
+import { GAME_CONFIG, peerIdToNumeric } from '../../config/constants.js';
 import { WORLD_CONFIG } from '../../config/world.js';
 
 export function createPlayer(
