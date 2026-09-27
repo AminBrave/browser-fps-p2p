@@ -14,6 +14,7 @@ import { RenderSystem } from './ecs/systems/RenderSystem.js';
 import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
+import { disposeImpactDecals } from './ecs/entities/createBullet.js';
 
 export class HostGame {
   constructor(containerElement) {
@@ -190,7 +191,9 @@ export class HostGame {
     this.inputSystem?.dispose();
     this.renderSystem?.dispose();
     this.hud.dispose();
+    disposeImpactDecals(this.ecsWorld);
     this.sceneManager.dispose();
+    this.physicsWorld.dispose();
     this.peerManager.destroy();
     window.removeEventListener('click', this._audioUnlockHandler);
     this.gameLoop = null;
