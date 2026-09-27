@@ -13,6 +13,7 @@ export class AudioManager {
     this._ambienceStarted = false;
     this._ambienceSources = [];
     this._thunderTimer = null;
+    this._combatFireTimer = null;
   }
 
   _ensure() {
@@ -140,6 +141,39 @@ export class AudioManager {
     }
 
     this._scheduleDistantThunder();
+    this._scheduleDistantCombatFire();
+  }
+
+  _scheduleDistantCombatFire() {
+    if (!this._ambienceStarted || !this._unlocked) return;
+    const cfg = AUDIO_CONFIG.COMBAT_BED;
+    const delay = cfg.DISTANT_FIRE_MIN_DELAY_MS +
+      Math.random() * (cfg.DISTANT_FIRE_MAX_DELAY_MS - cfg.DISTANT_FIRE_MIN_DELAY_MS);
+    this._combatFireTimer = setTimeout(() => {
+      if (!this._ambienceStarted || !this._unlocked) return;
+      const shots = 2 + Math.floor(Math.random() * 4);
+      const start = this.ctx.currentTime;
+      for (let i = 0; i < shots; i++) {
+        const offset = i * (0.12 + Math.random() * 0.18);
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(120 + Math.random() * 80, start + offset);
+        osc.frequency.exponentialRampToValueAtTime(48, start + offset + 0.09);
+        filter.type = 'lowpass';
+        filter.frequency.value = 1200;
+        gain.gain.setValueAtTime(0.0001, start + offset);
+        gain.gain.exponentialRampToValueAtTime(cfg.DISTANT_FIRE_GAIN, start + offset + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.12);
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ambienceBus);
+        osc.start(start + offset);
+        osc.stop(start + offset + 0.14);
+      }
+      this._scheduleDistantCombatFire();
+    }, delay);
   }
 
   _scheduleDistantThunder() {
@@ -179,6 +213,10 @@ export class AudioManager {
     if (this._thunderTimer) {
       clearTimeout(this._thunderTimer);
       this._thunderTimer = null;
+    }
+    if (this._combatFireTimer) {
+      clearTimeout(this._combatFireTimer);
+      this._combatFireTimer = null;
     }
     for (const item of this._ambienceSources) {
       try { item.element.pause(); item.element.currentTime = 0; } catch {}
