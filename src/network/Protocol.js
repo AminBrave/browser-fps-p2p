@@ -3,7 +3,7 @@ import { GAME_CONFIG } from '../config/index.js';
 
 const CLIENT_INPUT_SIZE = 16;
 const SNAPSHOT_HEADER_SIZE = 10;
-const SNAPSHOT_ENTITY_SIZE = 41;
+const SNAPSHOT_ENTITY_SIZE = 45;
 
 function asDataView(data) {
   if (data instanceof DataView) return data;
@@ -218,6 +218,8 @@ export class Protocol {
       view.setFloat32(offset + 32, Number(velocity.y ?? 0), true);
       view.setFloat32(offset + 36, Number(velocity.z ?? 0), true);
       view.setUint8(offset + 40, e.isGrounded ? 1 : 0);
+      view.setUint16(offset + 41, Math.max(0, Math.min(65535, Number(e.kills ?? 0) | 0)), true);
+      view.setUint16(offset + 43, Math.max(0, Math.min(65535, Number(e.deaths ?? 0) | 0)), true);
     }
 
     return buffer;
@@ -255,6 +257,8 @@ export class Protocol {
         z: view.getFloat32(offset + 36, true),
       };
       const isGrounded = view.getUint8(offset + 40) !== 0;
+      const kills = view.getUint16(offset + 41, true);
+      const deaths = view.getUint16(offset + 43, true);
 
       entities[i] = {
         entityId,
@@ -271,6 +275,8 @@ export class Protocol {
         weaponId,
         velocity,
         isGrounded,
+        kills,
+        deaths,
         isDead: !!(flags & 1),
         isHost: !!(flags & 2),
       };
