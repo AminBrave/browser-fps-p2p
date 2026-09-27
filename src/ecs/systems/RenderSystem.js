@@ -388,7 +388,7 @@ export class RenderSystem {
         stanceMotion.horizontal;
 
       const targetRunY =
-        (Math.abs(step) * 0.55 + (doubleStep * 0.5 + 0.5) * 0.45) *
+        (((Math.abs(step) * 2) - 1) * 0.55 + doubleStep * 0.45) *
         movementConfig.RUNNING_LIFT_METERS *
         runScale *
         stanceMotion.vertical;
