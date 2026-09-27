@@ -10,44 +10,50 @@ export const NETWORK_CONFIG = Object.freeze({
   MAX_SNAPSHOT_HISTORY: 16,
   PEER_ID_HASH: Object.freeze({ OFFSET_BASIS: 2166136261, PRIME: 16777619 }),
 
-  // WebRTC ICE configuration. PeerJS handles signaling, but actual peer
-  // connectivity depends on ICE candidates. STUN enables direct NAT traversal;
-  // TURN provides a relay fallback when the two players cannot connect
-  // directly (symmetric NAT, carrier NAT, restrictive firewalls, etc.).
+  SIGNALING: Object.freeze({
+    HOST: '',
+    PORT: 443,
+    PATH: '/',
+    SECURE: true,
+    DEBUG: 1,
+    PING_INTERVAL_MS: 5000,
+    RECONNECT_DELAY_MS: 1500,
+  }),
+
   WEBRTC: Object.freeze({
-    ICE_SERVERS: Object.freeze([
+    // STUN is useful for direct NAT traversal. TURN is loaded at runtime
+    // from the Vercel /api/ice endpoint so credentials are never committed.
+    STUN_SERVERS: Object.freeze([
       Object.freeze({ urls: 'stun:stun.l.google.com:19302' }),
       Object.freeze({ urls: 'stun:stun1.l.google.com:19302' }),
       Object.freeze({ urls: 'stun:stun2.l.google.com:19302' }),
-      Object.freeze({
-        urls: 'turn:openrelay.metered.ca:80',
-        username: 'openrelayproject',
-        credential: 'openrelayproject',
-      }),
-      Object.freeze({
-        urls: 'turn:openrelay.metered.ca:443',
-        username: 'openrelayproject',
-        credential: 'openrelayproject',
-      }),
-      Object.freeze({
-        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-        username: 'openrelayproject',
-        credential: 'openrelayproject',
-      }),
-      Object.freeze({
-        urls: 'turns:openrelay.metered.ca:443?transport=tcp',
-        username: 'openrelayproject',
-        credential: 'openrelayproject',
-      }),
     ]),
+    ICE_TRANSPORT_POLICY: 'all',
     SDP_SEMANTICS: 'unified-plan',
-    CONNECTION_TIMEOUT_MS: 15000,
+    SIGNALING_TIMEOUT_MS: 10000,
+    DATA_CONNECTION_TIMEOUT_MS: 30000,
+    TURN_CONFIG_TIMEOUT_MS: 5000,
+    ICE_GATHERING_GRACE_MS: 1000,
+    STATS_SAMPLE_DELAY_MS: 1500,
+  }),
+
+  TRANSPORT: Object.freeze({
+    LABEL: 'p2p-fps-game',
+    SERIALIZATION: 'binary',
+    RELIABLE: true,
+    MAX_BUFFERED_BYTES: 2 * 1024 * 1024,
+    MAX_PACKET_BYTES: 1024 * 1024,
+  }),
+
+  HANDSHAKE: Object.freeze({
+    PROTOCOL_VERSION: 1,
+    JOIN_TIMEOUT_MS: 10000,
   }),
 
   INVITATION_CODE: Object.freeze({
     LENGTH: 5,
     ALPHABET: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789',
-    MAX_RETRIES: 5,
+    MAX_RETRIES: 8,
   }),
 });
 
