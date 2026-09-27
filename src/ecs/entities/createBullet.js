@@ -223,6 +223,16 @@ export function createImpact(ecsWorld, sceneOrManager, position, normal, targetM
   return createImpactDecal(ecsWorld, sceneOrManager, position, normal, targetMesh, targetEntity);
 }
 
+export function getPlayerImpactMarkCount(ecsWorld, playerEntity) {
+  const decals = decalRegistry.get(ecsWorld);
+  if (!decals || !playerEntity) return 0;
+  return decals.filter((e) =>
+    e?.isPlayerImpactMark &&
+    e?.impactMarkOwner === playerEntity &&
+    e?.renderMesh?.mesh
+  ).length;
+}
+
 export function clearPlayerImpactMarks(ecsWorld, playerEntity, fraction) {
   const decals = decalRegistry.get(ecsWorld);
   if (!decals || !playerEntity) return 0;
