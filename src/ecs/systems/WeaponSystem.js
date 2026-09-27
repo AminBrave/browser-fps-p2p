@@ -266,16 +266,31 @@ export class WeaponSystem {
     };
   }
 
+  /**
+   * Distance damage is based on the projectile's actual travelled path, not
+   * straight-line muzzle-to-target distance. That matters because gravity
+   * bends the trajectory and therefore changes flight distance/time.
+   *
+   * The curve is deliberately configurable per weapon:
+   *   1.0 = linear falloff
+   *   >1 = retain power longer, then weaken harder near the end
+   *   <1 = lose power early
+   */
   _getDamageMultiplier(weapon, distance) {
     const start = Math.max(0, Number(weapon.damageFalloffStart) || 0);
-    const end = Math.max(start + 0.001, Number(weapon.damageFalloffEnd) || Number(weapon.range) || 100);
+    const end = Math.max(
+      start + 0.001,
+      Number(weapon.damageFalloffEnd) || Number(weapon.range) || 100
+    );
     const minimum = Math.min(1, Math.max(0, Number(weapon.minDamageMultiplier) || 0.5));
+    const curve = Math.max(0.25, Number(weapon.damageFalloffCurve) || 1);
 
     if (distance <= start) return 1;
     if (distance >= end) return minimum;
 
-    const t = (distance - start) / (end - start);
-    return 1 + (minimum - 1) * t;
+    const normalized = Math.min(1, Math.max(0, (distance - start) / (end - start)));
+    const shaped = Math.pow(normalized, curve);
+    return 1 + (minimum - 1) * shaped;
   }
 
   _getHitZoneMultiplier(hitZone) {
