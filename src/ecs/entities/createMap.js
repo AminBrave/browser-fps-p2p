@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
 import { createPhysics } from '../components/Physics.js';
 import { WORLD_CONFIG } from '../../config/world.js';
+import { createUrbanObjects } from './createUrbanObjects.js';
 
 function addToScene(sceneManager, object) {
   sceneManager?.scene?.add(object);
@@ -565,6 +566,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
   addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities);
   for (const p of WORLD_CONFIG.OBJECTS.STREETLIGHT.POSITIONS) addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, p);
   for (const p of WORLD_CONFIG.OBJECTS.DUMPSTER.POSITIONS) addDumpster(ecsWorld, physicsWorld, sceneManager, mapEntities, p);
+  createUrbanObjects(ecsWorld, physicsWorld, sceneManager, mapEntities);
 
   for (const placement of WORLD_CONFIG.OBJECTS.CRATE.PLACEMENTS) {
     addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
