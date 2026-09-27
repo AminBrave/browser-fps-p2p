@@ -1,5 +1,5 @@
 import { Peer } from 'peerjs';
-import { NETWORK_CONFIG } from '../config/index.js';
+import { NETWORK_CONFIG, PROTOCOL_CONFIG } from '../config/index.js';
 import { resolveIceServers } from './IceServers.js';
 
 const STATE = Object.freeze({
@@ -91,7 +91,7 @@ export class PeerManager {
         reliable: NETWORK_CONFIG.TRANSPORT.RELIABLE,
         serialization: NETWORK_CONFIG.TRANSPORT.SERIALIZATION,
         metadata: {
-          protocolVersion: NETWORK_CONFIG.HANDSHAKE.PROTOCOL_VERSION,
+          protocolVersion: PROTOCOL_CONFIG.PROTOCOL_VERSION,
           client: 'browser-fps',
         },
       });
