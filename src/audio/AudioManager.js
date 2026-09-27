@@ -92,7 +92,7 @@ export class AudioManager {
     g.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
     src.connect(filter);
     filter.connect(g);
-    g.connect(output || this.master);
+    g.connect(output || this.sfxBus);
     src.start(t0);
   }
 
@@ -237,7 +237,7 @@ export class AudioManager {
     panner.positionX.value = Number(position.x) || 0;
     panner.positionY.value = Number(position.y) || 0;
     panner.positionZ.value = Number(position.z) || 0;
-    panner.connect(this.master);
+    panner.connect(this.sfxBus);
     callback(panner);
     setTimeout(() => { try { panner.disconnect(); } catch {} }, 1200);
   }
