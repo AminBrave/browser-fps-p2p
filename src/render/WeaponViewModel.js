@@ -46,6 +46,7 @@ export class WeaponViewModel {
     this._muzzleWorld = new THREE.Vector3();
     this._muzzleEffects = new Map();
     this._firePulse = 0;
+    this._aimAmount = 0;
   }
 
   _mat(color, metal = 0.6, rough = 0.4) {
@@ -417,8 +418,9 @@ export class WeaponViewModel {
    * @param {boolean} isMoving
    * @param {boolean} isReloading
    * @param {number} moveIntensity 0..1
+   * @param {boolean} isAiming hold RMB to aim down sights
    */
-  update(dt, isMoving = false, isReloading = false, moveIntensity = 0) {
+  update(dt, isMoving = false, isReloading = false, moveIntensity = 0, isAiming = false) {
     if (!this.visible) {
       this.root.visible = false;
       return;
@@ -443,6 +445,9 @@ export class WeaponViewModel {
     this._swayY += (Math.random() - 0.5) * moveIntensity * 0.004;
     this._swayX *= 0.85;
     this._swayY *= 0.85;
+
+    const aimBlend = 1 - Math.exp(-dt / Math.max(0.01, RENDER_CONFIG.AIM.TRANSITION_SECONDS));
+    this._aimAmount = THREE.MathUtils.lerp(this._aimAmount, isAiming ? 1 : 0, aimBlend);
 
     this._recoilKick = Math.max(0, this._recoilKick - dt * 2.4);
     this._firePulse = Math.max(0, this._firePulse - dt * 18);
@@ -480,16 +485,26 @@ export class WeaponViewModel {
       if (!isReloading && t >= 1) this._reloadT = 0;
     }
 
+    const aim = this._aimAmount;
+    const targetX = RENDER_CONFIG.AIM.WEAPON_POSITION_X;
+    const targetY = RENDER_CONFIG.AIM.WEAPON_POSITION_Y;
+    const targetZ = RENDER_CONFIG.AIM.WEAPON_POSITION_Z;
+    const baseX = THREE.MathUtils.lerp(this.restPosition.x, targetX, aim);
+    const baseY = THREE.MathUtils.lerp(this.restPosition.y, targetY, aim);
+    const baseZ = THREE.MathUtils.lerp(this.restPosition.z, targetZ, aim);
     this.root.position.set(
-      this.restPosition.x + bobX + this._swayX + reloadX,
-      this.restPosition.y + bobY + this._swayY + reloadY - this._recoilKick * 0.22,
-      this.restPosition.z + this._recoilKick * 0.11
+      baseX + bobX * (1 - aim * 0.85) + this._swayX * (1 - aim * 0.7) + reloadX - this._recoilKick * 0.22,
+      baseY + bobY * (1 - aim * 0.85) + this._swayY * (1 - aim * 0.7) + reloadY - this._recoilKick * 0.22,
+      baseZ + this._recoilKick * 0.11
     );
     this.root.rotation.set(
-      this.restRotation.x - this._recoilKick * 1.25 + this._swayY * 2,
-      this.restRotation.y + this._swayX * 2,
-      this.restRotation.z + bobX * 0.6
+      this.restRotation.x * (1 - aim * 0.75) - this._recoilKick * 1.25 + this._swayY * 2 * (1 - aim * 0.75),
+      this.restRotation.y * (1 - aim * 0.8) + this._swayX * 2 * (1 - aim * 0.75),
+      this.restRotation.z * (1 - aim * 0.8) + bobX * 0.6 * (1 - aim)
     );
+    const hipScale = 1;
+    const aimScale = RENDER_CONFIG.AIM.WEAPON_SCALE;
+    this.root.scale.setScalar(THREE.MathUtils.lerp(hipScale, aimScale, aim));
   }
 
   setVisible(v) {
