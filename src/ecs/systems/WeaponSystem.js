@@ -193,11 +193,16 @@ export class WeaponSystem {
     const aimYaw = input.yaw || 0;
     const aimPitch = input.pitch || 0;
     const isFirstInBurst = (weapon.shotsInBurst || 0) === 0;
-    const bloom = isFirstInBurst ? 0 : weapon.currentSpread || 0;
-    const baseSpread = isFirstInBurst ? 0 : weapon.spreadBase || 0;
+    const bloom = weapon.currentSpread || 0;
+    const baseSpread = Number(weapon.spreadBase) || 0;
+    const steadySpread = Number(weapon.steadySpread) || 0.003;
     const intensity = moveIntensity(physics?.velocity);
+    const sprinting = hasFlag(input.inputMask || 0, INPUT_FLAGS.SPRINT) &&
+      hasFlag(input.inputMask || 0, INPUT_FLAGS.FORWARD) &&
+      (input.stance ?? 0) === 0;
     const moveSpread = intensity * (GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035);
-    const aimMultiplier = input.isAiming ? 0.35 : 1.0;
+    const sprintSpread = sprinting ? 0.075 : 0;
+    const aimMultiplier = input.isAiming ? 0.12 : 1.0;
 
     weapon.magazine = Math.max(0, (weapon.magazine ?? 1) - 1);
     weapon.ammo = weapon.magazine;
@@ -224,10 +229,13 @@ export class WeaponSystem {
         yawOff = (Math.random() * 2 - 1) * s;
         pitchOff = (Math.random() * 2 - 1) * s;
       } else {
-        const spread = (baseSpread + bloom + moveSpread) * aimMultiplier;
+        const spread = (steadySpread + baseSpread + bloom + moveSpread + sprintSpread) * aimMultiplier;
         if (spread > 0) {
-          yawOff = (Math.random() * 2 - 1) * spread;
-          pitchOff = (Math.random() * 2 - 1) * spread;
+          // Uniform disk sampling avoids the unnatural square-shaped accuracy cone.
+          const angle = Math.random() * Math.PI * 2;
+          const radius = Math.sqrt(Math.random()) * spread;
+          yawOff = Math.cos(angle) * radius;
+          pitchOff = Math.sin(angle) * radius;
         }
       }
 
