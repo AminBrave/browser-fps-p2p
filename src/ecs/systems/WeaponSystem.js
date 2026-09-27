@@ -9,6 +9,7 @@ import { hasFlag } from '../../utils/BitFlags.js';
 import { createBullet, createImpactDecal, createBloodImpact } from '../entities/createBullet.js';
 import { copyWeaponState } from '../components/Weapon.js';
 import { moveIntensity } from '../../utils/Movement.js';
+import { getAccuracyState } from '../../utils/AccuracyModel.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
 
@@ -192,24 +193,31 @@ export class WeaponSystem {
 
     const aimYaw = input.yaw || 0;
     const aimPitch = input.pitch || 0;
-    const isFirstInBurst = (weapon.shotsInBurst || 0) === 0;
-    const bloom = weapon.currentSpread || 0;
-    const baseSpread = Number(weapon.spreadBase) || 0;
-    const steadySpread = Number(weapon.steadySpread) || 0.003;
-    const intensity = moveIntensity(physics?.velocity);
-    const sprinting = hasFlag(input.inputMask || 0, INPUT_FLAGS.SPRINT) &&
-      hasFlag(input.inputMask || 0, INPUT_FLAGS.FORWARD) &&
-      (input.stance ?? 0) === 0;
-    const moveSpread = intensity * (GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035);
-    const sprintSpread = sprinting ? 0.075 : 0;
-    const stanceMultiplier =
-      (input.stance ?? 0) === 2 ? 0.60 :
-      (input.stance ?? 0) === 1 ? 0.78 : 1.0;
-    // ADS tightens the weapon's inherent/bloom cone by ~92%. Movement is
-    // intentionally only partially reduced: a moving shooter is still less
-    // stable than a stationary shooter even while aiming.
-    const aimMultiplier = input.isAiming && !sprinting ? 0.08 : 1.0;
-    const movementMultiplier = input.isAiming && !sprinting ? 0.45 : 1.0;
+    const speed = Math.hypot(
+      Number(physics?.velocity?.x) || 0,
+      Number(physics?.velocity?.z) || 0
+    );
+    const mask = input.inputMask || 0;
+    const stance = input.stance ?? 0;
+    const sprinting =
+      hasFlag(mask, INPUT_FLAGS.SPRINT) &&
+      hasFlag(mask, INPUT_FLAGS.FORWARD) &&
+      stance === 0;
+
+    // One shared accuracy model drives both shot dispersion and HUD reticle.
+    const accuracy = getAccuracyState({
+      stance,
+      speed,
+      maxSpeed: GAME_CONFIG.MAX_SPEED ?? 10.8,
+      isAiming: !!input.isAiming,
+      isSprinting: sprinting,
+      steadySpread: Number(weapon.steadySpread) || 0.003,
+      baseSpread: Number(weapon.spreadBase) || 0,
+      bloom: Number(weapon.currentSpread) || 0,
+      spreadMax: Number(weapon.spreadMax) || 0.05,
+      moveSpreadMax: GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035,
+    });
+    const effectiveSpread = accuracy.rawSpread;
 
     weapon.magazine = Math.max(0, (weapon.magazine ?? 1) - 1);
     weapon.ammo = weapon.magazine;
@@ -235,21 +243,15 @@ export class WeaponSystem {
     for (let p = 0; p < pelletCount; p++) {
       let yawOff = 0;
       let pitchOff = 0;
-      if (pelletCount > 1) {
-        const s = ((Number(weapon.spreadBase) || 0.04) + (Number(weapon.steadySpread) || 0.008) + bloom) * aimMultiplier * stanceMultiplier + effectiveMoveSpread + sprintSpread;
+      // Uniform disk sampling gives a circular, weapon-agnostic cone.
+      // Shotguns still use their configured base spread and pellet count through
+      // the same accuracy pipeline; every pellet shares the current stance,
+      // movement, ADS and bloom state.
+      if (effectiveSpread > 0) {
         const angle = Math.random() * Math.PI * 2;
-        const radius = Math.sqrt(Math.random()) * s;
+        const radius = Math.sqrt(Math.random()) * effectiveSpread;
         yawOff = Math.cos(angle) * radius;
         pitchOff = Math.sin(angle) * radius;
-      } else {
-        const spread = effectiveSpread;
-        if (spread > 0) {
-          // Uniform disk sampling avoids the unnatural square-shaped accuracy cone.
-          const angle = Math.random() * Math.PI * 2;
-          const radius = Math.sqrt(Math.random()) * spread;
-          yawOff = Math.cos(angle) * radius;
-          pitchOff = Math.sin(angle) * radius;
-        }
       }
 
       const yaw = aimYaw + yawOff;
