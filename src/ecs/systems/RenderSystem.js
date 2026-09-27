@@ -125,9 +125,15 @@ export class RenderSystem {
         entity.character.setWeaponType?.(
           entity.player.remoteWeaponId ?? entity.weapon?.typeId ?? 1
         );
-        const billboardQuaternion = this.camera?.quaternion || renderMesh.mesh.quaternion;
-        entity.character.parts.healthBack?.quaternion.copy(billboardQuaternion);
-        entity.character.parts.healthFill?.quaternion.copy(billboardQuaternion);
+        const healthBar = entity.character.parts.healthBar;
+        if (healthBar && this.camera) {
+          const cameraWorldQuaternion = new THREE.Quaternion();
+          const parentWorldQuaternion = new THREE.Quaternion();
+          this.camera.getWorldQuaternion(cameraWorldQuaternion);
+          renderMesh.mesh.getWorldQuaternion(parentWorldQuaternion);
+          parentWorldQuaternion.invert();
+          healthBar.quaternion.copy(parentWorldQuaternion).multiply(cameraWorldQuaternion);
+        }
       }
     }
 
