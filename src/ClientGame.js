@@ -52,7 +52,6 @@ export class ClientGame {
   }
 
   async initialize(hostRoomId) {
-    validateConfig();
     await this.physicsWorld.init();
 
     this.inputSystem = new InputSystem(this.container);
@@ -77,6 +76,7 @@ export class ClientGame {
 
     this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
     await this._worldReadyPromise;
+    validateConfig();
 
     createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
 
