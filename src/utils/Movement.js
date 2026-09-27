@@ -30,6 +30,10 @@ export function applyFpsMovement(inputMask, yaw, velocity, isGrounded, dt, stanc
   const rz = -sinY;
 
   let speed = PLAYER_CONFIG.SPEED;
+  const sprinting = hasFlag(inputMask, INPUT_FLAGS.SPRINT) &&
+    hasFlag(inputMask, INPUT_FLAGS.FORWARD) &&
+    stance === STANCE.STAND;
+  if (sprinting) speed *= PLAYER_CONFIG.SPRINT_MULTIPLIER;
   if (stance === STANCE.CROUCH) speed *= PLAYER_CONFIG.SPEED_MULTIPLIERS[STANCE.CROUCH];
   else if (stance === STANCE.PRONE) speed *= PLAYER_CONFIG.SPEED_MULTIPLIERS[STANCE.PRONE];
 
