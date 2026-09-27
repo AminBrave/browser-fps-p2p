@@ -76,7 +76,7 @@ export class ClientGame {
       this.localPlayerId,
       {
         ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[1 % WORLD_CONFIG.PLAYER.SPAWN_POINTS.length],
-        y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2 + 0.04,
+        y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2,
       },
       true,
       false
@@ -186,7 +186,7 @@ export class ClientGame {
           remoteId,
           {
             x: remote.x ?? remote.position?.x ?? 0,
-            y: remote.y ?? remote.position?.y ?? 3,
+            y: remote.y ?? remote.position?.y ?? (WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2),
             z: remote.z ?? remote.position?.z ?? 0,
           },
           false,
