@@ -1,5 +1,3 @@
-// src/physics/PhysicsWorld.js
-
 import RAPIER from '@dimforge/rapier3d-compat';
 
 export class PhysicsWorld {
@@ -10,6 +8,7 @@ export class PhysicsWorld {
   }
 
   async init() {
+    if (this.initialized) return;
     await RAPIER.init();
     this.world = new RAPIER.World({ x: 0.0, y: -19.62, z: 0.0 });
     this.initialized = true;
@@ -30,6 +29,8 @@ export class PhysicsWorld {
   }
 
   createPlayerBody(x, y, z, radius = 0.4, height = 1.8) {
+    if (!this.world) throw new Error('Physics world is not initialized');
+
     const body = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z)
     );
@@ -46,6 +47,8 @@ export class PhysicsWorld {
   }
 
   createStaticBox(x, y, z, hx, hy, hz) {
+    if (!this.world) throw new Error('Physics world is not initialized');
+
     const body = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z)
     );
@@ -56,10 +59,6 @@ export class PhysicsWorld {
     return { body, collider };
   }
 
-  /**
-   * Hitscan with surface normal (castRayAndGetNormal when available).
-   * Normal is flipped to face the shooter (outward from surface).
-   */
   castRay(origin, direction, maxDistance = 100, excludeCollider = null) {
     if (!this.world) return null;
 
@@ -71,32 +70,20 @@ export class PhysicsWorld {
     };
 
     const ray = new RAPIER.Ray(origin, dir);
-    const excludeHandle = excludeCollider
-      ? excludeCollider.handle ?? excludeCollider
+    const excludeHandle =
+      excludeCollider ? excludeCollider.handle ?? excludeCollider : null;
+
+    let hit = typeof this.world.castRayAndGetNormal === 'function'
+      ? this.world.castRayAndGetNormal(ray, maxDistance, true)
+      : this.world.castRay(ray, maxDistance, true);
+
+    let normalFromApi = hit?.normal
+      ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
       : null;
 
-    let hit = null;
-    let normalFromApi = null;
+    const collider = hit?.collider;
+    const handle = collider ? collider.handle ?? collider : null;
 
-    // Prefer API that returns contact normal
-    if (typeof this.world.castRayAndGetNormal === 'function') {
-      hit = this.world.castRayAndGetNormal(ray, maxDistance, true);
-      if (hit?.normal) {
-        normalFromApi = {
-          x: hit.normal.x,
-          y: hit.normal.y,
-          z: hit.normal.z,
-        };
-      }
-    } else {
-      hit = this.world.castRay(ray, maxDistance, true);
-    }
-
-    if (!hit) return null;
-
-    // Self-hit: nudge and retry
-    const col = hit.collider;
-    const handle = col ? col.handle ?? col : null;
     if (excludeHandle != null && handle === excludeHandle) {
       const nudged = {
         x: origin.x + dir.x * 0.55,
@@ -104,22 +91,22 @@ export class PhysicsWorld {
         z: origin.z + dir.z * 0.55,
       };
       const ray2 = new RAPIER.Ray(nudged, dir);
-      if (typeof this.world.castRayAndGetNormal === 'function') {
-        hit = this.world.castRayAndGetNormal(ray2, Math.max(0.1, maxDistance - 0.55), true);
-        if (hit?.normal) {
-          normalFromApi = {
-            x: hit.normal.x,
-            y: hit.normal.y,
-            z: hit.normal.z,
-          };
-        }
-      } else {
-        hit = this.world.castRay(ray2, Math.max(0.1, maxDistance - 0.55), true);
-      }
+      hit = typeof this.world.castRayAndGetNormal === 'function'
+        ? this.world.castRayAndGetNormal(
+            ray2,
+            Math.max(0.1, maxDistance - 0.55),
+            true
+          )
+        : this.world.castRay(ray2, Math.max(0.1, maxDistance - 0.55), true);
+      normalFromApi = hit?.normal
+        ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
+        : null;
+
       if (!hit) return null;
       return this._formatHit(nudged, dir, hit, normalFromApi);
     }
 
+    if (!hit) return null;
     return this._formatHit(origin, dir, hit, normalFromApi);
   }
 
@@ -131,22 +118,17 @@ export class PhysicsWorld {
       z: origin.z + dir.z * toi,
     };
 
-    let normal = normalFromApi;
-    if (!normal && hit.normal) {
-      normal = { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z };
-    }
-    if (!normal) {
-      // Face the incoming ray (approximation)
-      normal = { x: -dir.x, y: -dir.y, z: -dir.z };
-    }
+    let normal = normalFromApi || (
+      hit.normal
+        ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
+        : { x: -dir.x, y: -dir.y, z: -dir.z }
+    );
 
-    // Ensure normal points toward the shooter (against ray direction)
     const dot = normal.x * dir.x + normal.y * dir.y + normal.z * dir.z;
     if (dot > 0) {
       normal = { x: -normal.x, y: -normal.y, z: -normal.z };
     }
 
-    // Normalize
     const nLen = Math.hypot(normal.x, normal.y, normal.z) || 1;
     normal = {
       x: normal.x / nLen,
@@ -156,9 +138,19 @@ export class PhysicsWorld {
 
     const collider = hit.collider || null;
     const handle = collider ? collider.handle ?? collider : null;
-    const entity =
-      handle != null ? this.colliderToEntity.get(handle) || null : null;
+    const entity = handle != null
+      ? this.colliderToEntity.get(handle) || null
+      : null;
 
     return { point, normal, toi, collider, entity };
+  }
+
+  dispose() {
+    if (!this.initialized) return;
+
+    this.colliderToEntity.clear();
+    this.world?.free?.();
+    this.world = null;
+    this.initialized = false;
   }
 }
