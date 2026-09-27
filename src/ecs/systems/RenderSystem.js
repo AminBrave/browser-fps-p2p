@@ -38,10 +38,17 @@ export class RenderSystem {
     this._renderPosition = null;
     this._previousPosition = null;
     this._currentPosition = null;
+    this._networkVisualCorrection = { x: 0, y: 0, z: 0 };
   }
 
   setEventSink(eventSink) {
     this.eventSink = eventSink;
+  }
+
+  resetNetworkVisualCorrection() {
+    this._networkVisualCorrection.x = 0;
+    this._networkVisualCorrection.y = 0;
+    this._networkVisualCorrection.z = 0;
   }
 
   captureFixedState(localEntity) {
@@ -184,22 +191,34 @@ export class RenderSystem {
       // all share one coordinate.
       const bodyPosition = physics?.rigidBody?.translation?.();
       if (bodyPosition) {
-        // The simulation is fixed at 60 Hz while rendering can run at a
-        // different refresh rate. Interpolate the local visual/camera pose
-        // between the two most recent fixed states instead of displaying the
-        // discrete 60 Hz physics steps as screen jitter.
+        // Render interpolation is visual-only. Never write the interpolated
+        // camera position back into ECS because gameplay/reconciliation must
+        // always read the authoritative predicted physics body.
         if (!this._currentPosition) this.captureFixedState(localEntity);
         const previous = this._previousPosition || bodyPosition;
         const current = this._currentPosition || bodyPosition;
         const alpha = THREE.MathUtils.clamp(Number(renderAlpha) || 0, 0, 1);
+
+        const targetCorrection = localEntity.networkVisualCorrection || { x: 0, y: 0, z: 0 };
+        const smoothing = 1 - Math.exp(-Math.max(1, 14) * dt);
+        this._networkVisualCorrection.x = THREE.MathUtils.lerp(
+          this._networkVisualCorrection.x, targetCorrection.x, smoothing
+        );
+        this._networkVisualCorrection.y = THREE.MathUtils.lerp(
+          this._networkVisualCorrection.y, targetCorrection.y, smoothing
+        );
+        this._networkVisualCorrection.z = THREE.MathUtils.lerp(
+          this._networkVisualCorrection.z, targetCorrection.z, smoothing
+        );
+        targetCorrection.x *= Math.max(0, 1 - smoothing);
+        targetCorrection.y *= Math.max(0, 1 - smoothing);
+        targetCorrection.z *= Math.max(0, 1 - smoothing);
+
         this._renderPosition = {
-          x: THREE.MathUtils.lerp(previous.x, current.x, alpha),
-          y: THREE.MathUtils.lerp(previous.y, current.y, alpha),
-          z: THREE.MathUtils.lerp(previous.z, current.z, alpha),
+          x: THREE.MathUtils.lerp(previous.x, current.x, alpha) + this._networkVisualCorrection.x,
+          y: THREE.MathUtils.lerp(previous.y, current.y, alpha) + this._networkVisualCorrection.y,
+          z: THREE.MathUtils.lerp(previous.z, current.z, alpha) + this._networkVisualCorrection.z,
         };
-        transform.position.x = this._renderPosition.x;
-        transform.position.y = this._renderPosition.y;
-        transform.position.z = this._renderPosition.z;
       }
 
       // Keep the first-person eye anchored to the exact same head/pose
@@ -215,10 +234,11 @@ export class RenderSystem {
 
       const eyeOffset = getPlayerEyeOffset(stance);
 
+      const cameraBase = this._renderPosition || transform.position;
       this.camera.position.set(
-        transform.position.x,
-        transform.position.y + eyeOffset,
-        transform.position.z
+        cameraBase.x,
+        cameraBase.y + eyeOffset,
+        cameraBase.z
       );
 
       if (weapon) {
@@ -275,7 +295,7 @@ export class RenderSystem {
             type: EVENT_TYPES.SFX,
             sfx: 'footstep',
             sourceId: localEntity.player?.id,
-            position: { ...transform.position },
+            position: bodyPosition ? { x: bodyPosition.x, y: bodyPosition.y, z: bodyPosition.z } : { ...transform.position },
             stance,
           });
         }
@@ -285,7 +305,7 @@ export class RenderSystem {
             type: EVENT_TYPES.SFX,
             sfx: 'land',
             sourceId: localEntity.player?.id,
-            position: { ...transform.position },
+            position: bodyPosition ? { x: bodyPosition.x, y: bodyPosition.y, z: bodyPosition.z } : { ...transform.position },
           });
         }
         if (this._wasGrounded && !grounded && hasFlag(mask, INPUT_FLAGS.JUMP)) {
@@ -294,7 +314,7 @@ export class RenderSystem {
             type: EVENT_TYPES.SFX,
             sfx: 'jump',
             sourceId: localEntity.player?.id,
-            position: { ...transform.position },
+            position: bodyPosition ? { x: bodyPosition.x, y: bodyPosition.y, z: bodyPosition.z } : { ...transform.position },
           });
         }
         this._wasGrounded = grounded;
