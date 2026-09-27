@@ -144,10 +144,23 @@ export class HealthSystem {
       const player = entity.player;
       const transform = entity.transform;
       const physics = entity.physics;
+      if (player) {
+        const maxHealth = Math.max(1, Number(player.maxHealth) || PLAYER_CONFIG.MAX_HEALTH || 100);
+        const health = Math.max(0, Number(player.health) || 0);
+
+        // Keep impact visuals synchronized even while dead. The old logic only
+        // updated living players, so a host-side target could respawn at 100 HP
+        // while its old blood/bullet-hole decals remained visible.
+        updatePlayerImpactMarksForHealth(ecsWorld, entity, health, maxHealth);
+
+        if (health >= maxHealth) {
+          clearPlayerImpactMarks(ecsWorld, entity, 1);
+        }
+      }
+
       if (player && !player.isDead) {
         const maxHealth = Math.max(1, Number(player.maxHealth) || PLAYER_CONFIG.MAX_HEALTH || 100);
         const health = Math.max(0, Number(player.health) || 0);
-        updatePlayerImpactMarksForHealth(ecsWorld, entity, health, maxHealth);
         const delay = Math.max(0, Number(GAME_CONFIG.HEALTH_REGEN?.DELAY_MS) || 3500);
         const rate = Math.max(0, Number(GAME_CONFIG.HEALTH_REGEN?.RATE_PER_SECOND) || 12);
         if (health < maxHealth && now - (Number(player.lastDamagedAt) || 0) >= delay) {
@@ -185,6 +198,10 @@ export class HealthSystem {
       player.lastDamagedAt = now;
       player.impactMarkClearAccumulator = 0;
       player.respawnTimer = 0;
+
+      // Respawn is a hard visual reset: a full-health player must not carry
+      // body impact decals from the previous life.
+      clearPlayerImpactMarks(ecsWorld, entity, 1);
 
       transform.position.x = spawn.x;
       transform.position.y = spawn.y;
