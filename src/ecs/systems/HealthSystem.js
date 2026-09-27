@@ -149,11 +149,30 @@ export class HealthSystem {
           const previousHealth = health;
           const delta = Math.min(maxHealth - health, rate / 60);
           player.health = health + delta;
-          player.impactMarkClearAccumulator = (Number(player.impactMarkClearAccumulator) || 0) + delta / maxHealth;
-          const clearFraction = Math.min(1, player.impactMarkClearAccumulator);
-          if (clearFraction > 0) {
+
+          // Convert healing into "impact-mark units" instead of passing a tiny
+          // health fraction directly to clearPlayerImpactMarks(). Passing the
+          // fraction itself made floor(marks * fraction) round to zero on
+          // almost every frame, so marks could remain visible for the entire
+          // regeneration cycle.
+          const marksBeforeHeal = clearPlayerImpactMarks(ecsWorld, entity, 0);
+          player.impactMarkClearAccumulator =
+            (Number(player.impactMarkClearAccumulator) || 0) +
+            (delta / maxHealth) * marksBeforeHeal;
+
+          const marksToClear = Math.floor(player.impactMarkClearAccumulator);
+          if (marksToClear > 0) {
+            const clearFraction = marksBeforeHeal > 0
+              ? Math.min(1, marksToClear / marksBeforeHeal)
+              : 0;
             clearPlayerImpactMarks(ecsWorld, entity, clearFraction);
-            player.impactMarkClearAccumulator = Math.max(0, player.impactMarkClearAccumulator - clearFraction);
+            player.impactMarkClearAccumulator -= marksToClear;
+          }
+
+          // Guarantee a clean body when regeneration reaches full health.
+          if (player.health >= maxHealth) {
+            clearPlayerImpactMarks(ecsWorld, entity, 1);
+            player.impactMarkClearAccumulator = 0;
           }
         }
       }
