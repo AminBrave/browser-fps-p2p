@@ -1,44 +1,21 @@
 // src/config/index.js
-// Public configuration surface. Domain files remain separate so each concern
-// has one owner, while gameplay systems import from this stable barrel.
+// Stable public configuration surface. Domain modules own the values so
+// gameplay, networking, camera, combat, input and world tuning stay isolated.
 
-import {
-  NETWORK_CONFIG,
-  GAME_CONFIG,
-  INPUT_FLAGS,
-  FIRE_MODE,
-  STANCE,
-  WEAPON_CONFIG,
-  WEAPON_LOADOUT,
-  DEFAULT_WEAPON,
-  PLAYER_CHARACTER_CONFIG,
-  getPlayerEyeOffset,
-  peerIdToNumeric,
-} from './constants.js';
+export { NETWORK_CONFIG, PROTOCOL_CONFIG } from './network.js';
+export { PLAYER_CONFIG, PLAYER_CHARACTER_CONFIG, STANCE, getPlayerEyeOffset } from './player.js';
+export { INPUT_FLAGS } from './input.js';
+export { FIRE_MODE, WEAPON_CONFIG, WEAPON_LOADOUT, DEFAULT_WEAPON } from './weapons.js';
+export { GAME_CONFIG } from './constants.js';
+export { CAMERA_CONFIG } from './camera.js';
+export { COMBAT_CONFIG } from './combat.js';
+export { WORLD_CONFIG } from './world.js';
+export { generateObjectPlacements, OBJECT_PLACEMENT_ALGORITHMS } from './objectPlacement.js';
 
+import { GAME_CONFIG } from './constants.js';
+import { NETWORK_CONFIG } from './network.js';
 import { WORLD_CONFIG } from './world.js';
-
-import {
-  generateObjectPlacements,
-  OBJECT_PLACEMENT_ALGORITHMS,
-} from './objectPlacement.js';
-
-export {
-  NETWORK_CONFIG,
-  GAME_CONFIG,
-  INPUT_FLAGS,
-  FIRE_MODE,
-  STANCE,
-  WEAPON_CONFIG,
-  WEAPON_LOADOUT,
-  DEFAULT_WEAPON,
-  PLAYER_CHARACTER_CONFIG,
-  getPlayerEyeOffset,
-  peerIdToNumeric,
-  WORLD_CONFIG,
-  generateObjectPlacements,
-  OBJECT_PLACEMENT_ALGORITHMS,
-};
+import { OBJECT_PLACEMENT_ALGORITHMS } from './objectPlacement.js';
 
 export function validateConfig() {
   const errors = [];
@@ -64,6 +41,6 @@ export function validateConfig() {
     errors.push('PLAYER.SPAWN_POINTS must contain at least one spawn');
   }
 
-  if (errors.length) throw new Error(`Invalid game configuration:\n- ${errors.join('\n- ')}`);
+  if (errors.length) throw new Error(`Invalid game configuration:\n- ${errors.join('\\n- ')}`);
   return true;
 }
