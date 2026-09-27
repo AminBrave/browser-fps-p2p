@@ -1,5 +1,3 @@
-// src/HostGame.js
-
 import { GAME_CONFIG, NETWORK_CONFIG, STANCE } from './config/constants.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
@@ -14,6 +12,7 @@ import { HealthSystem } from './ecs/systems/HealthSystem.js';
 import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
 import { RenderSystem } from './ecs/systems/RenderSystem.js';
 import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
+import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
 
 export class HostGame {
@@ -27,20 +26,13 @@ export class HostGame {
 
     this.localPlayerId = 'host-player';
     this.localEntity = null;
-
-    this.lastFrameTime = performance.now();
-    this.accumulatedTime = 0;
-    this.fixedDeltaTime =
-      1 / (NETWORK_CONFIG?.SERVER_TICK_RATE || GAME_CONFIG?.TICK_RATE || 60);
-
     this.isRunning = false;
-    this.animationFrameId = null;
 
-    const unlock = () => {
-      audio.unlock();
-      window.removeEventListener('click', unlock);
-    };
-    window.addEventListener('click', unlock);
+    this.fixedDeltaTime =
+      1 / (NETWORK_CONFIG.SERVER_TICK_RATE || GAME_CONFIG.TICK_RATE || 60);
+
+    this._audioUnlockHandler = () => audio.unlock();
+    window.addEventListener('click', this._audioUnlockHandler);
   }
 
   async initialize() {
@@ -76,49 +68,42 @@ export class HostGame {
     this.peerManager.onDisconnect((id) => this._handleClientDisconnect(id));
 
     this.hud.setVisible(true);
+
+    this.gameLoop = new GameLoop({
+      fixedDeltaTime: this.fixedDeltaTime,
+      onFixedUpdate: (dt) => this._fixedUpdate(dt),
+      onRender: (dt, now) => this._render(dt, now),
+    });
+
     return hostRoomId;
+  }
+
+  _fixedUpdate(dt) {
+    if (!this.localEntity) return;
+
+    this.inputSystem.sample(this.ecsWorld, this.localEntity);
+    this.hostNetworkSystem.preUpdate(this.ecsWorld);
+
+    this.physicsSystem.update(this.ecsWorld, dt);
+    this.weaponSystem.update(this.ecsWorld, performance.now(), dt);
+    this.healthSystem.update(this.ecsWorld);
+  }
+
+  _render(dt, now) {
+    this.hostNetworkSystem.postUpdate(this.ecsWorld, now);
+    this.renderSystem.update(this.ecsWorld, this.localEntity, now);
+    this.sceneManager.render();
+    this._updateHUD();
   }
 
   start() {
     if (this.isRunning) return;
     this.isRunning = true;
-    this.lastFrameTime = performance.now();
-    this._gameLoop = this._gameLoop.bind(this);
-    this.animationFrameId = requestAnimationFrame(this._gameLoop);
-  }
-
-  _gameLoop(currentTime) {
-    if (!this.isRunning) return;
-
-    const frameDelta = (currentTime - this.lastFrameTime) / 1000;
-    this.lastFrameTime = currentTime;
-    this.accumulatedTime += Math.min(frameDelta, 0.25);
-
-    if (this.localEntity) {
-      this.inputSystem.update(this.ecsWorld, this.localEntity);
-    }
-
-    while (this.accumulatedTime >= this.fixedDeltaTime) {
-      this.physicsSystem.update(this.ecsWorld, this.fixedDeltaTime);
-      this.weaponSystem.update(
-        this.ecsWorld,
-        performance.now(),
-        this.fixedDeltaTime
-      );
-      this.healthSystem.update(this.ecsWorld);
-      this.accumulatedTime -= this.fixedDeltaTime;
-    }
-
-    this.hostNetworkSystem.update(this.ecsWorld, currentTime);
-    this.renderSystem.update(this.ecsWorld, this.localEntity, currentTime);
-    this.sceneManager.render();
-    this._updateHUD();
-
-    this.animationFrameId = requestAnimationFrame(this._gameLoop);
+    this.gameLoop?.start();
   }
 
   _handleClientConnect(peerId) {
-    const spawnIndex = this.peerManager.connections?.size || 1;
+    const spawnIndex = this.peerManager.connections.size || 1;
     createPlayer(
       this.ecsWorld,
       this.physicsWorld,
@@ -135,22 +120,41 @@ export class HostGame {
   }
 
   _handleClientDisconnect(peerId) {
+    this.hostNetworkSystem?.removePeer(peerId);
+
     for (const entity of this.ecsWorld.with('player')) {
-      if (entity.player?.peerId === peerId) {
-        if (entity.physics?.collider) {
-          this.physicsWorld.unregisterCollider?.(entity.physics.collider);
-          this.physicsWorld.world.removeCollider(entity.physics.collider, true);
-        }
-        if (entity.physics?.rigidBody) {
-          this.physicsWorld.world.removeRigidBody(entity.physics.rigidBody);
-        }
-        if (entity.renderMesh?.mesh) {
-          this.sceneManager.scene.remove(entity.renderMesh.mesh);
-        }
-        this.ecsWorld.remove(entity);
-        break;
-      }
+      if (entity.player?.peerId !== peerId) continue;
+      this._removePlayerEntity(entity);
+      break;
     }
+  }
+
+  _removePlayerEntity(entity) {
+    const physics = entity.physics;
+    if (physics?.collider) {
+      this.physicsWorld.unregisterCollider?.(physics.collider);
+      this.physicsWorld.world?.removeCollider(physics.collider, true);
+    }
+    if (physics?.rigidBody) {
+      this.physicsWorld.world?.removeRigidBody(physics.rigidBody);
+    }
+
+    const mesh = entity.renderMesh?.mesh;
+    if (mesh) {
+      this.sceneManager.scene.remove(mesh);
+      mesh.traverse?.((child) => {
+        child.geometry?.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((material) => material.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+    }
+
+    this.ecsWorld.remove(entity);
   }
 
   _updateHUD() {
@@ -159,11 +163,9 @@ export class HostGame {
     const w = this.localEntity.weapon;
     const stance = this.localEntity.input?.stance ?? STANCE.STAND;
     const stanceLabel =
-      stance === STANCE.CROUCH
-        ? 'CROUCH'
-        : stance === STANCE.PRONE
-          ? 'PRONE'
-          : 'STAND';
+      stance === STANCE.CROUCH ? 'CROUCH' :
+      stance === STANCE.PRONE ? 'PRONE' : 'STAND';
+
     if (p) {
       this.hud.updateHealth(p.health, p.maxHealth || 100);
       this.hud.setDeathOverlay(p.isDead);
@@ -182,11 +184,15 @@ export class HostGame {
   }
 
   stop() {
+    if (!this.isRunning && !this.gameLoop) return;
     this.isRunning = false;
-    if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
+    this.gameLoop?.stop();
+    this.inputSystem?.dispose();
     this.renderSystem?.dispose();
     this.hud.dispose();
     this.sceneManager.dispose();
     this.peerManager.destroy();
+    window.removeEventListener('click', this._audioUnlockHandler);
+    this.gameLoop = null;
   }
 }
