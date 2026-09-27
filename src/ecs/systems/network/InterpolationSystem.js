@@ -15,16 +15,32 @@ export class InterpolationSystem {
       100;
 
     this.snapshotBuffer = [];
+    this.serverClockOffsetMs = null;
     this.maxSnapshots = Math.max(8, NETWORK_CONFIG.MAX_SNAPSHOT_HISTORY || Math.ceil((this.renderDelayMs / 1000) * NETWORK_CONFIG.SNAPSHOT_BROADCAST_RATE) + 4);
   }
 
   addSnapshot(snapshot) {
     if (!snapshot) return;
 
-    const timestamp =
-      typeof snapshot.timestamp === 'number'
-        ? snapshot.timestamp
-        : performance.now();
+    const arrivalTime = performance.now();
+    const tickRate = Math.max(1, NETWORK_CONFIG.SERVER_TICK_RATE || 60);
+    const serverTime =
+      Number.isFinite(snapshot.serverTick)
+        ? (Number(snapshot.serverTick) / tickRate) * 1000
+        : arrivalTime;
+
+    // Map the host's simulation clock onto this client's monotonic clock once,
+    // then keep using server ticks. Packet arrival jitter therefore does not
+    // change the spacing between snapshots.
+    if (this.serverClockOffsetMs == null) {
+      this.serverClockOffsetMs = arrivalTime - serverTime;
+    } else {
+      const observedOffset = arrivalTime - serverTime;
+      this.serverClockOffsetMs +=
+        (observedOffset - this.serverClockOffsetMs) * 0.02;
+    }
+
+    const timestamp = serverTime + this.serverClockOffsetMs;
 
     const normalized = {
       ...snapshot,
@@ -86,10 +102,9 @@ export class InterpolationSystem {
       transform.position.y = y;
       transform.position.z = z;
 
-      // Remote hitboxes/raycast targets must occupy the exact same server
-      // coordinate as the visible remote player.
-      entity.physics?.rigidBody?.setTranslation?.({ x, y, z }, true);
-
+      // The Rapier remote body is intentionally NOT moved to this delayed
+      // render position. _syncRemoteEntities() keeps the collision/hitbox body
+      // at the newest authoritative server state; this transform is visual only.
       const yaw = a.yaw != null && b.yaw != null ? this._lerpAngle(a.yaw, b.yaw, alpha) : (state.yaw ?? state.rotation?.yaw ?? 0);
       const pitch = (a.pitch ?? 0) + ((b.pitch ?? 0) - (a.pitch ?? 0)) * alpha;
       if (transform.rotation) {
