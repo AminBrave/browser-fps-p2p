@@ -78,9 +78,10 @@ export class PeerManager {
         if (this.destroyed) return fail(new Error('Peer manager was destroyed'));
 
         const conn = peer.connect(this.hostPeerId, {
-          // Raw ArrayBuffer transport is exactly what Protocol expects.
-          // PeerJS exposes the raw serializer as "raw" (not "none").
-          reliable: false,
+          // Use an ordered/reliable channel for simulation inputs and world initialization.
+          // The game uses sequence numbers, so dropping input frames would make
+          // client prediction impossible to reconcile with the authoritative host.
+          reliable: true,
           serialization: 'raw',
         });
 
