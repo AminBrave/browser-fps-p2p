@@ -193,6 +193,7 @@ export class ClientGame {
           false
         );
         entity.player.id = remoteId;
+        entity.networkRole = 'remote';
         this.playerEntities.push(entity);
         this.playerById.set(remoteId, entity);
       }
