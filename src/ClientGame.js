@@ -206,7 +206,17 @@ export class ClientGame {
     this._updateHUD();
     const velocity = this.localEntity?.physics?.velocity;
     const speed = Math.hypot(Number(velocity?.x) || 0, Number(velocity?.z) || 0);
-    this.hud.updateCrosshair(speed, !!this.localEntity?.input?.isAiming);
+    const input = this.localEntity?.input;
+    const weapon = this.localEntity?.weapon;
+    const recoil = Math.abs(Number(weapon?.cameraRecoilPitch) || 0);
+    this.hud.updateCrosshair(
+      speed,
+      !!input?.isAiming,
+      Number(weapon?.currentSpread) || 0,
+      Number(weapon?.spreadMax) || 0.05,
+      !!(input?.inputMask && (input.inputMask & 1)),
+      recoil
+    );
   }
 
   _handleServerPacket(dataView) {
