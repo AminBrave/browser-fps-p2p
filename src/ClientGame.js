@@ -246,6 +246,7 @@ export class ClientGame {
       else if (event.sfx === 'jump') audio.playJumpAt?.(event.position);
       else if (event.sfx === 'land') audio.playLandAt?.(event.position);
       else if (event.sfx === 'hit') audio.playHitAt?.(event.position);
+      else if (event.sfx === 'death') audio.playDeathAt?.(event.position);
     }
   }
 
