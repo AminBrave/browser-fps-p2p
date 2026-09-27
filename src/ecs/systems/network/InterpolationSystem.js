@@ -102,14 +102,32 @@ export class InterpolationSystem {
 
       const yawFrom = before.yaw ?? before.rotation?.yaw ?? 0;
       const yawTo = after.yaw ?? after.rotation?.yaw ?? 0;
+      const pitchFrom = before.pitch ?? before.rotation?.pitch ?? 0;
+      const pitchTo = after.pitch ?? after.rotation?.pitch ?? 0;
       if (transform.rotation) {
         transform.rotation.yaw = this._lerpAngle(yawFrom, yawTo, alpha);
+        transform.rotation.pitch = pitchFrom + (pitchTo - pitchFrom) * alpha;
       }
+
+      const stance = alpha < 0.5
+        ? (before.stance ?? 0)
+        : (after.stance ?? 0);
+      const weaponId = alpha < 0.5
+        ? (before.weaponId ?? 1)
+        : (after.weaponId ?? 1);
+
+      player.remoteStance = stance;
+      player.remotePitch = pitchFrom + (pitchTo - pitchFrom) * alpha;
+      player.remoteWeaponId = weaponId;
+      player.isDead = !!(alpha < 0.5 ? before.isDead : after.isDead);
 
       if (after.health !== undefined) {
         player.health = after.health;
-        player.isDead = player.health <= 0;
+        player.isDead = player.health <= 0 || player.isDead;
       }
+      entity.input.stance = stance;
+      entity.input.pitch = player.remotePitch;
+      entity.character?.setWeaponType?.(weaponId);
     }
   }
 
