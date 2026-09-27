@@ -310,9 +310,9 @@ export class WeaponSystem {
             : 1.0;
         const dmg = baseDamage * multiplier;
 
-        if ((hitEntity.player.health || 0) - dmg <= 0) {
-          player.kills = (player.kills || 0) + 1;
-        }
+        // HealthSystem owns the lethal transition and kill/death accounting.
+        // This is important for multi-pellet weapons: several pellets can hit
+        // the same target in one shot, but a death must increment K/D exactly once.
         this.healthSystem.applyDamage(hitEntity, dmg, player.id);
         this._emit({
           type: EVENT_TYPES.SFX,
