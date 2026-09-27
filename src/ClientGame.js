@@ -69,6 +69,7 @@ export class ClientGame {
       false,
       this.renderSystem
     );
+    this.renderSystem.setEventSink((event) => this.peerManager.sendToHost(Protocol.encodeGameEvent(event)));
 
     this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
     await Promise.all([this._worldReadyPromise, this._joinReadyPromise]);
