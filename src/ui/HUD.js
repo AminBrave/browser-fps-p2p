@@ -115,11 +115,17 @@ export class HUD {
     );
     const spread = Math.max(0, Number(weaponSpread) || 0);
     const spreadMax = Math.max(0.001, Number(weaponSpreadMax) || 0.12);
-    const spreadT = Math.max(0, Math.min(1, spread / spreadMax));
+    // Spread is expressed in radians, so a raw spread/max ratio hides the
+    // small but important standing-hip-fire penalty. Convert the actual cone
+    // into a perceptual 0..1 value: small spread changes remain visible.
+    const spreadT = Math.max(
+      0,
+      Math.min(1, Math.sqrt(spread / Math.min(spreadMax, 0.075)))
+    );
 
-    // The crosshair is driven by the same effective spread model as the
-    // weapon, not just by "is moving". Stationary hip-fire has a small but
-    // permanent gap; ADS nearly closes it; movement and sprinting open it.
+    // Accuracy is the primary driver. Speed is only one contributor to the
+    // actual weapon cone, so the reticle never looks frozen while the weapon
+    // is changing between steady, moving, sprinting and firing states.
     const movementGap =
       cfg.RESTING_GAP_PX +
       speedT * (isSprinting
@@ -129,12 +135,12 @@ export class HUD {
     const firingGap = isFiring ? cfg.FIRE_BLOOM_PX : 0;
     const recoilGap = Math.min(1, Math.abs(Number(recoil) || 0) * 4) * cfg.RECOIL_BLOOM_PX;
     const targetGap = isAiming && !isSprinting
-      ? cfg.AIM_GAP_PX + accuracyGap * 0.35 + firingGap * 0.35 + recoilGap * 0.25
+      ? cfg.AIM_GAP_PX + accuracyGap * 0.8 + firingGap * 0.35 + recoilGap * 0.35
       : movementGap + accuracyGap + firingGap + recoilGap;
 
     const targetLength = isAiming && !isSprinting
-      ? cfg.AIM_LENGTH_PX
-      : cfg.RESTING_LENGTH_PX + speedT * (cfg.MAX_LENGTH_PX - cfg.RESTING_LENGTH_PX);
+      ? cfg.AIM_LENGTH_PX + spreadT * 1.5
+      : cfg.RESTING_LENGTH_PX + speedT * (cfg.MAX_LENGTH_PX - cfg.RESTING_LENGTH_PX) + spreadT * 2;
 
     if (!Number.isFinite(this._crosshairGap)) this._crosshairGap = targetGap;
     if (!Number.isFinite(this._crosshairLength)) this._crosshairLength = targetLength;
