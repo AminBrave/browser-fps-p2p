@@ -407,9 +407,7 @@ export class WeaponSystem {
         normal: hitNormal,
         distance: trace.distance,
         muzzleVelocity,
-        ballisticDrop: endPos.y - (
-          origin.y + dir.y * muzzleVelocity * (trace.distance / muzzleVelocity)
-        ),
+        ballisticDrop: 0.5 * (Number(GAME_CONFIG.GRAVITY) || -19.62) * Math.pow(trace.distance / muzzleVelocity, 2),
         primary: p === 0,
       });
 
