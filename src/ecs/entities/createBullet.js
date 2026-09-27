@@ -1,18 +1,29 @@
-// src/ecs/entities/createBullet.js
-
 import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
 import { GAME_CONFIG } from '../../config/constants.js';
 
-const _permanentDecals = [];
+// Scope decal ownership to an ECS world. A module-global array would retain
+// entities/scenes after a match is destroyed.
+const decalRegistry = new WeakMap();
+
+function disposeObject3D(root) {
+  root?.traverse?.((child) => {
+    child.geometry?.dispose();
+    const material = child.material;
+    if (Array.isArray(material)) {
+      material.forEach((m) => m?.dispose());
+    } else {
+      material?.dispose?.();
+    }
+  });
+}
 
 export function createBullet(ecsWorld, sceneOrManager, startPos, endPos) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
-  const points = [
+  const geometry = new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(startPos.x, startPos.y, startPos.z),
     new THREE.Vector3(endPos.x, endPos.y, endPos.z),
-  ];
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  ]);
   const material = new THREE.LineBasicMaterial({
     color: 0xffe08a,
     transparent: true,
@@ -21,7 +32,7 @@ export function createBullet(ecsWorld, sceneOrManager, startPos, endPos) {
   });
   const lineMesh = new THREE.Line(geometry, material);
   lineMesh.renderOrder = 10;
-  if (scene?.add) scene.add(lineMesh);
+  scene?.add?.(lineMesh);
 
   return ecsWorld.add({
     isBullet: true,
@@ -31,10 +42,6 @@ export function createBullet(ecsWorld, sceneOrManager, startPos, endPos) {
   });
 }
 
-/**
- * Permanent bullet hole lying ON the hit surface, facing outward along normal.
- * Cap: GAME_CONFIG.MAX_DECALS (default 100).
- */
 export function createImpactDecal(
   ecsWorld,
   sceneOrManager,
@@ -48,15 +55,11 @@ export function createImpactDecal(
   n.normalize();
 
   const group = new THREE.Group();
-  // Lift off surface along outward normal
   group.position.set(
     position.x + n.x * 0.03,
     position.y + n.y * 0.03,
     position.z + n.z * 0.03
   );
-
-  // CircleGeometry lives in XY plane (local +Z is face normal).
-  // Rotate so local +Z aligns with surface outward normal.
   group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
 
   const hole = new THREE.Mesh(
@@ -100,7 +103,7 @@ export function createImpactDecal(
   flash.name = 'impactFlash';
   group.add(flash);
 
-  if (scene?.add) scene.add(group);
+  scene?.add?.(group);
 
   const entity = ecsWorld.add({
     isImpact: true,
@@ -110,25 +113,22 @@ export function createImpactDecal(
     impactFlashUntil: performance.now() + 90,
   });
 
-  _permanentDecals.push({ entity, scene });
+  let decals = decalRegistry.get(ecsWorld);
+  if (!decals) {
+    decals = [];
+    decalRegistry.set(ecsWorld, decals);
+  }
+  decals.push(entity);
+
   const max = GAME_CONFIG.MAX_DECALS || 100;
-  while (_permanentDecals.length > max) {
-    const old = _permanentDecals.shift();
-    if (old?.entity?.renderMesh?.mesh) {
-      (old.scene || scene)?.remove(old.entity.renderMesh.mesh);
-      old.entity.renderMesh.mesh.traverse?.((c) => {
-        c.geometry?.dispose();
-        if (c.material) {
-          if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
-          else c.material.dispose();
-        }
-      });
+  while (decals.length > max) {
+    const oldEntity = decals.shift();
+    const oldMesh = oldEntity?.renderMesh?.mesh;
+    if (oldMesh) {
+      scene?.remove?.(oldMesh);
+      disposeObject3D(oldMesh);
     }
-    try {
-      if (old?.entity) ecsWorld.remove(old.entity);
-    } catch {
-      /* ignore */
-    }
+    if (oldEntity) ecsWorld.remove(oldEntity);
   }
 
   return entity;
@@ -136,4 +136,21 @@ export function createImpactDecal(
 
 export function createImpact(ecsWorld, sceneOrManager, position, normal) {
   return createImpactDecal(ecsWorld, sceneOrManager, position, normal);
+}
+
+export function disposeImpactDecals(ecsWorld) {
+  const decals = decalRegistry.get(ecsWorld);
+  if (!decals) return;
+
+  for (const entity of decals) {
+    const mesh = entity?.renderMesh?.mesh;
+    if (mesh) {
+      mesh.parent?.remove(mesh);
+      disposeObject3D(mesh);
+    }
+    if (entity) ecsWorld.remove(entity);
+  }
+
+  decals.length = 0;
+  decalRegistry.delete(ecsWorld);
 }
