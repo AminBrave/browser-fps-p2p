@@ -43,6 +43,20 @@ export function createPlayer(
 
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.46, 6, 10), makeMat(teamColor));
   body.name = 'body';
+
+  // Hidden collision/decal proxy exactly matches the authoritative Rapier
+  // capsule, so bullet impacts on players can use the same world-space surface
+  // convention as every static world compound.
+  const hitProxy = new THREE.Mesh(
+    new THREE.CapsuleGeometry(
+      GAME_CONFIG.PLAYER_RADIUS,
+      Math.max(0.01, GAME_CONFIG.PLAYER_HEIGHT - GAME_CONFIG.PLAYER_RADIUS * 2),
+      8,
+      12
+    ),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  hitProxy.name = 'playerHitProxy';
   body.position.y = 0.02;
   body.scale.set(1, 1.15, 0.72);
 
@@ -106,7 +120,21 @@ export function createPlayer(
   const pose = new THREE.Group();
   pose.name = 'characterPose';
   mesh.add(pose);
-  pose.add(body, head, helmet, leftArm, rightArm, leftLeg, rightLeg, backpack, remoteWeapon, healthBack, healthFill, teamRing);
+  pose.add(
+    body,
+    head,
+    helmet,
+    leftArm,
+    rightArm,
+    leftLeg,
+    rightLeg,
+    backpack,
+    remoteWeapon,
+    healthBack,
+    healthFill,
+    teamRing,
+    hitProxy
+  );
 
   mesh.traverse((child) => {
     if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
@@ -187,6 +215,6 @@ export function createPlayer(
     maxHealth: GAME_CONFIG.MAX_HEALTH,
   });
 
-  physicsWorld.registerColliderEntity?.(phys.collider, playerEntity);
+  physicsWorld.registerColliderEntity?.(phys.collider, playerEntity, hitProxy);
   return playerEntity;
 }
