@@ -4,6 +4,12 @@
 
 ### Rendering and physics alignment
 
+### Vehicle impact rendering and compound hit mapping
+
+- Fixed car bullet-impact artifacts by mapping every compound collider back to its exact visible mesh part (body, cabin or wheel).
+- Replaced the generic floating impact plane with clipped Three.js `DecalGeometry` when a render target is known, preventing decals from spilling across car edges or adjacent parts.
+- Stabilized decal depth handling with a small surface-normal offset, depth testing and conservative polygon offset instead of the previous aggressive bias.
+
 ### Compound world physics
 
 - Fixed the Rapier 0.11.x startup failure caused by calling the unavailable `ColliderDesc.compound()` API.
