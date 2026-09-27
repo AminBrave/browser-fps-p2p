@@ -1,7 +1,7 @@
 // src/ecs/systems/RenderSystem.js
 
 import * as THREE from 'three';
-import { GAME_CONFIG, PLAYER_CONFIG, CAMERA_CONFIG, INPUT_FLAGS, STANCE, getPlayerEyeOffset } from '../../config/index.js';
+import { GAME_CONFIG, PLAYER_CONFIG, CAMERA_CONFIG, RENDER_CONFIG, INPUT_FLAGS, STANCE, getPlayerEyeOffset } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { WeaponViewModel } from '../../render/WeaponViewModel.js';
 import { moveIntensity } from '../../utils/Movement.js';
@@ -99,7 +99,7 @@ export class RenderSystem {
 
       if (entity.isPermanentDecal && renderMesh?.mesh) {
         if (entity.impactFlashUntil && now < entity.impactFlashUntil) {
-          const t = 1 - (entity.impactFlashUntil - now) / 90;
+          const t = 1 - (entity.impactFlashUntil - now) / RENDER_CONFIG.IMPACT_FLASH.BULLET_MS;
           renderMesh.mesh.traverse((c) => {
             if (c.name === 'impactFlash' && c.material) {
               c.material.opacity = Math.max(0, 1 - t);
@@ -212,7 +212,7 @@ export class RenderSystem {
         const alpha = THREE.MathUtils.clamp(Number(renderAlpha) || 0, 0, 1);
 
         const targetCorrection = localEntity.networkVisualCorrection || { x: 0, y: 0, z: 0 };
-        const smoothing = 1 - Math.exp(-CAMERA_CONFIG.NETWORK_CORRECTION_SMOOTHING * dt);
+        const smoothing = 1 - Math.exp(-RENDER_CONFIG.NETWORK_VISUAL_CORRECTION_SMOOTHING * dt);
         this._networkVisualCorrection.x = THREE.MathUtils.lerp(
           this._networkVisualCorrection.x, targetCorrection.x, smoothing
         );
@@ -240,7 +240,7 @@ export class RenderSystem {
         stance,
         pitch: input.pitch ?? 0,
         health: localEntity.player?.health ?? GAME_CONFIG.MAX_HEALTH,
-        maxHealth: localEntity.player?.maxHealth ?? GAME_CONFIG.MAX_HEALTH,
+        maxHealth: localEntity.player?.maxHealth ?? PLAYER_CONFIG.MAX_HEALTH,
         isDead: !!localEntity.player?.isDead,
       });
 
