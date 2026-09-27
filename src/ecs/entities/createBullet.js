@@ -116,6 +116,44 @@ export function createImpactDecal(
   scorch.name = 'bulletScorch';
   group.add(scorch);
 
+  const sparkGroup = new THREE.Group();
+  sparkGroup.name = 'impactSpark';
+  sparkGroup.position.copy(localPoint);
+  sparkGroup.quaternion.copy(q);
+
+  const sparkMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffd27a,
+    transparent: true,
+    opacity: 1,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const sparkCount = 7;
+  for (let i = 0; i < sparkCount; i++) {
+    const angle = (i / sparkCount) * Math.PI * 2 + Math.random() * 0.5;
+    const length = 0.07 + Math.random() * 0.13;
+    const line = new THREE.Mesh(
+      new THREE.BoxGeometry(0.006, 0.006, length),
+      sparkMaterial.clone()
+    );
+    line.name = 'spark';
+    line.position.set(
+      Math.cos(angle) * 0.025,
+      Math.sin(angle) * 0.025,
+      length * 0.5
+    );
+    line.rotation.z = angle;
+    line.rotation.y = (Math.random() - 0.5) * 0.5;
+    line.userData.velocity = {
+      x: Math.cos(angle) * (0.35 + Math.random() * 0.5),
+      y: Math.sin(angle) * (0.35 + Math.random() * 0.5),
+      z: 0.15 + Math.random() * 0.35,
+    };
+    sparkGroup.add(line);
+  }
+  group.add(sparkGroup);
+
   const flash = new THREE.Mesh(
     new THREE.SphereGeometry(0.022, 6, 6),
     new THREE.MeshBasicMaterial({
@@ -139,6 +177,8 @@ export function createImpactDecal(
     transform: createTransform(point.x, point.y, point.z),
     renderMesh: { mesh: group },
     impactFlashUntil: performance.now() + 90,
+    impactSparkUntil: performance.now() + 180,
+    impactSparkStartedAt: performance.now(),
   });
 
   let decals = decalRegistry.get(ecsWorld);
