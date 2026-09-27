@@ -197,6 +197,7 @@ export class WeaponSystem {
     const baseSpread = isFirstInBurst ? 0 : weapon.spreadBase || 0;
     const intensity = moveIntensity(physics?.velocity);
     const moveSpread = intensity * (GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035);
+    const aimMultiplier = input.isAiming ? 0.35 : 1.0;
 
     weapon.magazine = Math.max(0, (weapon.magazine ?? 1) - 1);
     weapon.ammo = weapon.magazine;
@@ -223,7 +224,7 @@ export class WeaponSystem {
         yawOff = (Math.random() * 2 - 1) * s;
         pitchOff = (Math.random() * 2 - 1) * s;
       } else {
-        const spread = baseSpread + bloom + moveSpread;
+        const spread = (baseSpread + bloom + moveSpread) * aimMultiplier;
         if (spread > 0) {
           yawOff = (Math.random() * 2 - 1) * spread;
           pitchOff = (Math.random() * 2 - 1) * spread;
