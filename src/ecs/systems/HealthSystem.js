@@ -6,6 +6,7 @@ import { WORLD_CONFIG } from '../../config/index.js';
 import {
   clearPlayerImpactMarks,
   getPlayerImpactMarkCount,
+  updatePlayerImpactMarksForHealth,
 } from '../entities/createBullet.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
@@ -146,6 +147,7 @@ export class HealthSystem {
       if (player && !player.isDead) {
         const maxHealth = Math.max(1, Number(player.maxHealth) || PLAYER_CONFIG.MAX_HEALTH || 100);
         const health = Math.max(0, Number(player.health) || 0);
+        updatePlayerImpactMarksForHealth(ecsWorld, entity, health, maxHealth);
         const delay = Math.max(0, Number(GAME_CONFIG.HEALTH_REGEN?.DELAY_MS) || 3500);
         const rate = Math.max(0, Number(GAME_CONFIG.HEALTH_REGEN?.RATE_PER_SECOND) || 12);
         if (health < maxHealth && now - (Number(player.lastDamagedAt) || 0) >= delay) {
@@ -153,26 +155,19 @@ export class HealthSystem {
           const delta = Math.min(maxHealth - health, rate / 60);
           player.health = health + delta;
 
-          // Convert healing into "impact-mark units" instead of passing a tiny
-          // health fraction directly to clearPlayerImpactMarks(). Passing the
-          // fraction itself made floor(marks * fraction) round to zero on
-          // almost every frame, so marks could remain visible for the entire
-          // regeneration cycle.
-          const marksBeforeHeal = getPlayerImpactMarkCount(ecsWorld, entity);
-          player.impactMarkClearAccumulator =
-            (Number(player.impactMarkClearAccumulator) || 0) +
-            (delta / maxHealth) * marksBeforeHeal;
+          // Body impacts are driven directly by the player's current health.
+          // This makes the visual state deterministic: every point of healing
+          // immediately reduces impact visibility, regardless of frame rate or
+          // how many marks exist.
+          updatePlayerImpactMarksForHealth(
+            ecsWorld,
+            entity,
+            player.health,
+            maxHealth
+          );
 
-          const marksToClear = Math.floor(player.impactMarkClearAccumulator);
-          if (marksToClear > 0) {
-            const clearFraction = marksBeforeHeal > 0
-              ? Math.min(1, marksToClear / marksBeforeHeal)
-              : 0;
-            clearPlayerImpactMarks(ecsWorld, entity, clearFraction);
-            player.impactMarkClearAccumulator -= marksToClear;
-          }
-
-          // Guarantee a clean body when regeneration reaches full health.
+          // Once fully healed, remove the mark entities to reclaim GPU/CPU
+          // resources instead of keeping invisible decals alive.
           if (player.health >= maxHealth) {
             clearPlayerImpactMarks(ecsWorld, entity, 1);
             player.impactMarkClearAccumulator = 0;
