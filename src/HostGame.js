@@ -56,6 +56,10 @@ export class HostGame {
       this.renderSystem
     );
     this.hostNetworkSystem = new HostNetworkSystem(this.peerManager);
+    this.hostNetworkSystem.setJoinHandler((peerId) => {
+      const entity = this._ensureClientEntity(peerId);
+      this._announceClientEntity(peerId, entity);
+    });
     this.healthSystem.setEventSink((event) => this.hostNetworkSystem.emitGameEvent(event));
     this.weaponSystem.setEventSink((event) => this.hostNetworkSystem.emitGameEvent(event));
     this.renderSystem.setEventSink((event) => this.hostNetworkSystem.emitGameEvent(event));
@@ -130,15 +134,11 @@ export class HostGame {
   _ensureClientEntity(peerId) {
     const id = String(peerId);
     const existing = this.clientEntities.get(id);
-    if (existing) {
-      this._announceClientEntity(id, existing);
-      return existing;
-    }
+    if (existing) return existing;
 
     for (const entity of this.ecsWorld.with('player')) {
       if (entity.player?.peerId === id) {
         this.clientEntities.set(id, entity);
-        this._announceClientEntity(id, entity);
         return entity;
       }
     }
@@ -177,8 +177,6 @@ export class HostGame {
     });
 
     this.clientEntities.set(id, entity);
-
-    this._announceClientEntity(id, entity);
     return entity;
   }
 
