@@ -5,7 +5,7 @@ import { PeerManager } from './network/PeerManager.js';
 import { SceneManager } from './render/SceneManager.js';
 import { HUD } from './ui/HUD.js';
 import { Protocol } from './network/Protocol.js';
-import { PACKET_TYPES } from './network/PacketTypes.js';
+import { PACKET_TYPES, EVENT_TYPES } from './network/PacketTypes.js';
 import { createPlayer } from './ecs/entities/createPlayer.js';
 import { createMap } from './ecs/entities/createMap.js';
 import { InputSystem } from './ecs/systems/InputSystem.js';
@@ -201,7 +201,7 @@ export class ClientGame {
       return;
     }
 
-    if (event.type === 4) {
+    if (event.type === EVENT_TYPES.SHOT) {
       const origin = event.origin;
       const end = event.end;
       if (!origin || !end) return;
@@ -226,12 +226,12 @@ export class ClientGame {
       return;
     }
 
-    if (event.type === 5) {
+    if (event.type === EVENT_TYPES.IMPACT) {
       if (event.hit) audio.playImpactAt?.(event.position);
       return;
     }
 
-    if (event.type === 6) {
+    if (event.type === EVENT_TYPES.SFX) {
       if (event.sfx === 'reloadStart') audio.playReloadStartAt?.(event.position);
       else if (event.sfx === 'reloadEnd') audio.playReloadEndAt?.(event.position);
     }
