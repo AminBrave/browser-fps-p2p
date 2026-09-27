@@ -13,17 +13,23 @@ export class PhysicsSystem {
 
     const dt = deltaTime || 1 / 60;
 
+    // The host is authoritative for every player. In particular, a player
+    // marked networkRole="remote" is a remote player from the host's
+    // perspective, but it still MUST be simulated on the host.
     for (const entity of ecsWorld.with('transform', 'physics')) {
-      // The host is authoritative for every player, including connected clients.\n      // Client-side prediction is handled by ClientPredictSystem; HostGame must\n      // still run the same physics pipeline for entities marked as remote.\n      const transform = entity.transform;
+      const transform = entity.transform;
       const physics = entity.physics;
       const input = entity.input;
-      if (!transform || !physics) continue;
 
-      if (!physics.velocity) physics.velocity = { x: 0, y: 0, z: 0 };
+      if (!transform || !physics) continue;
+      if (!physics.velocity) {
+        physics.velocity = { x: 0, y: 0, z: 0 };
+      }
 
       if (input) {
         const yaw = input.yaw || 0;
         const stance = input.stance ?? STANCE.STAND;
+
         physics.isGrounded = applyFpsMovement(
           input.inputMask || 0,
           yaw,
@@ -39,61 +45,69 @@ export class PhysicsSystem {
         }
       }
 
-      if (physics.controller && physics.collider && physics.rigidBody) {
-        const movementDelta = {
-          x: (physics.velocity.x || 0) * dt,
-          y: (physics.velocity.y || 0) * dt,
-          z: (physics.velocity.z || 0) * dt,
-        };
-
-        physics.controller.computeColliderMovement(physics.collider, movementDelta);
-
-        const correctedMovement =
-          typeof physics.controller.computedMovement === 'function'
-            ? physics.controller.computedMovement()
-            : typeof physics.controller.getComputedMovement === 'function'
-              ? physics.controller.getComputedMovement()
-              : movementDelta;
-
-        const currentPos = physics.rigidBody.translation();
-        const newPos = {
-          x: currentPos.x + correctedMovement.x,
-          y: currentPos.y + correctedMovement.y,
-          z: currentPos.z + correctedMovement.z,
-        };
-
-        physics.rigidBody.setNextKinematicTranslation(newPos);
-
-        physics.isGrounded =
-          typeof physics.controller.computedGrounded === 'function'
-            ? physics.controller.computedGrounded()
-            : typeof physics.controller.isGrounded === 'function'
-              ? physics.controller.isGrounded()
-              : physics.isGrounded;
-
-        transform.position.x = newPos.x;
-        transform.position.y = newPos.y;
-        transform.position.z = newPos.z;
+      if (!physics.controller || !physics.collider || !physics.rigidBody) {
+        continue;
       }
+
+      const movementDelta = {
+        x: (physics.velocity.x || 0) * dt,
+        y: (physics.velocity.y || 0) * dt,
+        z: (physics.velocity.z || 0) * dt,
+      };
+
+      physics.controller.computeColliderMovement(
+        physics.collider,
+        movementDelta
+      );
+
+      const correctedMovement =
+        typeof physics.controller.computedMovement === 'function'
+          ? physics.controller.computedMovement()
+          : typeof physics.controller.getComputedMovement === 'function'
+            ? physics.controller.getComputedMovement()
+            : movementDelta;
+
+      const currentPos = physics.rigidBody.translation();
+      const nextPosition = {
+        x: currentPos.x + correctedMovement.x,
+        y: currentPos.y + correctedMovement.y,
+        z: currentPos.z + correctedMovement.z,
+      };
+
+      physics.rigidBody.setNextKinematicTranslation(nextPosition);
+
+      physics.isGrounded =
+        typeof physics.controller.computedGrounded === 'function'
+          ? physics.controller.computedGrounded()
+          : typeof physics.controller.isGrounded === 'function'
+            ? physics.controller.isGrounded()
+            : physics.isGrounded;
+
+      // Keep the ECS state aligned with the exact kinematic target. The
+      // post-step pass below replaces this with Rapier's committed position.
+      transform.position.x = nextPosition.x;
+      transform.position.y = nextPosition.y;
+      transform.position.z = nextPosition.z;
     }
 
     this.physicsWorld.step(dt);
 
-    // Only player/controller bodies own their ECS transform. Static map
-    // bodies deliberately use a different origin (for example a crate's
-    // Rapier body is at its center while its Three.js root is on the ground).
-    // Copying static-body coordinates back into the render transform makes
-    // those objects appear elevated or otherwise offset every tick.
+    // Only controller/player bodies are copied from Rapier into ECS.
+    // Static map bodies have collider-center origins that intentionally differ
+    // from their Three.js render-root origins.
     for (const entity of ecsWorld.with('transform', 'physics')) {
-      if (entity.networkRole === 'remote') continue;
       const physics = entity.physics;
       const body = physics?.rigidBody;
+
       if (!body || !physics?.controller) continue;
 
+      const transform = entity.transform;
       const position = body.translation();
-      entity.transform.position.x = position.x;
-      entity.transform.position.y = position.y;
-      entity.transform.position.z = position.z;
+
+      transform.position.x = position.x;
+      transform.position.y = position.y;
+      transform.position.z = position.z;
+
       if (typeof body.linvel === 'function' && physics.velocity) {
         const velocity = body.linvel();
         physics.velocity.x = velocity.x;
