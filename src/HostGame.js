@@ -143,7 +143,7 @@ export class HostGame {
       id,
       {
         ...spawn,
-        y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2 + 0.04,
+        y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2,
       },
       false,
       false
