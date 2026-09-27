@@ -48,12 +48,22 @@ export class PhysicsWorld {
     // Player locomotion uses one compound rigid body. Bullet queries hit the
     // individual anatomical colliders, so the visual surface, impact point and
     // damage zone can all refer to the same part.
-    const torsoHalfHeight = Math.max(0.12, (height * 0.54) / 2);
-    const torsoRadius = Math.min(radius * 0.9, 0.24);
+    // The locomotion capsule is the authoritative solid envelope: exactly
+    // PLAYER_HEIGHT high and PLAYER_RADIUS wide. Anatomical hit colliders are
+    // separate so movement solidity and hit-zone precision cannot conflict.
+    const movementRadius = Math.min(radius, height * 0.25);
+    const movementHalfSegment = Math.max(0.08, height / 2 - movementRadius);
+    const movementCollider = this.world.createCollider(
+      RAPIER.ColliderDesc.capsule(movementHalfSegment, movementRadius),
+      body
+    );
+
+    const torsoHalfHeight = Math.max(0.12, height * 0.20);
+    const torsoRadius = Math.min(radius * 0.72, 0.24);
     const headRadius = Math.min(radius * 0.52, 0.20);
     const torso = this.world.createCollider(
       RAPIER.ColliderDesc.capsule(torsoHalfHeight, torsoRadius)
-        .setTranslation(0, -height * 0.02, 0),
+        .setTranslation(0, height * 0.08, 0),
       body
     );
     const head = this.world.createCollider(
@@ -89,8 +99,8 @@ export class PhysicsWorld {
       body
     );
 
-    const colliders = [torso, head, leftArm, rightArm, leftLeg, rightLeg];
-    const hitZones = ['torso', 'head', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
+    const colliders = [movementCollider, torso, head, leftArm, rightArm, leftLeg, rightLeg];
+    const hitZones = [null, 'torso', 'head', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
 
     // Character controller movement needs a stable body collider. The torso
     // is the locomotion collider; the anatomical colliders are the authoritative
