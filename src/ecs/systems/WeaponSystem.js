@@ -118,7 +118,6 @@ export class WeaponSystem {
             this.renderSystem?.weaponViewModel?.onReloadStart?.();
           }
           this._emit({ type: EVENT_TYPES.SFX, sfx: 'reloadStart', sourceId: player.id, position: { ...transform.position } });
-          }
         }
       }
 
