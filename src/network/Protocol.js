@@ -88,7 +88,7 @@ export class Protocol {
     }
   }
 
-  static encodeClientInput(sequence, inputMask, yaw, pitch, weaponSlot = -1) {
+  static encodeClientInput(sequence, inputMask, yaw, pitch, weaponSlot = -1, isAiming = false) {
     const buffer = new ArrayBuffer(CLIENT_INPUT_SIZE);
     const view = new DataView(buffer);
     view.setUint8(0, PACKET_TYPES.CLIENT_INPUT);
@@ -97,7 +97,7 @@ export class Protocol {
     view.setFloat32(7, Number.isFinite(yaw) ? yaw : 0, true);
     view.setFloat32(11, Number.isFinite(pitch) ? pitch : 0, true);
     view.setInt8(15, Number.isInteger(weaponSlot) ? weaponSlot : -1);
-    view.setUint8(16, arguments.length > 5 && arguments[5] ? 1 : 0);
+    view.setUint8(16, isAiming ? 1 : 0);
     return buffer;
   }
 
