@@ -2,7 +2,27 @@
 
 All notable changes to **browser-fps-p2p** are documented here.
 
-## [Unreleased] / qwen-code branch — 2026-09-26
+## [Unreleased] / qwen-code branch — 2026-09-27
+
+### Architecture & real-time loop
+- Added a reusable fixed-step `GameLoop` with bounded catch-up and a separate render phase.
+- Host and client simulation now run at the configured tick rate independently of monitor refresh rate.
+- Client prediction is no longer followed by a second physics simulation pass in the same render frame.
+- Input is sampled once per simulation tick, preventing duplicate/high-refresh input sequences.
+
+### WebRTC & protocol hardening
+- Peer connections now have idempotent close/error cleanup and guarded sends.
+- Incoming host input is bounded to one pending frame per peer, preventing unbounded queue growth under network pressure.
+- Stale/out-of-order input sequences are ignored.
+- Client input protocol now uses a `u16` mask, preserving crouch/prone bits, and serializes weapon-slot changes.
+- Host snapshots acknowledge each connected client independently rather than using a global maximum sequence.
+
+### Client interpolation & lifecycle
+- Remote snapshot interpolation now uses entity-id maps instead of repeated linear searches.
+- Remote kinematic physics proxies are synchronized with interpolated render transforms.
+- Input, interpolation buffers, game loops, and WebRTC transports are explicitly disposed during session shutdown.
+
+### Combat & weapons
 
 ### Combat & weapons
 - Hitscan from **weapon muzzle** (not eye-only).
