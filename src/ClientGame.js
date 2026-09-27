@@ -17,6 +17,7 @@ import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.j
 import { CircularBuffer } from './utils/CircularBuffer.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
+import { disposeImpactDecals } from './ecs/entities/createBullet.js';
 
 export class ClientGame {
   constructor(containerElement) {
@@ -276,7 +277,9 @@ export class ClientGame {
     this.inputSystem?.dispose();
     this.renderSystem?.dispose();
     this.hud.dispose();
+    disposeImpactDecals(this.ecsWorld);
     this.sceneManager.dispose();
+    this.physicsWorld.dispose();
     this.peerManager.destroy();
     this.pendingInputBuffer.clear();
     this.playerEntities.length = 0;
