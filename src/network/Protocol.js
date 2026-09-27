@@ -62,7 +62,7 @@ export class Protocol {
 
   /**
    * CLIENT_INPUT:
-   * [type:u8, sequence:u32, inputMask:u16, yaw:f32, pitch:f32, weaponSlot:i8]
+   * [type:u8, sequence:u32, inputMask:u16, yaw:f32, pitch:f32, weaponSlot:i8, flags:u8]
    *
    * u16 is required because CROUCH/PRONE use bits above bit 7.
    */
@@ -97,6 +97,7 @@ export class Protocol {
     view.setFloat32(7, Number.isFinite(yaw) ? yaw : 0, true);
     view.setFloat32(11, Number.isFinite(pitch) ? pitch : 0, true);
     view.setInt8(15, Number.isInteger(weaponSlot) ? weaponSlot : -1);
+    view.setUint8(16, arguments.length > 5 && arguments[5] ? 1 : 0);
     return buffer;
   }
 
@@ -107,7 +108,8 @@ export class Protocol {
         payloadOrSequence.inputMask ?? 0,
         payloadOrSequence.yaw ?? 0,
         payloadOrSequence.pitch ?? 0,
-        payloadOrSequence.weaponSlot ?? -1
+        payloadOrSequence.weaponSlot ?? -1,
+        !!payloadOrSequence.isAiming
       );
     }
 
@@ -116,7 +118,8 @@ export class Protocol {
       inputMask ?? 0,
       yaw ?? 0,
       pitch ?? 0,
-      weaponSlot
+      weaponSlot,
+      false
     );
   }
 
@@ -130,6 +133,7 @@ export class Protocol {
       yaw: view.getFloat32(7, true),
       pitch: view.getFloat32(11, true),
       weaponSlot: view.getInt8(15),
+      isAiming: view.byteLength >= 17 && (view.getUint8(16) & 1) !== 0,
     };
   }
 
@@ -220,6 +224,7 @@ export class Protocol {
       let flags = 0;
       if (e.isDead) flags |= 1;
       if (e.isHost) flags |= 2;
+      if (e.isAiming) flags |= 4;
       view.setUint8(offset + 27, flags);
       const velocity = e.velocity || {};
       view.setFloat32(offset + 28, Number(velocity.x ?? 0), true);
@@ -287,6 +292,7 @@ export class Protocol {
         deaths,
         isDead: !!(flags & 1),
         isHost: !!(flags & 2),
+        isAiming: !!(flags & 4),
       };
     }
 
