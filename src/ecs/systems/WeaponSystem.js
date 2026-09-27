@@ -101,23 +101,37 @@ export class WeaponSystem {
   }
 
   _trySwitchWeapon(entity, slotIndex) {
-    if (!entity.loadout?.slots || !entity.weapon) return;
+    if (!entity.loadout?.slots || !entity.weapon) return false;
     const slots = entity.loadout.slots;
-    if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= slots.length) return;
-    if (entity.loadout.active === slotIndex) return;
+    if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= slots.length) return false;
+    if (entity.loadout.active === slotIndex) {
+      // Re-assert the visual state; this also recovers if rendering was
+      // temporarily hidden while a respawn/death transition occurred.
+      if (entity.player?.isLocal) {
+        this.renderSystem?.weaponViewModel?.setWeaponType?.(entity.weapon.typeId);
+      }
+      return false;
+    }
 
-    const cur = entity.loadout.active;
-    if (slots[cur]) copyWeaponState(slots[cur], entity.weapon);
+    const currentIndex = entity.loadout.active;
+    if (slots[currentIndex]) copyWeaponState(slots[currentIndex], entity.weapon);
+
     entity.loadout.active = slotIndex;
     copyWeaponState(entity.weapon, slots[slotIndex]);
     entity.weapon.isReloading = false;
+    entity.weapon.reloadStartTime = 0;
     entity.weapon.shotsInBurst = 0;
     entity.weapon.currentSpread = 0;
+    entity.weapon.shootHeldPrev = false;
 
+    // Weapon selection is a state change, not a reload. Do not play reload
+    // audio here. The viewmodel is updated immediately so the pistol (slot 0)
+    // and every other slot become visible on the same simulation tick.
     if (entity.player?.isLocal) {
       this.renderSystem?.weaponViewModel?.setWeaponType?.(entity.weapon.typeId);
-      audio.playReloadEnd();
     }
+    entity.character?.setWeaponType?.(entity.weapon.typeId);
+    return true;
   }
 
   _completeReload(weapon) {
