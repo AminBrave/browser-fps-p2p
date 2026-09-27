@@ -81,6 +81,7 @@ See **CHANGELOG.md** for a full history of gameplay and systems work on this bra
 - **Binary input uses a 16-bit input mask** so crouch/prone flags are transmitted correctly. Weapon-slot selection is also serialized.
 - **Host acknowledgements are per client**, avoiding one player's input sequence from acknowledging another player's prediction buffer.
 - **Remote interpolation uses indexed snapshots** and keeps remote physics proxies aligned with rendered positions.
+- **Resource ownership is session-scoped**: Three.js scene resources, Rapier state, and impact decals are released when a match stops.
 
 
 - **Host** simulates physics, weapons, and damage; broadcasts world snapshots.
