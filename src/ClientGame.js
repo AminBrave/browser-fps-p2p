@@ -409,6 +409,7 @@ export class ClientGame {
 
     if (p) {
       this.hud.updateHealth(p.health, p.maxHealth || 100);
+      this.hud.updateScoreboard(p.kills || 0, p.deaths || 0);
       this.hud.setDeathOverlay(p.isDead);
     }
 
