@@ -307,7 +307,8 @@ export class WeaponSystem {
           this.sceneManager,
           endPos,
           hitNormal,
-          hitRenderTarget
+          hitRenderTarget,
+          hitEntity
         );
         if (isPlayerHit) {
           createBloodImpact(
@@ -315,7 +316,8 @@ export class WeaponSystem {
             this.sceneManager,
             endPos,
             hitNormal,
-            hitRenderTarget
+            hitRenderTarget,
+            hitEntity
           );
         }
         if (player.isLocal && p === 0) audio.playImpact();
