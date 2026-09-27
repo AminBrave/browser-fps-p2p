@@ -436,7 +436,8 @@ export class RenderSystem {
           isMoving,
           !!weapon?.isReloading,
           intensity,
-          aiming
+          aiming,
+          stance
         );
 
         const grounded = physics?.isGrounded !== false;
