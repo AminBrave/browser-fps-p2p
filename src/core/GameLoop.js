@@ -1,10 +1,12 @@
+import { GAME_CONFIG } from '../config/index.js';
+
 /**
  * Fixed-step simulation loop with a separate render phase.
  */
 export class GameLoop {
   constructor({
-    fixedDeltaTime = 1 / 60,
-    maxFrameDelta = 0.25,
+    fixedDeltaTime = 1 / (GAME_CONFIG.TICK_RATE || 60),
+    maxFrameDelta = GAME_CONFIG.MAX_FRAME_DELTA,
     onFixedUpdate = () => {},
     onRender = () => {},
   } = {}) {
@@ -50,7 +52,7 @@ export class GameLoop {
     this.accumulator += frameDelta;
 
     // Avoid an unbounded catch-up after a background-tab suspension.
-    const maxSteps = 8;
+    const maxSteps = GAME_CONFIG.MAX_CATCH_UP_STEPS;
     let steps = 0;
     while (this.accumulator >= this.fixedDeltaTime && steps < maxSteps) {
       this.tick++;
