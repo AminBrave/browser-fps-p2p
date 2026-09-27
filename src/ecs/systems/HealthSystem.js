@@ -10,6 +10,8 @@ export class HealthSystem {
   constructor(physicsWorld, eventSink = null) {
     this.physicsWorld = physicsWorld;
     this.eventSink = eventSink;
+    this.pendingDamageEvents = [];
+    this.spawnCursor = 0;
   }
 
   setEventSink(eventSink) {
@@ -101,9 +103,20 @@ export class HealthSystem {
         if (player.isDead) continue;
 
         const before = player.health;
-        player.health = Math.max(0, player.health - Math.max(0, event.amount || 0));
+        const damage = Math.max(0, Number(event.amount) || 0);
+        player.health = Math.max(0, player.health - damage);
+        if (damage > 0 && event.attackerId != null) {
+          player.lastDamagedBy = event.attackerId;
+        }
         if (player.health <= 0 && before > 0) {
           player.isDead = true;
+          const attacker = Array.from(ecsWorld.with('player')).find(
+            (candidate) => candidate.player?.id === event.attackerId
+          );
+          if (attacker?.player && attacker !== entity) {
+            attacker.player.kills = (attacker.player.kills || 0) + 1;
+          }
+          player.lastAttackerId = event.attackerId ?? null;
           player.deathTime = now;
           player.deaths = (player.deaths || 0) + 1;
           player.respawnTimer = GAME_CONFIG.RESPAWN_TIME_MS || 3000;
