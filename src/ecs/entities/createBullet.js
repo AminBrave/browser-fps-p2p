@@ -57,15 +57,12 @@ export function createImpactDecal(
   n.normalize();
 
   const group = new THREE.Group();
-  group.position.set(
-    position.x + n.x * 0.012,
-    position.y + n.y * 0.012,
-    position.z + n.z * 0.012
-  );
-  group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
   group.renderOrder = 20;
 
-  const orientation = new THREE.Euler().setFromQuaternion(group.quaternion);
+  const orientation = new THREE.Euler().setFromUnitVectors(
+    new THREE.Vector3(0, 0, 1),
+    n
+  );
   const decalSize = new THREE.Vector3(0.18, 0.18, 0.08);
   const surface = targetMesh?.isMesh ? targetMesh : null;
 
@@ -104,7 +101,10 @@ export function createImpactDecal(
         position.y + n.y * 0.012,
         position.z + n.z * 0.012
       );
-      mesh.quaternion.copy(group.quaternion);
+      mesh.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 0, 1),
+        n
+      );
     }
 
     return mesh;
@@ -135,11 +135,7 @@ export function createImpactDecal(
     })
   );
   flash.name = 'impactFlash';
-  flash.position.set(
-    position.x - group.position.x,
-    position.y - group.position.y,
-    position.z - group.position.z
-  );
+  flash.position.set(position.x, position.y, position.z);
   group.add(flash);
 
   scene?.add?.(group);
