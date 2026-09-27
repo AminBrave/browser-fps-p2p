@@ -59,9 +59,13 @@ export function createImpactDecal(
   const group = new THREE.Group();
   group.renderOrder = 20;
 
-  const orientation = new THREE.Euler().setFromUnitVectors(
-    new THREE.Vector3(0, 0, 1),
-    n
+  // Euler has no setFromUnitVectors(); build the rotation with a quaternion,
+  // then convert it to the Euler expected by DecalGeometry.
+  const orientation = new THREE.Euler().setFromQuaternion(
+    new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 0, 1),
+      n
+    )
   );
   const decalSize = new THREE.Vector3(0.18, 0.18, 0.08);
   const surface = targetMesh?.isMesh ? targetMesh : null;
