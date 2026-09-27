@@ -1,4 +1,5 @@
 import { GAME_CONFIG, STANCE } from './config/constants.js';
+import { WORLD_CONFIG } from './config/world.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
@@ -73,7 +74,7 @@ export class ClientGame {
       this.physicsWorld,
       this.sceneManager,
       this.localPlayerId,
-      { x: 0, y: 3, z: 0 },
+      { ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[0], y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2 },
       true,
       false
     );
