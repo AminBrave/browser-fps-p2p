@@ -127,7 +127,16 @@ export class ClientGame {
     const snapshot = this._pendingSnapshot;
     this._pendingSnapshot = null;
     if (snapshot) {
-      this.reconcileSystem.update(this.ecsWorld, this.localEntity, snapshot);
+      const wasReconciled = this.reconcileSystem.update(
+        this.ecsWorld,
+        this.localEntity,
+        snapshot
+      );
+      if (wasReconciled) {
+        // A reconciliation is a simulation timeline discontinuity. Do not let
+        // the renderer interpolate across the old and corrected positions.
+        this.renderSystem.snapFixedStateToPhysics(this.localEntity);
+      }
       const players = snapshot.players || snapshot.entities || [];
       const me = players.find(
         (player) => (player.id ?? player.entityId) === this.localEntity.player?.id
