@@ -1,3 +1,16 @@
+## [Unreleased] / qwen-code — 2026-09-27
+
+### World geometry, normalization and containment
+
+- Added `src/config/world.js` as the single source of truth for ground height, island bounds, boundary dimensions, object sizes, object positions and player spawn points.
+- Normalized world-object placement through shared ground and island-boundary calculations so objects remain inside the playable area and rest on the configured ground plane.
+- Centralized player spawn height from configured player dimensions instead of hard-coded world Y positions.
+- Made floor, crates, trees, cars, barriers, mountains and boundary walls use solid static Rapier colliders; collider-to-entity registration now covers map objects for raycast/impact ownership.
+- Replaced the stepped mountain collider approximation with a native Rapier cone collider aligned to the rendered mountain volume, so players and bullets interact with the same solid shape.
+- Added an invisible safety floor below the island as a last-resort containment layer.
+- Fixed rotated car colliders so their physics orientation matches their rendered orientation.
+- Removed duplicated map-size constants from the general game config.
+
 # Changelog
 
 All notable changes to **browser-fps-p2p** are documented here.
