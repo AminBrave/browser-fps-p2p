@@ -1,7 +1,7 @@
 // src/ecs/systems/RenderSystem.js
 
 import * as THREE from 'three';
-import { GAME_CONFIG, INPUT_FLAGS, STANCE } from '../../config/index.js';
+import { GAME_CONFIG, INPUT_FLAGS, STANCE, getPlayerEyeOffset } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { WeaponViewModel } from '../../render/WeaponViewModel.js';
 import { moveIntensity } from '../../utils/Movement.js';
@@ -153,12 +153,19 @@ export class RenderSystem {
       const physics = localEntity.physics;
 
       const stance = input.stance ?? STANCE.STAND;
-      let eyeOffset = GAME_CONFIG.CAMERA_HEIGHT_OFFSET || 1.6;
-      if (stance === STANCE.CROUCH) {
-        eyeOffset = GAME_CONFIG.CAMERA_HEIGHT_CROUCH || 1.0;
-      } else if (stance === STANCE.PRONE) {
-        eyeOffset = GAME_CONFIG.CAMERA_HEIGHT_PRONE || 0.35;
-      }
+
+      // Keep the first-person eye anchored to the exact same head/pose
+      // geometry used by the local player's character model. The physics
+      // transform is the capsule centre, not the player's feet or head.
+      localEntity.character?.updateVisuals?.({
+        stance,
+        pitch: input.pitch ?? 0,
+        health: localEntity.player?.health ?? GAME_CONFIG.MAX_HEALTH,
+        maxHealth: localEntity.player?.maxHealth ?? GAME_CONFIG.MAX_HEALTH,
+        isDead: !!localEntity.player?.isDead,
+      });
+
+      const eyeOffset = getPlayerEyeOffset(stance);
 
       this.camera.position.set(
         transform.position.x,
