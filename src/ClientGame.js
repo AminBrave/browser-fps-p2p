@@ -209,13 +209,20 @@ export class ClientGame {
     const input = this.localEntity?.input;
     const weapon = this.localEntity?.weapon;
     const recoil = Math.abs(Number(weapon?.cameraRecoilPitch) || 0);
+    const isSprinting = !!(
+      input?.inputMask &&
+      (input.inputMask & (1 << 9)) &&
+      (input.inputMask & (1 << 0)) &&
+      (input.stance ?? 0) === 0
+    );
     this.hud.updateCrosshair(
       speed,
       !!input?.isAiming,
       Number(weapon?.currentSpread) || 0,
       Number(weapon?.spreadMax) || 0.05,
       !!(input?.inputMask && (input.inputMask & (1 << 5))),
-      recoil
+      recoil,
+      isSprinting
     );
   }
 
