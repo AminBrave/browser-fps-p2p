@@ -241,6 +241,7 @@ export class RenderSystem {
 
       this._euler.set(pitch, yaw, 0, 'YXZ');
       this.camera.quaternion.setFromEuler(this._euler);
+      audio.setListener?.(this.camera.position, new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion));
 
       if (this.weaponViewModel) {
         const isDead = !!localEntity.player?.isDead;
