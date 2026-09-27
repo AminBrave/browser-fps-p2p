@@ -196,9 +196,15 @@ export class ClientGame {
 
       if (remote.health !== undefined) {
         entity.player.health = remote.health;
-        entity.player.isDead = remote.health <= 0;
-        entity.renderMesh.mesh.visible = !entity.player.isDead;
+        entity.player.isDead = remote.health <= 0 || !!remote.isDead;
       }
+
+      entity.player.remoteStance = remote.stance ?? 0;
+      entity.player.remotePitch = remote.pitch ?? remote.rotation?.pitch ?? 0;
+      entity.player.remoteWeaponId = remote.weaponId ?? 1;
+      entity.character?.setWeaponType?.(entity.player.remoteWeaponId);
+      entity.input.stance = entity.player.remoteStance;
+      entity.input.pitch = entity.player.remotePitch;
     }
 
     // A player missing from an authoritative snapshot has left the match.
