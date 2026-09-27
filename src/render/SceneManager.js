@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAME_CONFIG } from '../config/index.js';
+import { CAMERA_CONFIG } from '../config/index.js';
 
 function disposeMaterial(material, disposedMaterials) {
   if (!material || disposedMaterials.has(material)) return;
@@ -52,10 +52,10 @@ export class SceneManager {
 
     const aspect = window.innerWidth / Math.max(1, window.innerHeight);
     this.camera = new THREE.PerspectiveCamera(
-      GAME_CONFIG.FOV || 75,
+      CAMERA_CONFIG.FOV,
       aspect,
-      GAME_CONFIG.NEAR_PLANE || 0.05,
-      GAME_CONFIG.FAR_PLANE || 500
+      CAMERA_CONFIG.NEAR_PLANE,
+      CAMERA_CONFIG.FAR_PLANE
     );
     this.camera.position.set(0, 1.6, 0);
     this.scene.add(this.camera);
