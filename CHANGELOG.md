@@ -6,6 +6,8 @@
 
 ### Vehicle impact rendering and compound hit mapping
 
+- Fixed decal orientation construction to use a Three.js quaternion before converting to Euler; `Euler.setFromUnitVectors()` does not exist and could halt the simulation on the first impact.
+
 - Fixed a combat runtime crash where the impact-decal path referenced the raycast result outside its block; the exact `renderTarget` is now captured with the hit and passed safely to decal creation.
 
 - Fixed car bullet-impact artifacts by mapping every compound collider back to its exact visible mesh part (body, cabin or wheel).
