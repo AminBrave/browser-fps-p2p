@@ -1,3 +1,4 @@
+import { NETWORK_CONFIG } from '../config/index.js';
 import { Peer } from 'peerjs';
 
 /**
@@ -53,10 +54,10 @@ export class PeerManager {
   }
 
   static createInvitationCode() {
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const values = new Uint32Array(5);
+    const { ALPHABET, LENGTH } = NETWORK_CONFIG.INVITATION_CODE;
+    const values = new Uint32Array(LENGTH);
     crypto.getRandomValues(values);
-    return Array.from(values, (value) => alphabet[value % alphabet.length]).join('');
+    return Array.from(values, (value) => ALPHABET[value % ALPHABET.length]).join('');
   }
 
   initializeHost(customRoomId = null) {
