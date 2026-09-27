@@ -93,6 +93,7 @@ function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   root.add(mesh);
+  root.position.set(safePosition.x, groundY(), safePosition.z);
   root.rotation.y = rotationY;
 
   const physics = physicsWorld.createStaticBox(
@@ -125,6 +126,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
   );
 
   const group = new THREE.Group();
+  group.position.set(safePosition.x, groundY(), safePosition.z);
 
   const trunk = new THREE.Mesh(
     new THREE.CylinderGeometry(
@@ -221,6 +223,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
   );
 
   const group = new THREE.Group();
+  group.position.set(safePosition.x, groundY(), safePosition.z);
   group.rotation.y = placement.rotationY;
 
   const bodyMat = new THREE.MeshStandardMaterial({
@@ -409,6 +412,7 @@ function addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position
   );
 
   const group = new THREE.Group();
+  group.position.set(safePosition.x, groundY(), safePosition.z);
   const mesh = new THREE.Mesh(
     new THREE.ConeGeometry(
       config.RADIUS,
@@ -504,7 +508,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
     0,
     floorMesh
   );
-  floorMesh.position.y = -FLOOR_THICKNESS / 2;
+  floorMesh.position.y = groundY() - FLOOR_THICKNESS / 2;
   floorMesh.receiveShadow = true;
 
   addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
