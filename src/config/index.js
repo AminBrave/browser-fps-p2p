@@ -47,3 +47,5 @@ export function validateConfig() {
   if (errors.length) throw new Error(`Invalid game configuration:\n- ${errors.join('\\n- ')}`);
   return true;
 }
+
+export { peerIdToNumeric } from './constants.js';
