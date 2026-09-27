@@ -6,6 +6,7 @@ import { hasFlag } from '../../utils/BitFlags.js';
 import { WeaponViewModel } from '../../render/WeaponViewModel.js';
 import { moveIntensity } from '../../utils/Movement.js';
 import { audio } from '../../audio/AudioManager.js';
+import { EVENT_TYPES } from '../../network/PacketTypes.js';
 
 export class RenderSystem {
   constructor(sceneOrManager, camera = null) {
@@ -20,6 +21,7 @@ export class RenderSystem {
     }
 
     this.weaponViewModel = null;
+    this.eventSink = null;
     if (this.camera) {
       if (this.scene && !this.camera.parent) this.scene.add(this.camera);
       this.weaponViewModel = new WeaponViewModel(
@@ -36,6 +38,10 @@ export class RenderSystem {
     this._renderPosition = null;
     this._previousPosition = null;
     this._currentPosition = null;
+  }
+
+  setEventSink(eventSink) {
+    this.eventSink = eventSink;
   }
 
   captureFixedState(localEntity) {
@@ -263,10 +269,35 @@ export class RenderSystem {
         );
 
         const grounded = physics?.isGrounded !== false;
+        const footstepBefore = audio._footstepTimer;
         audio.updateFootsteps(dt, isMoving, grounded, stance);
-        if (!this._wasGrounded && grounded) audio.playLand();
+        if (audio._footstepTimer < footstepBefore) {
+          audio.playFootstep(stance);
+          this.eventSink?.({
+            type: EVENT_TYPES.SFX,
+            sfx: 'footstep',
+            sourceId: localEntity.player?.id,
+            position: { ...transform.position },
+            stance,
+          });
+        }
+        if (!this._wasGrounded && grounded) {
+          audio.playLand();
+          this.eventSink?.({
+            type: EVENT_TYPES.SFX,
+            sfx: 'land',
+            sourceId: localEntity.player?.id,
+            position: { ...transform.position },
+          });
+        }
         if (this._wasGrounded && !grounded && hasFlag(mask, INPUT_FLAGS.JUMP)) {
           audio.playJump();
+          this.eventSink?.({
+            type: EVENT_TYPES.SFX,
+            sfx: 'jump',
+            sourceId: localEntity.player?.id,
+            position: { ...transform.position },
+          });
         }
         this._wasGrounded = grounded;
       }
