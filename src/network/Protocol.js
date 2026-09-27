@@ -1,9 +1,7 @@
 import { PACKET_TYPES } from './PacketTypes.js';
-import { GAME_CONFIG } from '../config/index.js';
+import { GAME_CONFIG, PROTOCOL_CONFIG } from '../config/index.js';
 
-const CLIENT_INPUT_SIZE = 16;
-const SNAPSHOT_HEADER_SIZE = 10;
-const SNAPSHOT_ENTITY_SIZE = 45;
+const { CLIENT_INPUT_SIZE, SNAPSHOT_HEADER_SIZE, SNAPSHOT_ENTITY_SIZE } = PROTOCOL_CONFIG;
 
 function asDataView(data) {
   if (data instanceof DataView) return data;
@@ -27,7 +25,7 @@ export class Protocol {
   }
 
   static encodeJoinAccept(playerId, entityId, spawn = null) {
-    const buffer = new ArrayBuffer(18);
+    const buffer = new ArrayBuffer(PROTOCOL_CONFIG.JOIN_ACCEPT_SIZE);
     const view = new DataView(buffer);
     view.setUint8(0, PACKET_TYPES.JOIN_ACCEPT);
     view.setUint8(1, playerId);
@@ -60,21 +58,21 @@ export class Protocol {
    */
   static encodeWorldInit(manifest) {
     const payload = new TextEncoder().encode(JSON.stringify(manifest));
-    const buffer = new ArrayBuffer(5 + payload.byteLength);
+    const buffer = new ArrayBuffer(PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE + payload.byteLength);
     const view = new DataView(buffer);
     view.setUint8(0, PACKET_TYPES.WORLD_INIT);
     view.setUint32(1, payload.byteLength, true);
-    new Uint8Array(buffer, 5).set(payload);
+    new Uint8Array(buffer, PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE).set(payload);
     return buffer;
   }
 
   static decodeWorldInit(data) {
     const view = asDataView(data);
-    if (!view || view.byteLength < 5 || view.getUint8(0) !== PACKET_TYPES.WORLD_INIT) return null;
+    if (!view || view.byteLength < PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE || view.getUint8(0) !== PACKET_TYPES.WORLD_INIT) return null;
     const length = view.getUint32(1, true);
-    if (length > view.byteLength - 5) return null;
+    if (length > view.byteLength - PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE) return null;
     try {
-      return JSON.parse(new TextDecoder().decode(new Uint8Array(view.buffer, view.byteOffset + 5, length)));
+      return JSON.parse(new TextDecoder().decode(new Uint8Array(view.buffer, view.byteOffset + PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE, length)));
     } catch {
       return null;
     }
@@ -131,23 +129,23 @@ export class Protocol {
 
   static encodeGameEvent(event = {}) {
     const payload = new TextEncoder().encode(JSON.stringify(event));
-    const buffer = new ArrayBuffer(5 + payload.byteLength);
+    const buffer = new ArrayBuffer(PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE + payload.byteLength);
     const view = new DataView(buffer);
     view.setUint8(0, PACKET_TYPES.GAME_EVENT);
     view.setUint32(1, payload.byteLength, true);
-    new Uint8Array(buffer, 5).set(payload);
+    new Uint8Array(buffer, PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE).set(payload);
     return buffer;
   }
 
   static decodeGameEvent(data) {
     const view = asDataView(data);
-    if (!view || view.byteLength < 5 || view.getUint8(0) !== PACKET_TYPES.GAME_EVENT) return null;
+    if (!view || view.byteLength < PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE || view.getUint8(0) !== PACKET_TYPES.GAME_EVENT) return null;
     const length = view.getUint32(1, true);
-    if (length > view.byteLength - 5) return null;
+    if (length > view.byteLength - PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE) return null;
     try {
       return JSON.parse(
         new TextDecoder().decode(
-          new Uint8Array(view.buffer, view.byteOffset + 5, length)
+          new Uint8Array(view.buffer, view.byteOffset + PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE, length)
         )
       );
     } catch {
@@ -166,7 +164,7 @@ export class Protocol {
       entities = Array.isArray(entitiesList) ? entitiesList : [];
     }
 
-    const count = Math.min(255, entities.length);
+    const count = Math.min(PROTOCOL_CONFIG.MAX_SNAPSHOT_ENTITIES, entities.length);
     const buffer = new ArrayBuffer(
       SNAPSHOT_HEADER_SIZE + count * SNAPSHOT_ENTITY_SIZE
     );
@@ -199,15 +197,15 @@ export class Protocol {
       );
       view.setUint8(
         offset + 24,
-        Math.max(0, Math.min(255, Number(e.health ?? GAME_CONFIG.MAX_HEALTH) | 0))
+        Math.max(0, Math.min(PROTOCOL_CONFIG.MAX_UINT8, Number(e.health ?? GAME_CONFIG.MAX_HEALTH) | 0))
       );
       view.setUint8(
         offset + 25,
-        Math.max(0, Math.min(255, Number(e.stance ?? 0) | 0))
+        Math.max(0, Math.min(PROTOCOL_CONFIG.MAX_UINT8, Number(e.stance ?? 0) | 0))
       );
       view.setUint8(
         offset + 26,
-        Math.max(0, Math.min(255, Number(e.weaponId ?? 1) | 0))
+        Math.max(0, Math.min(PROTOCOL_CONFIG.MAX_UINT8, Number(e.weaponId ?? 1) | 0))
       );
       let flags = 0;
       if (e.isDead) flags |= 1;
@@ -218,8 +216,8 @@ export class Protocol {
       view.setFloat32(offset + 32, Number(velocity.y ?? 0), true);
       view.setFloat32(offset + 36, Number(velocity.z ?? 0), true);
       view.setUint8(offset + 40, e.isGrounded ? 1 : 0);
-      view.setUint16(offset + 41, Math.max(0, Math.min(65535, Number(e.kills ?? 0) | 0)), true);
-      view.setUint16(offset + 43, Math.max(0, Math.min(65535, Number(e.deaths ?? 0) | 0)), true);
+      view.setUint16(offset + 41, Math.max(0, Math.min(PROTOCOL_CONFIG.MAX_UINT16, Number(e.kills ?? 0) | 0)), true);
+      view.setUint16(offset + 43, Math.max(0, Math.min(PROTOCOL_CONFIG.MAX_UINT16, Number(e.deaths ?? 0) | 0)), true);
     }
 
     return buffer;
