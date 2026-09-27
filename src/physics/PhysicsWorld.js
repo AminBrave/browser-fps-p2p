@@ -62,7 +62,7 @@ export class PhysicsWorld {
     if (!this.world) throw new Error('Physics world is not initialized');
     if (!parts?.length) throw new Error('Static compound requires at least one part');
 
-    // Rapier 0.11.x has no ColliderDesc.compound(). The equivalent compound
+    // Rapier 0.11.x does not expose a compound-collider builder. The equivalent
     // object is one rigid body with multiple colliders attached to that body.
     const body = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.fixed()
