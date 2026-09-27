@@ -37,6 +37,7 @@ export function createWeapon(config = DEFAULT_WEAPON) {
     recoilYawSpread: config.RECOIL_YAW_SPREAD || 0.01,
 
     spreadBase: config.SPREAD_BASE ?? 0,
+    steadySpread: config.STEADY_SPREAD ?? 0.003,
     spreadGrow: config.SPREAD_GROW ?? 0.01,
     spreadMax: config.SPREAD_MAX ?? 0.05,
     spreadDecay: config.SPREAD_DECAY ?? 0.12,
@@ -69,7 +70,7 @@ export function copyWeaponState(target, source) {
     'lastFiredTime', 'fireRateMs', 'damage', 'range', 'fireMode',
     'isReloading', 'reloadStartTime', 'reloadTimeMs',
     'recoilPitch', 'recoilYawSpread',
-    'spreadBase', 'spreadGrow', 'spreadMax', 'spreadDecay', 'pelletCount',
+    'spreadBase', 'steadySpread', 'spreadGrow', 'spreadMax', 'spreadDecay', 'pelletCount',
     'currentSpread', 'shotsInBurst',
   ];
   for (const k of keys) {
