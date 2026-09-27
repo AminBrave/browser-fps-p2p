@@ -1,5 +1,6 @@
-import RAPIER from '@dimforge/rapier3d-compat';
 // src/ecs/entities/createMap.js
+
+import RAPIER from '@dimforge/rapier3d-compat';
 
 import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
@@ -266,7 +267,6 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
 
   addToScene(sceneManager, group);
 
-  const halfWheelWidth = config.WHEELS.WIDTH / 2;
   const wheelRotation = {
     x: 0,
     y: 0,
