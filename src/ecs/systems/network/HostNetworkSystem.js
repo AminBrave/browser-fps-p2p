@@ -44,11 +44,9 @@ export class HostNetworkSystem {
 
       // Defensive bound in case a PeerJS connection survives while its ECS
       // entity is being removed.
-      // Bound each peer's unprocessed history without dropping the newest
-      // frame. Reliable ordered transport normally keeps this queue near the
-      // network RTT; a very large queue indicates a stalled simulation.
-      const maxQueue = Math.max(256, NETWORK_CONFIG.INPUT_HISTORY_SIZE * 4);
-      if (queue.length > maxQueue) queue.splice(0, queue.length - maxQueue);
+      // Never discard an input that has not been simulated. The snapshot ACK
+      // is the authoritative boundary used by client reconciliation; dropping
+      // a frame here would make the client replay a different input history.
     });
   }
 
