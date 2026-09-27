@@ -54,6 +54,13 @@ export class LobbyUI {
       ">
         <h1 style="margin: 0 0 10px 0; font-size: 28px; letter-spacing: 2px; color: #00d2d3;">P2P FPS ARENA</h1>
         <p style="margin: 0 0 30px 0; font-size: 13px; color: #888;">Listen-Host WebRTC Network Architecture</p>
+        <div id="host-invitation" style="display:none; margin:-10px 0 24px; padding:14px; border-radius:8px; background:rgba(16,172,132,0.12); border:1px solid rgba(16,172,132,0.35);">
+          <div style="font-size:11px; color:#aaa; letter-spacing:1px; margin-bottom:6px;">INVITATION CODE</div>
+          <div style="display:flex; justify-content:center; gap:8px;">
+            <input id="host-code" readonly style="width:150px; padding:10px; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.15); border-radius:6px; color:white; font-size:24px; font-weight:800; letter-spacing:6px; text-align:center;">
+            <button id="btn-copy-code" style="padding:10px 12px; border:0; border-radius:6px; cursor:pointer; font-weight:700;">Copy</button>
+          </div>
+        </div>
 
         <!-- Status Panel -->
         <div id="lobby-status" style="
@@ -85,7 +92,7 @@ export class LobbyUI {
             <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
           </div>
 
-          <input id="input-room-id" type="text" placeholder="Enter Host Room ID" style="
+          <input id="input-room-id" type="text" maxlength="5" autocomplete="off" autocapitalize="characters" placeholder="Enter 5-character invitation code" style="
             padding: 12px;
             background: rgba(0, 0, 0, 0.4);
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -121,6 +128,9 @@ export class LobbyUI {
     this.hostBtn = this.container.querySelector('#btn-host');
     this.joinBtn = this.container.querySelector('#btn-join');
     this.roomIdInput = this.container.querySelector('#input-room-id');
+    this.invitationPanel = this.container.querySelector('#host-invitation');
+    this.hostCodeInput = this.container.querySelector('#host-code');
+    this.copyCodeBtn = this.container.querySelector('#btn-copy-code');
 
     // Guarded Event Attachments
     if (this.hostBtn) {
@@ -131,12 +141,33 @@ export class LobbyUI {
 
     if (this.joinBtn) {
       this.joinBtn.addEventListener('click', () => {
-        const roomId = this.roomIdInput?.value.trim() || '';
+        const roomId = this.roomIdInput?.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || '';
         if (roomId && this.callbacks?.onJoinGame) {
           this.callbacks.onJoinGame(roomId);
         }
       });
     }
+
+    if (this.copyCodeBtn) {
+      this.copyCodeBtn.addEventListener('click', async () => {
+        const code = this.hostCodeInput?.value || '';
+        try {
+          await navigator.clipboard.writeText(code);
+          this.copyCodeBtn.textContent = 'Copied!';
+          setTimeout(() => { this.copyCodeBtn.textContent = 'Copy'; }, 1200);
+        } catch {
+          this.hostCodeInput?.select();
+          document.execCommand('copy');
+        }
+      });
+    }
+  }
+
+  showInvitationCode(code) {
+    const normalized = String(code || '').trim().toUpperCase();
+    if (normalized.length !== 5) return;
+    if (this.hostCodeInput) this.hostCodeInput.value = normalized;
+    if (this.invitationPanel) this.invitationPanel.style.display = 'block';
   }
 
   /**
