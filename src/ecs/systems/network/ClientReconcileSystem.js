@@ -1,6 +1,6 @@
 // src/ecs/systems/network/ClientReconcileSystem.js
 
-import { GAME_CONFIG, STANCE } from '../../../config/index.js';
+import { STANCE } from '../../../config/index.js';
 import { applyFpsMovement } from '../../../utils/Movement.js';
 
 /**
@@ -67,27 +67,25 @@ export class ClientReconcileSystem {
       z: serverPlayerData.z ?? serverPlayerData.position?.z ?? 0,
     };
 
-    const distError = Math.hypot(
-      serverPos.x - transformComp.position.x,
-      serverPos.y - transformComp.position.y,
-      serverPos.z - transformComp.position.z
-    );
+    // Every snapshot is an authoritative server tick. Reconcile on every
+    // snapshot rather than allowing a permanent 15 cm positional error.
+    // Apply the authoritative state immediately, then replay only inputs the
+    // host has not acknowledged yet. This makes both sides use the same map
+    // coordinates while preserving responsive local prediction.
+    if (physComp.rigidBody?.setTranslation) {
+      physComp.rigidBody.setTranslation(serverPos, true);
+    } else if (physComp.rigidBody?.setNextKinematicTranslation) {
+      physComp.rigidBody.setNextKinematicTranslation(serverPos);
+    }
 
-    const threshold = GAME_CONFIG.RECONCILIATION_THRESHOLD ?? 0.15;
+    transformComp.position.x = serverPos.x;
+    transformComp.position.y = serverPos.y;
+    transformComp.position.z = serverPos.z;
 
-    if (distError > threshold) {
-      if (physComp.rigidBody?.setNextKinematicTranslation) {
-        physComp.rigidBody.setNextKinematicTranslation(serverPos);
-      }
-      transformComp.position.x = serverPos.x;
-      transformComp.position.y = serverPos.y;
-      transformComp.position.z = serverPos.z;
-
-      if (this.inputBuffer?.toArray) {
-        const frames = this.inputBuffer.toArray();
-        for (let i = 0; i < frames.length; i++) {
-          this._reSimulateInputFrame(physComp, transformComp, frames[i]);
-        }
+    if (this.inputBuffer?.toArray) {
+      const frames = this.inputBuffer.toArray();
+      for (let i = 0; i < frames.length; i++) {
+        this._reSimulateInputFrame(physComp, transformComp, frames[i]);
       }
     }
   }
