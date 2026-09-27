@@ -5,6 +5,7 @@ export const STANCE = Object.freeze({ STAND: 0, CROUCH: 1, PRONE: 2 });
 export const PLAYER_CONFIG = Object.freeze({
   MAX_PLAYERS: 4,
   SPEED: 8.0,
+  SPRINT_MULTIPLIER: 1.35,
   JUMP_FORCE: 6.5,
   GRAVITY: -19.62,
   HEIGHT: 1.8,
