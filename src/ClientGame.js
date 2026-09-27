@@ -73,7 +73,29 @@ export class ClientGame {
     this.renderSystem.setEventSink((event) => this.peerManager.sendToHost(Protocol.encodeGameEvent(event)));
 
     this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
-    await Promise.all([this._worldReadyPromise, this._joinReadyPromise]);
+
+    // WebRTC transport establishment is not the same thing as admission to
+    // the game. Explicitly request admission so the host can validate and
+    // initialize the player before sending authoritative world state.
+    const joinSent = this.peerManager.sendToHost(Protocol.encodeJoinRequest());
+    if (!joinSent) {
+      throw new Error('WebRTC transport opened, but the join request could not be sent.');
+    }
+
+    const handshakeTimeout = new Promise((_, reject) => {
+      setTimeout(
+        () => reject(new Error(
+          'Host did not complete the game handshake within ' +
+          NETWORK_CONFIG.HANDSHAKE.JOIN_TIMEOUT_MS + 'ms.'
+        )),
+        NETWORK_CONFIG.HANDSHAKE.JOIN_TIMEOUT_MS
+      );
+    });
+
+    await Promise.race([
+      Promise.all([this._worldReadyPromise, this._joinReadyPromise]),
+      handshakeTimeout,
+    ]);
     validateConfig();
 
     // Rebuild simulation timing/buffers from the host's authoritative
