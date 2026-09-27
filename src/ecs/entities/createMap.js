@@ -275,6 +275,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
     { x: -config.WHEELS.OFFSET_X, z: -config.WHEELS.OFFSET_Z },
   ];
 
+  const wheelMeshes = [];
   for (const { x, z } of wheelPositions) {
     const wheel = new THREE.Mesh(wheelGeo, wheelMat);
     wheel.rotation.z = Math.PI / 2;
@@ -282,6 +283,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
     wheel.castShadow = true;
     wheel.receiveShadow = true;
     group.add(wheel);
+    wheelMeshes.push(wheel);
   }
 
   addToScene(sceneManager, group);
@@ -318,19 +320,14 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
       },
       renderTarget: cabin,
     },
-    ...wheelPositions.map(({ x, z }) => ({
+    ...wheelPositions.map(({ x, z }, index) => ({
       desc: RAPIER.ColliderDesc.cylinder(
         config.WHEELS.WIDTH / 2,
         config.WHEELS.RADIUS
       ),
       position: { x, y: config.WHEELS.RADIUS, z },
       rotation: wheelRotation,
-      renderTarget: group.children.find(
-        (child) =>
-          child.position.x === x &&
-          child.position.y === config.WHEELS.RADIUS &&
-          child.position.z === z
-      ),
+      renderTarget: wheelMeshes[index],
     })),
   ];
 
