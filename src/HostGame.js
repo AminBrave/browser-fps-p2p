@@ -1,4 +1,4 @@
-import { GAME_CONFIG, NETWORK_CONFIG, STANCE, WORLD_CONFIG, validateConfig } from './config/index.js';
+import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, WORLD_CONFIG, validateConfig } from './config/index.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
@@ -34,7 +34,7 @@ export class HostGame {
     this.isRunning = false;
 
     this.fixedDeltaTime =
-      1 / (NETWORK_CONFIG.SERVER_TICK_RATE || GAME_CONFIG.TICK_RATE || 60);
+      1 / (NETWORK_CONFIG.SERVER_TICK_RATE || PLAYER_CONFIG.TICK_RATE || 60);
 
     this._audioUnlockHandler = () => audio.unlock();
     window.addEventListener('click', this._audioUnlockHandler);
@@ -67,7 +67,7 @@ export class HostGame {
       this.physicsWorld,
       this.sceneManager,
       this.localPlayerId,
-      { ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[0], y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2 },
+      { ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[0], y: WORLD_CONFIG.GROUND_Y + PLAYER_CONFIG.HEIGHT / 2 },
       true,
       true
     );
@@ -157,7 +157,7 @@ export class HostGame {
       id,
       {
         ...spawn,
-        y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2,
+        y: WORLD_CONFIG.GROUND_Y + PLAYER_CONFIG.HEIGHT / 2,
       },
       false,
       false
