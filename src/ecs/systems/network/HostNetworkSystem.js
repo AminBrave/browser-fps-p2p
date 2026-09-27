@@ -97,7 +97,12 @@ export class HostNetworkSystem {
         y: transform.position.y,
         z: transform.position.z,
         yaw: transform.rotation?.yaw ?? transform.rotation?.y ?? 0,
+        pitch: transform.rotation?.pitch ?? entity.input?.pitch ?? 0,
         health: player.health ?? 100,
+        stance: entity.input?.stance ?? STANCE.STAND,
+        weaponId: entity.weapon?.typeId ?? 1,
+        isDead: !!player.isDead,
+        isHost: !!player.isHost,
       });
     }
 
