@@ -18,10 +18,20 @@ export class Protocol {
     return view && view.byteLength >= 1 ? view.getUint8(0) : 0;
   }
 
-  static encodeJoinRequest() {
-    const buffer = new ArrayBuffer(1);
-    new DataView(buffer).setUint8(0, PACKET_TYPES.JOIN_REQUEST);
+  static encodeJoinRequest(protocolVersion = PROTOCOL_CONFIG.PROTOCOL_VERSION) {
+    const buffer = new ArrayBuffer(PROTOCOL_CONFIG.JOIN_REQUEST_SIZE);
+    const view = new DataView(buffer);
+    view.setUint8(0, PACKET_TYPES.JOIN_REQUEST);
+    view.setUint16(1, Number(protocolVersion) >>> 0, true);
     return buffer;
+  }
+
+  static decodeJoinRequest(data) {
+    const view = asDataView(data);
+    if (!view || view.byteLength < PROTOCOL_CONFIG.JOIN_REQUEST_SIZE) return null;
+    return {
+      protocolVersion: view.getUint16(1, true),
+    };
   }
 
   static encodeJoinAccept(playerId, entityId, spawn = null) {
