@@ -53,7 +53,7 @@ function addSolidMapEntity(
   return entity;
 }
 
-function addStaticBox(ecsWorld, physicsWorld, mapEntities, {
+function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
   position,
   size,
   color,
@@ -93,7 +93,7 @@ function addStaticBox(ecsWorld, physicsWorld, mapEntities, {
     rotationY
   );
 
-  addToScene(null, root);
+  addToScene(sceneManager, root);
   return addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
     position: { x: safePosition.x, y: groundY(), z: safePosition.z },
     physics,
@@ -433,7 +433,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
   addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities);
 
   for (const placement of WORLD_CONFIG.OBJECTS.CRATE.PLACEMENTS) {
-    addStaticBox(ecsWorld, physicsWorld, mapEntities, {
+    addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
       position: placement.position,
       size: placement.size,
       color: placement.color,
@@ -451,7 +451,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
 
   const barrier = WORLD_CONFIG.OBJECTS.BARRIER;
   for (const x of barrier.POSITIONS_X) {
-    addStaticBox(ecsWorld, physicsWorld, mapEntities, {
+    addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
       position: { x, z: barrier.Z },
       size: barrier.SIZE,
       color: barrier.COLOR,
