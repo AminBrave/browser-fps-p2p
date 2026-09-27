@@ -113,12 +113,14 @@ export function createPlayer(
   );
   healthBack.name = 'healthBack';
   healthFill.name = 'healthFill';
-  healthBack.position.set(0, 1.02, 0);
-  healthFill.position.set(0, 1.02, -0.003);
   healthBack.material.depthTest = false;
   healthFill.material.depthTest = false;
-  healthBack.renderOrder = 10;
-  healthFill.renderOrder = 11;
+  healthBack.renderOrder = 100;
+  healthFill.renderOrder = 101;
+  const healthBar = new THREE.Group();
+  healthBar.name = 'healthBar';
+  healthBar.position.set(0, 1.02, 0);
+  healthBar.add(healthBack, healthFill);
 
   const teamRing = new THREE.Mesh(
     new THREE.TorusGeometry(0.46, 0.018, 6, 24),
@@ -141,10 +143,9 @@ export function createPlayer(
     rightLeg,
     backpack,
     remoteWeapon,
-    healthBack,
-    healthFill,
     teamRing
   );
+  mesh.add(healthBar);
 
   mesh.traverse((child) => {
     if (child.isMesh) {
@@ -168,6 +169,7 @@ export function createPlayer(
       rightLeg,
       healthFill,
       healthBack,
+      healthBar,
       remoteWeapon,
       teamRing,
     },
@@ -192,6 +194,7 @@ export function createPlayer(
       mesh.visible = alive && !isLocal;
       healthBack.visible = alive && !isLocal;
       healthFill.visible = alive && !isLocal;
+      healthBar.visible = alive && !isLocal;
       teamRing.visible = alive && !isLocal;
 
       const ratio = THREE.MathUtils.clamp(
