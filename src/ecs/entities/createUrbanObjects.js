@@ -245,6 +245,23 @@ export function createUrbanObjects(ecsWorld, physicsWorld, sceneManager, mapEnti
       .map((spec) => addUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec));
   }
 
+  // Keep generated props clear of the major authored gameplay geometry.
+  // This makes density changes safe without introducing invisible overlaps.
+  const fixedZones = [
+    ...(WORLD_CONFIG.OBJECTS.CRATE?.PLACEMENTS || []).map((p) => ({
+      x: p.position.x, z: p.position.z,
+      radius: Math.max(p.size.x, p.size.z) * 0.65 + 1.2,
+    })),
+    ...(WORLD_CONFIG.OBJECTS.TREE?.POSITIONS || []).map((p) => ({
+      x: p.x, z: p.z,
+      radius: (WORLD_CONFIG.OBJECTS.TREE.CANOPY?.BASE_RADIUS || 1) + 1.2,
+    })),
+    ...(WORLD_CONFIG.OBJECTS.CAR?.PLACEMENTS || []).map((p) => ({
+      x: p.x, z: p.z,
+      radius: Math.max(WORLD_CONFIG.OBJECTS.CAR.COLLIDER.BOUNDS.x, WORLD_CONFIG.OBJECTS.CAR.COLLIDER.BOUNDS.z) * 0.6 + 1.5,
+    })),
+  ];
+
   const placements = generateObjectPlacements({
     pattern: config.PATTERN,
     count: Math.min(config.MAX_OBJECTS, URBAN_PROP_LIBRARY.length * 4),
@@ -254,7 +271,7 @@ export function createUrbanObjects(ecsWorld, physicsWorld, sceneManager, mapEnti
     minSpacing: config.MIN_SPACING,
     roadSpacing: config.ROAD_SPACING,
     seed: config.SEED,
-    reservedZones: config.RESERVED_ZONES,
+    reservedZones: [...(config.RESERVED_ZONES || []), ...fixedZones],
     reservedRectangles: config.RESERVED_RECTANGLES,
   });
 
