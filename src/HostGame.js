@@ -56,6 +56,7 @@ export class HostGame {
       this.renderSystem
     );
     this.hostNetworkSystem = new HostNetworkSystem(this.peerManager);
+    this.healthSystem.setEventSink((event) => this.hostNetworkSystem.emitGameEvent(event));
     this.weaponSystem.setEventSink((event) => this.hostNetworkSystem.emitGameEvent(event));
     this.renderSystem.setEventSink((event) => this.hostNetworkSystem.emitGameEvent(event));
 
