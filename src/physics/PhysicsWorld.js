@@ -102,15 +102,14 @@ export class PhysicsWorld {
     const colliders = [movementCollider, torso, head, leftArm, rightArm, leftLeg, rightLeg];
     const hitZones = [null, 'torso', 'head', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
 
-    // Character controller movement needs a stable body collider. The torso
-    // is the locomotion collider; the anatomical colliders are the authoritative
-    // bullet hit geometry.
+    // Character controller uses the full-height movement envelope; anatomical
+    // colliders remain the authoritative bullet hit geometry.
     const controller = this.world.createCharacterController(0.01);
     controller.enableAutostep(0.5, 0.2, true);
     controller.enableSnapToGround(0.5);
     controller.setUp({ x: 0.0, y: 1.0, z: 0.0 });
 
-    return { body, collider: torso, colliders, hitZones, controller };
+    return { body, collider: movementCollider, colliders, hitZones, controller };
   }
 
   createStaticBox(x, y, z, hx, hy, hz, rotationY = 0, renderTarget = null) {
