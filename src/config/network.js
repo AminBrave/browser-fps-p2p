@@ -17,16 +17,31 @@ export const NETWORK_CONFIG = Object.freeze({
   WEBRTC: Object.freeze({
     ICE_SERVERS: Object.freeze([
       Object.freeze({ urls: 'stun:stun.l.google.com:19302' }),
+      Object.freeze({ urls: 'stun:stun1.l.google.com:19302' }),
+      Object.freeze({ urls: 'stun:stun2.l.google.com:19302' }),
       Object.freeze({
-        urls: [
-          'turn:eu-0.turn.peerjs.com:3478',
-          'turn:us-0.turn.peerjs.com:3478',
-        ],
-        username: 'peerjs',
-        credential: 'peerjsp',
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject',
+      }),
+      Object.freeze({
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelayproject',
+        credential: 'openrelayproject',
+      }),
+      Object.freeze({
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject',
+        credential: 'openrelayproject',
+      }),
+      Object.freeze({
+        urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject',
+        credential: 'openrelayproject',
       }),
     ]),
     SDP_SEMANTICS: 'unified-plan',
+    CONNECTION_TIMEOUT_MS: 15000,
   }),
 
   INVITATION_CODE: Object.freeze({
