@@ -121,36 +121,75 @@ export function createImpactDecal(
   sparkGroup.position.copy(localPoint);
   sparkGroup.quaternion.copy(q);
 
-  const sparkMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffd27a,
-    transparent: true,
-    opacity: 1,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
+  // Chunky, low-poly sparks: intentionally oversized cubes/rectangular pixels
+  // for a Minecraft-like block impact rather than thin particle streaks.
+  const sparkMaterials = [
+    new THREE.MeshBasicMaterial({
+      color: 0xfff0a6,
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+    new THREE.MeshBasicMaterial({
+      color: 0xff9f1c,
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  ];
 
-  const sparkCount = 7;
+  const sparkCount = 12;
   for (let i = 0; i < sparkCount; i++) {
-    const angle = (i / sparkCount) * Math.PI * 2 + Math.random() * 0.5;
-    const length = 0.07 + Math.random() * 0.13;
-    const line = new THREE.Mesh(
-      new THREE.BoxGeometry(0.006, 0.006, length),
-      sparkMaterial.clone()
+    const angle = (i / sparkCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
+    const size = 0.018 + Math.random() * 0.025;
+    const length = 0.12 + Math.random() * 0.20;
+    const spark = new THREE.Mesh(
+      new THREE.BoxGeometry(size, size, length),
+      sparkMaterials[i % sparkMaterials.length].clone()
     );
-    line.name = 'spark';
-    line.position.set(
+    spark.name = 'spark';
+    spark.position.set(
       Math.cos(angle) * 0.025,
       Math.sin(angle) * 0.025,
-      length * 0.5
+      0.025
     );
-    line.rotation.z = angle;
-    line.rotation.y = (Math.random() - 0.5) * 0.5;
-    line.userData.velocity = {
-      x: Math.cos(angle) * (0.35 + Math.random() * 0.5),
-      y: Math.sin(angle) * (0.35 + Math.random() * 0.5),
-      z: 0.15 + Math.random() * 0.35,
+    spark.rotation.set(
+      (Math.random() - 0.5) * 0.8,
+      (Math.random() - 0.5) * 0.8,
+      angle
+    );
+    spark.userData.velocity = {
+      x: Math.cos(angle) * (0.8 + Math.random() * 1.2),
+      y: Math.sin(angle) * (0.8 + Math.random() * 1.2),
+      z: 0.35 + Math.random() * 0.9,
     };
-    sparkGroup.add(line);
+    spark.userData.baseScale = 0.9 + Math.random() * 0.5;
+    sparkGroup.add(spark);
+  }
+
+  // A few large square pixels stay near the impact center for the first
+  // frames, making the hit read clearly even at high frame rates.
+  for (let i = 0; i < 3; i++) {
+    const blockSize = 0.035 + Math.random() * 0.025;
+    const block = new THREE.Mesh(
+      new THREE.BoxGeometry(blockSize, blockSize, blockSize),
+      sparkMaterials[0].clone()
+    );
+    block.name = 'spark';
+    block.position.set(
+      (Math.random() - 0.5) * 0.08,
+      (Math.random() - 0.5) * 0.08,
+      0.035
+    );
+    block.userData.velocity = {
+      x: (Math.random() - 0.5) * 0.5,
+      y: (Math.random() - 0.5) * 0.5,
+      z: 0.2 + Math.random() * 0.45,
+    };
+    block.userData.baseScale = 1;
+    sparkGroup.add(block);
   }
   group.add(sparkGroup);
 
