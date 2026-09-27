@@ -14,6 +14,8 @@ export class AudioManager {
     this._ambienceSources = [];
     this._thunderTimer = null;
     this._combatFireTimer = null;
+    this._musicTimer = null;
+    this._musicStep = 0;
   }
 
   _ensure() {
@@ -123,25 +125,73 @@ export class AudioManager {
     if (!AUDIO_CONFIG.COMBAT_BED.ENABLED || this._ambienceStarted || !this._unlocked || !this.ctx) return;
     this._ambienceStarted = true;
 
-    const wind = new Audio(AUDIO_CONFIG.COMBAT_BED.WIND_URL);
-    wind.crossOrigin = 'anonymous';
-    wind.loop = true;
-    wind.preload = 'auto';
-    wind.volume = 1;
-    try {
-      const source = this.ctx.createMediaElementSource(wind);
-      const gain = this.ctx.createGain();
-      gain.gain.value = AUDIO_CONFIG.COMBAT_BED.WIND_GAIN;
-      source.connect(gain);
-      gain.connect(this.ambienceBus);
-      this._ambienceSources.push({ element: wind, source, gain });
-      wind.play().catch(() => {});
-    } catch {
-      wind.play().catch(() => {});
-    }
-
-    this._scheduleDistantThunder();
+    // Use an original procedural retro combat bed instead of remote audio files.
+    // This avoids autoplay/CORS/CDN failures while keeping the soundtrack alive.
+    this._startCombatMusic();
     this._scheduleDistantCombatFire();
+  }
+
+  _startCombatMusic() {
+    if (!AUDIO_CONFIG.MUSIC.ENABLED || this._musicTimer || !this._ambienceStarted) return;
+    this._musicStep = 0;
+
+    const schedule = () => {
+      if (!this._ambienceStarted || !this._unlocked || !this.ctx) return;
+      const cfg = AUDIO_CONFIG.MUSIC;
+      const t = this.ctx.currentTime;
+      const step = this._musicStep++ % 16;
+      const bassNotes = [110, 110, 146.83, 164.81, 110, 130.81, 146.83, 98, 110, 110, 146.83, 164.81, 130.81, 146.83, 196, 146.83];
+      const leadNotes = [440, 0, 523.25, 587.33, 0, 523.25, 659.25, 587.33, 440, 0, 523.25, 659.25, 0, 587.33, 783.99, 659.25];
+
+      const bass = this.ctx.createOscillator();
+      const bassGain = this.ctx.createGain();
+      bass.type = 'triangle';
+      bass.frequency.setValueAtTime(bassNotes[step], t);
+      bassGain.gain.setValueAtTime(cfg.BASS_GAIN, t);
+      bassGain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+      bass.connect(bassGain);
+      bassGain.connect(this.ambienceBus);
+      bass.start(t);
+      bass.stop(t + 0.17);
+
+      const leadFreq = leadNotes[step];
+      if (leadFreq) {
+        const lead = this.ctx.createOscillator();
+        const leadGain = this.ctx.createGain();
+        lead.type = 'square';
+        lead.frequency.setValueAtTime(leadFreq, t);
+        leadGain.gain.setValueAtTime(cfg.LEAD_GAIN, t);
+        leadGain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+        lead.connect(leadGain);
+        leadGain.connect(this.ambienceBus);
+        lead.start(t);
+        lead.stop(t + 0.12);
+      }
+
+      // Small noise kick on the downbeat gives the loop a game-like pulse.
+      if (step % 4 === 0) {
+        this._musicPercussion(t, cfg.DRUM_GAIN);
+      }
+      this._musicTimer = setTimeout(schedule, cfg.STEP_MS);
+    };
+
+    schedule();
+  }
+
+  _musicPercussion(time, gain = 0.04) {
+    const duration = 0.07;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._noiseBuffer(duration);
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 520;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(gain, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + duration);
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(this.ambienceBus);
+    src.start(time);
   }
 
   _scheduleDistantCombatFire() {
@@ -176,38 +226,6 @@ export class AudioManager {
     }, delay);
   }
 
-  _scheduleDistantThunder() {
-    if (!this._ambienceStarted || !this._unlocked) return;
-    const cfg = AUDIO_CONFIG.COMBAT_BED;
-    const delay = cfg.THUNDER_MIN_DELAY_MS +
-      Math.random() * (cfg.THUNDER_MAX_DELAY_MS - cfg.THUNDER_MIN_DELAY_MS);
-    this._thunderTimer = setTimeout(() => {
-      if (!this._ambienceStarted || !this._unlocked) return;
-      const thunder = new Audio(cfg.THUNDER_URL);
-      thunder.crossOrigin = 'anonymous';
-      thunder.preload = 'auto';
-      thunder.playbackRate = cfg.PLAYBACK_RATE_MIN +
-        Math.random() * (cfg.PLAYBACK_RATE_MAX - cfg.PLAYBACK_RATE_MIN);
-      thunder.volume = 1;
-      try {
-        const source = this.ctx.createMediaElementSource(thunder);
-        const gain = this.ctx.createGain();
-        gain.gain.value = cfg.THUNDER_GAIN;
-        source.connect(gain);
-        gain.connect(this.ambienceBus);
-        this._ambienceSources.push({ element: thunder, source, gain });
-        thunder.play().catch(() => {});
-        thunder.addEventListener('ended', () => {
-          try { source.disconnect(); } catch {}
-          try { gain.disconnect(); } catch {}
-        }, { once: true });
-      } catch {
-        thunder.play().catch(() => {});
-      }
-      this._scheduleDistantThunder();
-    }, delay);
-  }
-
   stopCombatAmbience() {
     this._ambienceStarted = false;
     if (this._thunderTimer) {
@@ -217,6 +235,10 @@ export class AudioManager {
     if (this._combatFireTimer) {
       clearTimeout(this._combatFireTimer);
       this._combatFireTimer = null;
+    }
+    if (this._musicTimer) {
+      clearTimeout(this._musicTimer);
+      this._musicTimer = null;
     }
     for (const item of this._ambienceSources) {
       try { item.element.pause(); item.element.currentTime = 0; } catch {}
