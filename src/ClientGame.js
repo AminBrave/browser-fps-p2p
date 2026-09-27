@@ -17,7 +17,7 @@ import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.j
 import { CircularBuffer } from './utils/CircularBuffer.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
-import { createBullet, createImpactDecal, createBloodImpact, disposeImpactDecals } from './ecs/entities/createBullet.js';
+import { createBullet, createImpactDecal, createBloodImpact, disposeImpactDecals, updatePlayerImpactMarksForHealth } from './ecs/entities/createBullet.js';
 import { applyWorldManifest } from './network/WorldSync.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
 
@@ -173,6 +173,15 @@ export class ClientGame {
         if (wasAlive && this.localEntity.player.isDead) audio.playDeath();
       }
       this._syncRemoteEntities(players);
+    }
+
+    // Client-side visuals follow the same authoritative health state as the
+    // snapshot. This is especially important for impacts attached to remote
+    // player meshes: clients do not run the authoritative HealthSystem.
+    for (const entity of this.ecsWorld.with('player')) {
+      const health = Math.max(0, Number(entity.player?.health) || 0);
+      const maxHealth = Math.max(1, Number(entity.player?.maxHealth) || GAME_CONFIG.MAX_HEALTH || 100);
+      updatePlayerImpactMarksForHealth(this.ecsWorld, entity, health, maxHealth);
     }
 
     const inputPayload = this.inputSystem.sample(this.ecsWorld, this.localEntity);
