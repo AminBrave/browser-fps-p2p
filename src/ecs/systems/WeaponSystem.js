@@ -10,14 +10,47 @@ import { createBullet, createImpactDecal, createBloodImpact } from '../entities/
 import { copyWeaponState } from '../components/Weapon.js';
 import { moveIntensity } from '../../utils/Movement.js';
 import { audio } from '../../audio/AudioManager.js';
+import { EVENT_TYPES } from '../../network/PacketTypes.js';
 
 export class WeaponSystem {
-  constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null) {
+  constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null, eventSink = null) {
     this.physicsWorld = physicsWorld;
     this.sceneManager = sceneManager;
     this.healthSystem = healthSystem;
     this.isAuthoritative = isAuthoritative;
     this.renderSystem = renderSystem;
+    this.eventSink = eventSink;
+  }
+
+  setEventSink(eventSink) {
+    this.eventSink = eventSink;
+  }
+
+  _emit(event) {
+    this.eventSink?.(event);
+  }
+
+  _getMuzzleWorldPosition(entity) {
+    const player = entity.player;
+    const transform = entity.transform;
+    const input = entity.input;
+    if (player?.isLocal && this.renderSystem?.weaponViewModel?.getMuzzleWorldPosition) {
+      return this.renderSystem.weaponViewModel.getMuzzleWorldPosition();
+    }
+
+    const yaw = Number(input?.yaw ?? transform?.rotation?.yaw ?? 0);
+    const stance = input?.stance ?? 0;
+    const eyeOffset = stance === 2 ? 0.10 : stance === 1 ? 0.45 : 0.73;
+    const forward = { x: -Math.sin(yaw), y: 0, z: -Math.cos(yaw) };
+    const right = { x: Math.cos(yaw), y: 0, z: -Math.sin(yaw) };
+    const side = 0.22;
+    const forwardDistance = 0.48;
+    const y = (transform?.position?.y ?? 0) + eyeOffset - 0.55;
+    return {
+      x: (transform?.position?.x ?? 0) + right.x * side + forward.x * forwardDistance,
+      y,
+      z: (transform?.position?.z ?? 0) + right.z * side + forward.z * forwardDistance,
+    };
   }
 
   setRenderSystem(rs) {
@@ -64,6 +97,7 @@ export class WeaponSystem {
           this._completeReload(weapon);
           weapon.justReloaded = true;
           if (player.isLocal) audio.playReloadEnd();
+          this._emit({ type: EVENT_TYPES.SFX, sfx: 'reloadEnd', sourceId: player.id, position: { ...transform.position } });
         }
       }
 
@@ -82,6 +116,8 @@ export class WeaponSystem {
           if (player.isLocal) {
             audio.playReloadStart();
             this.renderSystem?.weaponViewModel?.onReloadStart?.();
+          }
+          this._emit({ type: EVENT_TYPES.SFX, sfx: 'reloadStart', sourceId: player.id, position: { ...transform.position } });
           }
         }
       }
@@ -177,18 +213,7 @@ export class WeaponSystem {
     const range = weapon.range || 100;
     const exclude = physics?.colliders || physics?.collider || null;
 
-    let origin;
-    if (player.isLocal && this.renderSystem?.weaponViewModel?.getMuzzleWorldPosition) {
-      origin = this.renderSystem.weaponViewModel.getMuzzleWorldPosition();
-    } else {
-      const eyeY = GAME_CONFIG.CAMERA_HEIGHT_OFFSET || 1.6;
-      const cosP = Math.cos(aimPitch);
-      origin = {
-        x: transform.position.x - Math.sin(aimYaw) * cosP * 0.45,
-        y: transform.position.y + eyeY - 0.1,
-        z: transform.position.z - Math.cos(aimYaw) * cosP * 0.45,
-      };
-    }
+    const origin = this._getMuzzleWorldPosition(entity);
 
     for (let p = 0; p < pelletCount; p++) {
       let yawOff = 0;
@@ -240,6 +265,20 @@ export class WeaponSystem {
       }
 
       createBullet(ecsWorld, this.sceneManager, origin, endPos);
+
+      this._emit({
+        type: EVENT_TYPES.SHOT,
+        shooterId: player.id,
+        weaponId: weapon.typeId ?? 1,
+        sfx: weapon.sfx || 'pistol',
+        origin,
+        end: endPos,
+        hit: didHit,
+        hitEntityId: hitEntity?.player?.id ?? null,
+        hitZone: hitZone || null,
+        normal: hitNormal,
+        primary: p === 0,
+      });
 
       if (didHit) {
         const isPlayerHit = !!hitEntity?.player;
