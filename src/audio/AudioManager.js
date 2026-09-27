@@ -183,14 +183,16 @@ export class AudioManager {
   updateFootsteps(dt, isMoving, isGrounded, stance = 0) {
     if (!isMoving || !isGrounded) {
       this._footstepTimer = 0;
-      return;
+      return false;
     }
     const interval = stance === 2 ? 0.55 : stance === 1 ? 0.45 : 0.36;
     this._footstepTimer += dt;
     if (this._footstepTimer >= interval) {
       this._footstepTimer = 0;
       this.playFootstep(stance);
+      return true;
     }
+    return false;
   }
 }
 
