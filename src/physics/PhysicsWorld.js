@@ -53,7 +53,7 @@ export class PhysicsWorld {
       x,
       y,
       z,
-      [{ shape: new RAPIER.Cuboid(hx, hy, hz) }],
+      [{ desc: RAPIER.ColliderDesc.cuboid(hx, hy, hz) }],
       rotationY
     );
   }
@@ -71,12 +71,15 @@ export class PhysicsWorld {
     );
 
     const colliders = parts.map((part) => {
-      const desc = new RAPIER.ColliderDesc(part.shape)
-        .setTranslation(
-          part.position?.x ?? 0,
-          part.position?.y ?? 0,
-          part.position?.z ?? 0
-        );
+      const desc = part.desc
+        ? part.desc
+        : new RAPIER.ColliderDesc(part.shape);
+
+      desc.setTranslation(
+        part.position?.x ?? 0,
+        part.position?.y ?? 0,
+        part.position?.z ?? 0
+      );
 
       if (part.rotation) {
         desc.setRotation(part.rotation);
@@ -97,7 +100,7 @@ export class PhysicsWorld {
       x,
       y,
       z,
-      [{ shape: new RAPIER.Cone(height / 2, radius) }],
+      [{ desc: RAPIER.ColliderDesc.cone(height / 2, radius) }],
       rotationY
     );
   }
@@ -107,7 +110,7 @@ export class PhysicsWorld {
       x,
       y,
       z,
-      [{ shape: new RAPIER.Cylinder(height / 2, radius) }],
+      [{ desc: RAPIER.ColliderDesc.cylinder(height / 2, radius) }],
       rotationY
     );
   }
