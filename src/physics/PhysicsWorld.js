@@ -53,12 +53,15 @@ export class PhysicsWorld {
     return { body, collider, controller };
   }
 
-  createStaticBox(x, y, z, hx, hy, hz, rotationY = 0) {
+  createStaticBox(x, y, z, hx, hy, hz, rotationY = 0, renderTarget = null) {
     return this.createStaticCompound(
       x,
       y,
       z,
-      [{ desc: RAPIER.ColliderDesc.cuboid(hx, hy, hz) }],
+      [{
+        desc: RAPIER.ColliderDesc.cuboid(hx, hy, hz),
+        renderTarget,
+      }],
       rotationY
     );
   }
@@ -101,22 +104,22 @@ export class PhysicsWorld {
     };
   }
 
-  createStaticCone(x, y, z, radius, height, rotationY = 0) {
+  createStaticCone(x, y, z, radius, height, rotationY = 0, renderTarget = null) {
     return this.createStaticCompound(
       x,
       y,
       z,
-      [{ desc: RAPIER.ColliderDesc.cone(height / 2, radius) }],
+      [{ desc: RAPIER.ColliderDesc.cone(height / 2, radius), renderTarget }],
       rotationY
     );
   }
 
-  createStaticCylinder(x, y, z, radius, height, rotationY = 0) {
+  createStaticCylinder(x, y, z, radius, height, rotationY = 0, renderTarget = null) {
     return this.createStaticCompound(
       x,
       y,
       z,
-      [{ desc: RAPIER.ColliderDesc.cylinder(height / 2, radius) }],
+      [{ desc: RAPIER.ColliderDesc.cylinder(height / 2, radius), renderTarget }],
       rotationY
     );
   }
