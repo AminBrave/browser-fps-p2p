@@ -113,7 +113,7 @@ export class ClientGame {
     this.gameLoop = new GameLoop({
       fixedDeltaTime: this.fixedDeltaTime,
       onFixedUpdate: (dt) => this._fixedUpdate(dt),
-      onRender: (dt, now) => this._render(dt, now),
+      onRender: (dt, now, alpha) => this._render(dt, now, alpha),
     });
   }
 
@@ -155,19 +155,20 @@ export class ClientGame {
     // Prediction writes a kinematic target; advance Rapier exactly once per
     // fixed tick so the next prediction starts from the current body state.
     this.physicsWorld.step(dt);
+    this.renderSystem.captureFixedState(this.localEntity);
 
     this.peerManager.sendToHost(Protocol.encodeInput(inputPayload));
     this.weaponSystem.update(this.ecsWorld, performance.now(), dt);
   }
 
-  _render(_dt, now) {
+  _render(_dt, now, alpha) {
     this.interpolationSystem.update(
       this.ecsWorld,
       this.playerEntities,
       this.localEntity,
       now
     );
-    this.renderSystem.update(this.ecsWorld, this.localEntity, now);
+    this.renderSystem.update(this.ecsWorld, this.localEntity, now, undefined, alpha);
     this.sceneManager.render();
     this._updateHUD();
   }
