@@ -31,6 +31,7 @@ export class ClientPredictSystem {
     const inputComp = localEntity.input;
 
     if (!physComp || !transformComp || !inputComp) return;
+    this.physicsWorld.updatePlayerHitZones(physComp, inputComp.stance ?? STANCE.STAND);
     if (playerComp && playerComp.isDead) return;
 
     const yaw = inputComp.yaw || 0;
