@@ -92,7 +92,7 @@ export class HUD {
     this.crosshairParts = Array.from(this.crosshair?.children || []);
   }
 
-  updateCrosshair(speed = 0) {
+  updateCrosshair(speed = 0, isAiming = false) {
     if (!this.crosshair) return;
 
     const cfg = RENDER_CONFIG.CROSSHAIR;
@@ -116,7 +116,7 @@ export class HUD {
     this._crosshairGap += (targetGap - this._crosshairGap) * response;
     this._crosshairLength += (targetLength - this._crosshairLength) * response;
 
-    const gap = this._crosshairGap;
+    const gap = isAiming ? RENDER_CONFIG.CROSSHAIR.AIM_GAP_PX : this._crosshairGap;
     const length = this._crosshairLength;
     const top = this.crosshairParts[0];
     const right = this.crosshairParts[1];
