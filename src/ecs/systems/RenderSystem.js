@@ -1,7 +1,7 @@
 // src/ecs/systems/RenderSystem.js
 
 import * as THREE from 'three';
-import { GAME_CONFIG, INPUT_FLAGS, STANCE } from '../../config/constants.js';
+import { GAME_CONFIG, INPUT_FLAGS, STANCE } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { WeaponViewModel } from '../../render/WeaponViewModel.js';
 import { moveIntensity } from '../../utils/Movement.js';
