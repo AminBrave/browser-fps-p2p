@@ -1,8 +1,8 @@
 // src/ecs/systems/HealthSystem.js
 
 import * as THREE from 'three';
-import { GAME_CONFIG, DEFAULT_WEAPON } from '../../config/constants.js';
-import { WORLD_CONFIG } from '../../config/world.js';
+import { GAME_CONFIG, DEFAULT_WEAPON } from '../../config/index.js';
+import { WORLD_CONFIG } from '../../config/index.js';
 import { audio } from '../../audio/AudioManager.js';
 
 export class HealthSystem {
