@@ -56,14 +56,14 @@ export function createImpactDecal(
 
   const group = new THREE.Group();
   group.position.set(
-    position.x + n.x * 0.03,
-    position.y + n.y * 0.03,
-    position.z + n.z * 0.03
+    position.x + n.x * 0.012,
+    position.y + n.y * 0.012,
+    position.z + n.z * 0.012
   );
   group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
 
   const hole = new THREE.Mesh(
-    new THREE.CircleGeometry(0.09, 20),
+    new THREE.CircleGeometry(0.07, 20),
     new THREE.MeshBasicMaterial({
       color: 0x120c08,
       transparent: true,
@@ -78,7 +78,7 @@ export function createImpactDecal(
   group.add(hole);
 
   const scorch = new THREE.Mesh(
-    new THREE.RingGeometry(0.08, 0.18, 24),
+    new THREE.RingGeometry(0.06, 0.13, 24),
     new THREE.MeshBasicMaterial({
       color: 0x3a2814,
       transparent: true,
