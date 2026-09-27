@@ -5,4 +5,6 @@ export const GAME_CONFIG = Object.freeze({
   MAX_DECALS: 100,
   RECOIL_RECOVERY: 10.0,
   BOB_INTENSITY: 1.0,
+  MAX_FRAME_DELTA: 0.25,
+  MAX_CATCH_UP_STEPS: 8,
 });
