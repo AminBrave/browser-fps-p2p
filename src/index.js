@@ -3,6 +3,7 @@
 import { HostGame } from './HostGame.js';
 import { ClientGame } from './ClientGame.js';
 import { LobbyUI } from './ui/LobbyUI.js';
+import { NETWORK_CONFIG, UI_CONFIG } from './config/index.js';
 
 /**
  * Application Entry Point
@@ -24,7 +25,7 @@ class App {
       onJoinGame: (roomId) => this.startClientSession(roomId),
     });
 
-    this.lobbyUI.setStatus('Ready to Host or Join game.');
+    this.lobbyUI.setStatus('Ready to Host or Join game.', UI_CONFIG.STATUS.READY);
   }
 
   /**
@@ -32,7 +33,7 @@ class App {
    */
   async startHostSession() {
     try {
-      this.lobbyUI.setStatus('Initializing Host Session...', '#ffda79');
+      this.lobbyUI.setStatus('Initializing Host Session...', UI_CONFIG.STATUS.READY);
 
       const hostGame = new HostGame(document.body);
       this.gameInstance = hostGame;
@@ -40,7 +41,7 @@ class App {
       const hostRoomId = await hostGame.initialize();
 
       this.lobbyUI.showInvitationCode(hostRoomId);
-      this.lobbyUI.setStatus('Host Active! Share the 5-character invitation code.', '#10ac84');
+      this.lobbyUI.setStatus('Host Active! Share the 5-character invitation code.', UI_CONFIG.STATUS.SUCCESS);
       
       // Delay lobby hide to allow host user to view and copy their Room ID
       setTimeout(() => {
@@ -49,7 +50,7 @@ class App {
       }, 3000);
     } catch (err) {
       console.error('Failed to initialize Host session:', err);
-      this.lobbyUI.setStatus(`Host Error: ${err.message}`, '#ff4757');
+      this.lobbyUI.setStatus(`Host Error: ${err.message}`, UI_CONFIG.STATUS.ERROR);
     }
   }
 
@@ -61,24 +62,24 @@ class App {
   async startClientSession(roomId) {
     try {
       const invitationCode = String(roomId || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (invitationCode.length !== 5) {
-        this.lobbyUI.setStatus('Invitation code must be exactly 5 characters.', '#ff4757');
+      if (invitationCode.length !== NETWORK_CONFIG.INVITATION_CODE.LENGTH) {
+        this.lobbyUI.setStatus(`Invitation code must be exactly ${NETWORK_CONFIG.INVITATION_CODE.LENGTH} characters.`, UI_CONFIG.STATUS.ERROR);
         return;
       }
-      this.lobbyUI.setStatus(`Connecting to Host [${invitationCode}]...`, '#ffda79');
+      this.lobbyUI.setStatus(`Connecting to Host [${invitationCode}]...`, UI_CONFIG.STATUS.READY);
 
       const clientGame = new ClientGame(document.body);
       this.gameInstance = clientGame;
 
       await clientGame.initialize(invitationCode);
 
-      this.lobbyUI.setStatus('Connected! Starting session...', '#10ac84');
+      this.lobbyUI.setStatus('Connected! Starting session...', UI_CONFIG.STATUS.SUCCESS);
       this.lobbyUI.setVisible(false);
 
       clientGame.start();
     } catch (err) {
       console.error('Failed to connect Client session:', err);
-      this.lobbyUI.setStatus(`Connection Error: ${err.message}`, '#ff4757');
+      this.lobbyUI.setStatus(`Connection Error: ${err.message}`, UI_CONFIG.STATUS.ERROR);
     }
   }
 }
