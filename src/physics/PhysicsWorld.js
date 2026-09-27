@@ -212,11 +212,10 @@ export class PhysicsWorld {
         : { x: -dir.x, y: -dir.y, z: -dir.z }
     );
 
-    const dot = normal.x * dir.x + normal.y * dir.y + normal.z * dir.z;
-    if (dot > 0) {
-      normal = { x: -normal.x, y: -normal.y, z: -normal.z };
-    }
-
+    // Rapier's raycast normal is already expressed in world space and points
+    // out of the hit collider. Do not flip it based on ray direction: doing so
+    // breaks legitimate exit hits and compound surfaces whose outward normal
+    // happens to align with the ray.
     const nLen = Math.hypot(normal.x, normal.y, normal.z) || 1;
     normal = {
       x: normal.x / nLen,
