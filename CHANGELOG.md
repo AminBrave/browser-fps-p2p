@@ -6,6 +6,8 @@
 
 ### Vehicle impact rendering and compound hit mapping
 
+- Fixed a combat runtime crash where the impact-decal path referenced the raycast result outside its block; the exact `renderTarget` is now captured with the hit and passed safely to decal creation.
+
 - Fixed car bullet-impact artifacts by mapping every compound collider back to its exact visible mesh part (body, cabin or wheel).
 - Replaced the generic floating impact plane with clipped Three.js `DecalGeometry` when a render target is known, preventing decals from spilling across car edges or adjacent parts.
 - Stabilized decal depth handling with a small surface-normal offset, depth testing and conservative polygon offset instead of the previous aggressive bias.
