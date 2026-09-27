@@ -234,6 +234,7 @@ export class WeaponSystem {
       };
       let hitNormal = { x: -dir.x, y: -dir.y, z: -dir.z };
       let hitEntity = null;
+      let hitRenderTarget = null;
       let didHit = false;
 
       if (this.physicsWorld?.castRay) {
@@ -243,12 +244,13 @@ export class WeaponSystem {
           endPos = hit.point;
           if (hit.normal) hitNormal = hit.normal;
           hitEntity = hit.entity === entity ? null : hit.entity;
+          hitRenderTarget = hit.renderTarget || null;
         }
       }
 
       createBullet(ecsWorld, this.sceneManager, origin, endPos);
       if (didHit) {
-        createImpactDecal(ecsWorld, this.sceneManager, endPos, hitNormal, hit?.renderTarget || null);
+        createImpactDecal(ecsWorld, this.sceneManager, endPos, hitNormal, hitRenderTarget);
         if (player.isLocal && p === 0) audio.playImpact();
       }
 
