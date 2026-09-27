@@ -1,3 +1,5 @@
+import { NETWORK_CONFIG, UI_CONFIG } from '../config/index.js';
+
 // src/ui/LobbyUI.js
 
 /**
@@ -92,7 +94,7 @@ export class LobbyUI {
             <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
           </div>
 
-          <input id="input-room-id" type="text" maxlength="5" autocomplete="off" autocapitalize="characters" placeholder="Enter 5-character invitation code" style="
+          <input id="input-room-id" type="text" maxlength="${NETWORK_CONFIG.INVITATION_CODE.LENGTH}" autocomplete="off" autocapitalize="characters" placeholder="Enter 5-character invitation code" style="
             padding: 12px;
             background: rgba(0, 0, 0, 0.4);
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -154,7 +156,7 @@ export class LobbyUI {
         try {
           await navigator.clipboard.writeText(code);
           this.copyCodeBtn.textContent = 'Copied!';
-          setTimeout(() => { this.copyCodeBtn.textContent = 'Copy'; }, 1200);
+          setTimeout(() => { this.copyCodeBtn.textContent = 'Copy'; }, UI_CONFIG.COPY_FEEDBACK_DURATION_MS);
         } catch {
           this.hostCodeInput?.select();
           document.execCommand('copy');
@@ -165,7 +167,7 @@ export class LobbyUI {
 
   showInvitationCode(code) {
     const normalized = String(code || '').trim().toUpperCase();
-    if (normalized.length !== 5) return;
+    if (normalized.length !== NETWORK_CONFIG.INVITATION_CODE.LENGTH) return;
     if (this.hostCodeInput) this.hostCodeInput.value = normalized;
     if (this.invitationPanel) this.invitationPanel.style.display = 'block';
   }
