@@ -198,7 +198,14 @@ export class ClientGame {
     }
 
   _handleGameEvent(event) {
-    if (!event || event.sourceId === this.localEntity?.player?.id || event.shooterId === this.localEntity?.player?.id) {
+    if (!event) return;
+    const localId = this.localEntity?.player?.id;
+    if (event.shooterId === localId) return;
+    if (
+      event.type === EVENT_TYPES.SFX &&
+      event.sourceId === localId &&
+      ['reloadStart', 'reloadEnd', 'footstep', 'jump', 'land'].includes(event.sfx)
+    ) {
       return;
     }
 
@@ -238,6 +245,7 @@ export class ClientGame {
       else if (event.sfx === 'footstep') audio.playFootstepAt?.(event.position, event.stance ?? 0);
       else if (event.sfx === 'jump') audio.playJumpAt?.(event.position);
       else if (event.sfx === 'land') audio.playLandAt?.(event.position);
+      else if (event.sfx === 'hit') audio.playHitAt?.(event.position);
     }
   }
 
