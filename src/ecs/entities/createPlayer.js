@@ -14,7 +14,7 @@ export function createPlayer(
   physicsWorld,
   sceneOrManager,
   playerId,
-  spawnPos = { x: 0, y: 2, z: 0 },
+  spawnPos = { ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[0] },
   isLocal = false,
   isHost = false
 ) {
@@ -66,7 +66,7 @@ export function createPlayer(
       isHost,
       GAME_CONFIG.MAX_HEALTH
     ),
-    transform: createTransform(spawnPos.x, spawnPos.y, spawnPos.z),
+    transform: createTransform(spawnPos.x, groundedY, spawnPos.z),
     physics: createPhysics(phys.body, phys.collider, phys.controller),
     weapon: activeWeapon,
     loadout,
