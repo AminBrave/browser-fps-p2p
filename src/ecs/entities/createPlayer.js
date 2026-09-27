@@ -56,14 +56,14 @@ export function createPlayer(
     makeMat(skinColor, 0.8)
   );
   head.name = 'head';
-  head.position.y = 0.64;
+  head.position.y = 0.67;
 
   const helmet = new THREE.Mesh(
     new THREE.SphereGeometry(0.185, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.62),
     makeMat(darkColor, 0.45, 0.2)
   );
   helmet.name = 'helmet';
-  helmet.position.y = 0.70;
+  helmet.position.y = 0.72;
 
   const limbMat = makeMat(teamColor);
   const armGeo = new THREE.CapsuleGeometry(0.075, 0.42, 6, 8);
@@ -78,8 +78,8 @@ export function createPlayer(
   rightLeg.name = 'rightLeg';
   leftArm.position.set(-0.30, 0.02, 0);
   rightArm.position.set(0.30, 0.02, 0);
-  leftLeg.position.set(-0.12, -0.57, 0);
-  rightLeg.position.set(0.12, -0.57, 0);
+  leftLeg.position.set(-0.12, -0.63, 0);
+  rightLeg.position.set(0.12, -0.63, 0);
 
   const backpack = new THREE.Mesh(
     new THREE.BoxGeometry(0.30, 0.42, 0.16),
