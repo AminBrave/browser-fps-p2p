@@ -40,10 +40,10 @@ export const GAME_CONFIG = Object.freeze({
 export function peerIdToNumeric(peerId) {
   if (typeof peerId === 'number' && Number.isFinite(peerId)) return peerId >>> 0;
   if (!peerId || typeof peerId !== 'string') return 1;
-  let hash = 2166136261;
+  let hash = NETWORK_CONFIG.PEER_ID_HASH.OFFSET_BASIS;
   for (let i = 0; i < peerId.length; i++) {
     hash ^= peerId.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
+    hash = Math.imul(hash, NETWORK_CONFIG.PEER_ID_HASH.PRIME);
   }
   return (hash >>> 0) || 1;
 }
