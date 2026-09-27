@@ -73,6 +73,7 @@ export class HostGame {
     );
 
     const hostRoomId = await this.peerManager.initHost();
+    this.invitationCode = String(hostRoomId).toUpperCase();
     this.peerManager.onConnect((id) => this._handleClientConnect(id));
     this.peerManager.onDisconnect((id) => this._handleClientDisconnect(id));
 
