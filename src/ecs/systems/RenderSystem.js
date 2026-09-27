@@ -51,6 +51,21 @@ export class RenderSystem {
     this._networkVisualCorrection.z = 0;
   }
 
+  /**
+   * Reconciliation changes the simulation timeline discontinuously. Reset the
+   * render history at that exact boundary so the renderer never interpolates
+   * between a pre-correction position and a post-correction position.
+   */
+  snapFixedStateToPhysics(localEntity) {
+    const position = localEntity?.physics?.rigidBody?.translation?.();
+    if (!position) return;
+    this._previousPosition = { ...position };
+    this._currentPosition = { ...position };
+    this._renderPosition = { ...position };
+    this.resetNetworkVisualCorrection();
+    if (localEntity) localEntity.networkVisualCorrection = { x: 0, y: 0, z: 0 };
+  }
+
   captureFixedState(localEntity) {
     const position = localEntity?.physics?.rigidBody?.translation?.();
     if (!position) return;
