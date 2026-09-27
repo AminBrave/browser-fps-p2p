@@ -1,6 +1,6 @@
 import { PACKET_TYPES, EVENT_TYPES } from '../../../network/PacketTypes.js';
 import { Protocol } from '../../../network/Protocol.js';
-import { GAME_CONFIG, INPUT_FLAGS, NETWORK_CONFIG, STANCE } from '../../../config/index.js';
+import { GAME_CONFIG, INPUT_FLAGS, NETWORK_CONFIG, PROTOCOL_CONFIG, STANCE } from '../../../config/index.js';
 
 function isNewerSequence(next, previous) {
   if (previous == null) return true;
@@ -33,7 +33,7 @@ export class HostNetworkSystem {
 
       if (packetType === PACKET_TYPES.JOIN_REQUEST) {
         const request = Protocol.decodeJoinRequest(dataView);
-        if (!request || request.protocolVersion !== NETWORK_CONFIG.HANDSHAKE.PROTOCOL_VERSION) {
+        if (!request || request.protocolVersion !== PROTOCOL_CONFIG.PROTOCOL_VERSION) {
           console.warn('[Network] Rejecting incompatible client protocol', {
             peerId,
             protocolVersion: request?.protocolVersion,
