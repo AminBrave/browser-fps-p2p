@@ -40,6 +40,7 @@ export class RenderSystem {
     this._currentPosition = null;
     this._networkVisualCorrection = { x: 0, y: 0, z: 0 };
     this._cameraShake = { phase: 0, intensity: 0, landing: 0, lastVerticalVelocity: 0 };
+    this._aimFov = CAMERA_CONFIG.FOV;
   }
 
   setEventSink(eventSink) {
@@ -370,6 +371,20 @@ export class RenderSystem {
 
       const pitch =
         (input.pitch || 0) + (weapon?.cameraRecoilPitch || 0) * CAMERA_CONFIG.RECOIL_SENSITIVITY + bobPitch;
+
+      const aiming = !!input.isAiming && !localEntity.player?.isDead;
+      const fovBlend = 1 - Math.exp(-Math.max(0, dt) / Math.max(0.01, RENDER_CONFIG.AIM.TRANSITION_SECONDS));
+      this._aimFov = THREE.MathUtils.lerp(
+        this._aimFov,
+        aiming ? RENDER_CONFIG.AIM.FOV : CAMERA_CONFIG.FOV,
+        fovBlend
+      );
+      if (typeof this.camera.fov === 'number') {
+        if (Math.abs(this.camera.fov - this._aimFov) > 0.01) {
+          this.camera.fov = this._aimFov;
+          this.camera.updateProjectionMatrix();
+        }
+      }
       const yaw =
         (input.yaw || 0) + (weapon?.cameraRecoilYaw || 0) * CAMERA_CONFIG.RECOIL_SENSITIVITY + bobYaw;
 
@@ -393,7 +408,8 @@ export class RenderSystem {
           dt,
           isMoving,
           !!weapon?.isReloading,
-          intensity
+          intensity,
+          aiming
         );
 
         const grounded = physics?.isGrounded !== false;
