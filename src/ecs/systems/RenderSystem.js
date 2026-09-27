@@ -39,6 +39,7 @@ export class RenderSystem {
     this._previousPosition = null;
     this._currentPosition = null;
     this._networkVisualCorrection = { x: 0, y: 0, z: 0 };
+    this._cameraShake = { phase: 0, intensity: 0, landing: 0 };
   }
 
   setEventSink(eventSink) {
@@ -246,9 +247,47 @@ export class RenderSystem {
       const eyeOffset = getPlayerEyeOffset(stance);
 
       const cameraBase = this._renderPosition || transform.position;
+
+      // Camera motion is a render-only effect. It is driven by actual
+      // horizontal movement speed, not by input buttons, so strafing, slopes,
+      // acceleration and network reconciliation do not create artificial
+      // footsteps. The small landing impulse gives jumps a physical sense of
+      // weight without feeding anything back into gameplay/reconciliation.
+      const velocity = physics?.velocity || { x: 0, y: 0, z: 0 };
+      const horizontalSpeed = Math.hypot(Number(velocity.x) || 0, Number(velocity.z) || 0);
+      const maxRunSpeed = Math.max(1, GAME_CONFIG.PLAYER_SPEED || 8);
+      const grounded = physics?.isGrounded !== false;
+      const moveAmount = THREE.MathUtils.clamp(horizontalSpeed / maxRunSpeed, 0, 1.25);
+      const targetShake = grounded ? THREE.MathUtils.smoothstep(moveAmount, 0.05, 0.75) : 0;
+      const shakeBlend = 1 - Math.exp(-10 * dt);
+      this._cameraShake.intensity = THREE.MathUtils.lerp(
+        this._cameraShake.intensity,
+        targetShake,
+        shakeBlend
+      );
+
+      if (!this._wasGrounded && grounded) {
+        this._cameraShake.landing = 1;
+      }
+      this._cameraShake.landing = Math.max(
+        0,
+        this._cameraShake.landing - dt * 7
+      );
+      this._cameraShake.phase +=
+        dt * (Math.PI * 2) * (7 + 4 * Math.min(1, moveAmount));
+
+      const gait = this._cameraShake.phase;
+      const gaitIntensity = this._cameraShake.intensity;
+      const landing = this._cameraShake.landing;
+      const bobY = Math.sin(gait * 2) * 0.018 * gaitIntensity - landing * 0.028;
+      const bobX = Math.cos(gait) * 0.012 * gaitIntensity;
+      const bobPitch = Math.sin(gait * 2) * 0.006 * gaitIntensity + landing * 0.018;
+      const bobYaw = Math.cos(gait) * 0.003 * gaitIntensity;
+      const bobRoll = Math.sin(gait) * 0.012 * gaitIntensity - landing * 0.008;
+
       this.camera.position.set(
-        cameraBase.x,
-        cameraBase.y + eyeOffset,
+        cameraBase.x + bobX,
+        cameraBase.y + eyeOffset + bobY,
         cameraBase.z
       );
 
@@ -272,11 +311,11 @@ export class RenderSystem {
       }
 
       const pitch =
-        (input.pitch || 0) + (weapon?.cameraRecoilPitch || 0) * 0.2;
+        (input.pitch || 0) + (weapon?.cameraRecoilPitch || 0) * 0.2 + bobPitch;
       const yaw =
-        (input.yaw || 0) + (weapon?.cameraRecoilYaw || 0) * 0.2;
+        (input.yaw || 0) + (weapon?.cameraRecoilYaw || 0) * 0.2 + bobYaw;
 
-      this._euler.set(pitch, yaw, 0, 'YXZ');
+      this._euler.set(pitch, yaw, bobRoll, 'YXZ');
       this.camera.quaternion.setFromEuler(this._euler);
       audio.setListener?.(this.camera.position, new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion));
 
