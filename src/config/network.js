@@ -9,6 +9,26 @@ export const NETWORK_CONFIG = Object.freeze({
   INPUT_HISTORY_SIZE: 128,
   MAX_SNAPSHOT_HISTORY: 16,
   PEER_ID_HASH: Object.freeze({ OFFSET_BASIS: 2166136261, PRIME: 16777619 }),
+
+  // WebRTC ICE configuration. PeerJS handles signaling, but actual peer
+  // connectivity depends on ICE candidates. STUN enables direct NAT traversal;
+  // TURN provides a relay fallback when the two players cannot connect
+  // directly (symmetric NAT, carrier NAT, restrictive firewalls, etc.).
+  WEBRTC: Object.freeze({
+    ICE_SERVERS: Object.freeze([
+      Object.freeze({ urls: 'stun:stun.l.google.com:19302' }),
+      Object.freeze({
+        urls: [
+          'turn:eu-0.turn.peerjs.com:3478',
+          'turn:us-0.turn.peerjs.com:3478',
+        ],
+        username: 'peerjs',
+        credential: 'peerjsp',
+      }),
+    ]),
+    SDP_SEMANTICS: 'unified-plan',
+  }),
+
   INVITATION_CODE: Object.freeze({
     LENGTH: 5,
     ALPHABET: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789',
