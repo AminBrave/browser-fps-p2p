@@ -24,7 +24,7 @@ function groundCenterY(height) {
   return WORLD_CONFIG.GROUND_Y + height / 2;
 }
 
-function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
+function addStaticBox(ecsWorld, physicsWorld, mapEntities, {
   position,
   size,
   color,
@@ -405,7 +405,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
   for (let i = 0; i < crateConfig.POSITIONS.length; i++) {
     const size = crateConfig.SIZES[i];
     const position = crateConfig.POSITIONS[i];
-    addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
+    addStaticBox(ecsWorld, physicsWorld, mapEntities, {
       position,
       size,
       color: crateConfig.COLORS[i],
@@ -437,7 +437,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
 
   const barrier = WORLD_CONFIG.OBJECTS.BARRIER;
   for (const x of barrier.POSITIONS_X) {
-    addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
+    addStaticBox(ecsWorld, physicsWorld, mapEntities, {
       position: { x, y: groundCenterY(barrier.SIZE.y), z: barrier.Z },
       size: barrier.SIZE,
       color: barrier.COLOR,
