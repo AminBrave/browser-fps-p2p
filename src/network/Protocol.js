@@ -129,6 +129,32 @@ export class Protocol {
     return this.decodeClientInput(data);
   }
 
+  static encodeGameEvent(event = {}) {
+    const payload = new TextEncoder().encode(JSON.stringify(event));
+    const buffer = new ArrayBuffer(5 + payload.byteLength);
+    const view = new DataView(buffer);
+    view.setUint8(0, PACKET_TYPES.GAME_EVENT);
+    view.setUint32(1, payload.byteLength, true);
+    new Uint8Array(buffer, 5).set(payload);
+    return buffer;
+  }
+
+  static decodeGameEvent(data) {
+    const view = asDataView(data);
+    if (!view || view.byteLength < 5 || view.getUint8(0) !== PACKET_TYPES.GAME_EVENT) return null;
+    const length = view.getUint32(1, true);
+    if (length > view.byteLength - 5) return null;
+    try {
+      return JSON.parse(
+        new TextDecoder().decode(
+          new Uint8Array(view.buffer, view.byteOffset + 5, length)
+        )
+      );
+    } catch {
+      return null;
+    }
+  }
+
   static encodeWorldSnapshot(serverTick, lastAckedSeqOrEntities, entitiesList) {
     let lastAckedSeq = 0;
     let entities = [];
