@@ -4,6 +4,14 @@
 
 ### Rendering and physics alignment
 
+### Car physical model alignment
+
+- Replaced the car's single oversized cuboid collider with a compound Rapier collider containing the rendered body, cabin and four wheel volumes.
+- Kept the complete car collision shape under one fixed rigid body so the entire physical asset rotates exactly with the rendered car.
+- Matched wheel collider orientation to the rendered wheel orientation and kept all collider offsets in the same local ground-root coordinate system.
+- Registered the compound collider as one car entity so player collision, raycast hits and bullet impact decals resolve to the actual car object rather than an unrelated invisible volume.
+
+
 - Fixed normalized box objects disappearing while their Rapier colliders remained active by restoring scene attachment through the shared object factory.
 - Standardized every solid world-object ECS transform to a ground-level root (GROUND_Y), with visible meshes offset locally by their configured dimensions.
 - Fixed trees so trunk/canopy visuals and solid Rapier cylinder/cone colliders share the same radii, heights and local Y offsets.
