@@ -255,6 +255,7 @@ export function createUrbanObjects(ecsWorld, physicsWorld, sceneManager, mapEnti
     roadSpacing: config.ROAD_SPACING,
     seed: config.SEED,
     reservedZones: config.RESERVED_ZONES,
+    reservedRectangles: config.RESERVED_RECTANGLES,
   });
 
   return placements.map((placement, index) => {
