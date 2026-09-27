@@ -92,8 +92,44 @@ export class HUD {
 
   updateCrosshair(speed = 0) {
     if (!this.crosshair) return;
+
     const cfg = RENDER_CONFIG.CROSSHAIR;
-    const normalized = Math.max(0, Math.min(1, (Number(speed) - cfg.MIN_SPEED) / (cfg.MAX_SPEED - cfg.MIN_SPEED)));\n    const gap = cfg.RESTING_GAP_PX + (cfg.MAX_MOVEMENT_GAP_PX - cfg.RESTING_GAP_PX) * normalized;\n    const length = cfg.RESTING_LENGTH_PX + (cfg.MAX_MOVEMENT_LENGTH_PX - cfg.RESTING_LENGTH_PX) * normalized;\n    const size = (length + gap) * 2;\n    this.crosshair.style.width = `${size}px`;\n    this.crosshair.style.height = `${size}px`;\n    const half = size / 2;\n    const horizontal = this.crosshairParts[0];\n    const vertical = this.crosshairParts[1];\n    if (horizontal) { horizontal.style.width = `${length}px`; horizontal.style.left = `${half + gap}px`; horizontal.style.top = `${half - 1}px`; }\n    if (vertical) { vertical.style.height = `${length}px`; vertical.style.top = `${half + gap}px`; vertical.style.left = `${half - 1}px`; }
+    const normalized = Math.max(
+      0,
+      Math.min(
+        1,
+        (Number(speed) - cfg.MIN_SPEED) /
+          (cfg.MAX_SPEED - cfg.MIN_SPEED)
+      )
+    );
+
+    const gap =
+      cfg.RESTING_GAP_PX +
+      (cfg.MAX_MOVEMENT_GAP_PX - cfg.RESTING_GAP_PX) * normalized;
+
+    const length =
+      cfg.RESTING_LENGTH_PX +
+      (cfg.MAX_MOVEMENT_LENGTH_PX - cfg.RESTING_LENGTH_PX) * normalized;
+
+    const size = (length + gap) * 2;
+    this.crosshair.style.width = `${size}px`;
+    this.crosshair.style.height = `${size}px`;
+
+    const half = size / 2;
+    const horizontal = this.crosshairParts[0];
+    const vertical = this.crosshairParts[1];
+
+    if (horizontal) {
+      horizontal.style.width = `${length}px`;
+      horizontal.style.left = `${half + gap}px`;
+      horizontal.style.top = `${half - 1}px`;
+    }
+
+    if (vertical) {
+      vertical.style.height = `${length}px`;
+      vertical.style.top = `${half + gap}px`;
+      vertical.style.left = `${half - 1}px`;
+    }
   }
 
   setVisible(v) {
