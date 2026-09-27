@@ -1,6 +1,6 @@
 // src/ecs/systems/network/ClientReconcileSystem.js
 
-import { GAME_CONFIG } from '../../../config/constants.js';
+import { GAME_CONFIG } from '../../../config/index.js';
 import { applyFpsMovement } from '../../../utils/Movement.js';
 
 /**
