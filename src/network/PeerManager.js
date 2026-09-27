@@ -81,8 +81,8 @@ export class PeerManager {
           // Use an ordered/reliable channel for simulation inputs and world initialization.
           // The game uses sequence numbers, so dropping input frames would make
           // client prediction impossible to reconcile with the authoritative host.
-          // "none" preserves the ArrayBuffer payload without JSON/BinaryPack
-          // object serialization.
+          // "raw" preserves the ArrayBuffer payload without object
+          // serialization in the deployed PeerJS 1.5.x stack.
           reliable: true,
           serialization: 'raw',
         });
