@@ -47,7 +47,8 @@ export function createImpactDecal(
   sceneOrManager,
   position,
   normal = { x: 0, y: 1, z: 0 },
-  targetMesh = null
+  targetMesh = null,
+  targetEntity = null
 ) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
   const n = new THREE.Vector3(normal.x, normal.y, normal.z);
@@ -193,6 +194,8 @@ export function createImpactDecal(
     impactFlashUntil: performance.now() + 90,
     impactSparkUntil: performance.now() + 180,
     impactSparkStartedAt: performance.now(),
+    impactMarkOwner: targetEntity?.player ? targetEntity : null,
+    isPlayerImpactMark: !!targetEntity?.player,
   });
 
   let decals = decalRegistry.get(ecsWorld);
@@ -216,8 +219,23 @@ export function createImpactDecal(
 
   return entity;
 }
-export function createImpact(ecsWorld, sceneOrManager, position, normal, targetMesh = null) {
-  return createImpactDecal(ecsWorld, sceneOrManager, position, normal, targetMesh);
+export function createImpact(ecsWorld, sceneOrManager, position, normal, targetMesh = null, targetEntity = null) {
+  return createImpactDecal(ecsWorld, sceneOrManager, position, normal, targetMesh, targetEntity);
+}
+
+export function clearPlayerImpactMarks(ecsWorld, playerEntity, fraction) {
+  const decals = decalRegistry.get(ecsWorld);
+  if (!decals || !playerEntity) return 0;
+  const amount = THREE.MathUtils.clamp(Number(fraction) || 0, 0, 1);
+  const marks = decals.filter((e) => e?.isPlayerImpactMark && e?.impactMarkOwner === playerEntity && e?.renderMesh?.mesh);
+  const removeCount = Math.min(marks.length, Math.floor(marks.length * amount + 1e-6));
+  for (let i = 0; i < removeCount; i++) {
+    const e = marks[i]; const mesh = e.renderMesh.mesh;
+    mesh.parent?.remove?.(mesh); disposeObject3D(mesh);
+    const idx = decals.indexOf(e); if (idx >= 0) decals.splice(idx, 1);
+    ecsWorld.remove(e);
+  }
+  return removeCount;
 }
 
 export function disposeImpactDecals(ecsWorld) {
@@ -299,6 +317,8 @@ export function createBloodImpact(ecsWorld, sceneOrManager, position, normal, ta
     transform: createTransform(point.x, point.y, point.z),
     renderMesh: { mesh: group },
     impactFlashUntil: performance.now() + 70,
+    impactMarkOwner: targetEntity?.player ? targetEntity : null,
+    isPlayerImpactMark: !!targetEntity?.player,
   });
 
   let decals = decalRegistry.get(ecsWorld);
