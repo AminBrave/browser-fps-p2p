@@ -72,7 +72,10 @@ export function applyWorldManifest(manifest) {
     );
   }
 
-  if (manifest.buildId !== WORLD_BUILD_ID || manifest.physicsProfile !== PHYSICS_PROFILE) {
+  if (
+    manifest.buildId !== WORLD_BUILD_ID ||
+    manifest.physicsProfile !== PHYSICS_PROFILE
+  ) {
     throw new Error('Incompatible world build or physics profile');
   }
 
@@ -95,23 +98,29 @@ export function applyWorldManifest(manifest) {
   }
 
   const config = manifest.config;
-  if (!config.world || !config.game || !config.network || !config.inputFlags || !config.playerCharacter) {
+  if (
+    !config.world ||
+    !config.game ||
+    !config.network ||
+    !config.inputFlags ||
+    !config.playerCharacter
+  ) {
     throw new Error('Host sent an incomplete world/simulation manifest');
   }
 
-  // Keep imported object identities intact because gameplay modules import
-  // these shared definitions directly. Replace their complete contents before
-  // any client-side map/physics construction occurs.
-  for (const key of Object.keys(WORLD_CONFIG)) delete WORLD_CONFIG[key];
-  Object.assign(WORLD_CONFIG, JSON.parse(JSON.stringify(config.world)));
-  for (const key of Object.keys(GAME_CONFIG)) delete GAME_CONFIG[key];
-  Object.assign(GAME_CONFIG, JSON.parse(JSON.stringify(config.game)));
-  for (const key of Object.keys(NETWORK_CONFIG)) delete NETWORK_CONFIG[key];
-  Object.assign(NETWORK_CONFIG, JSON.parse(JSON.stringify(config.network)));
-  for (const key of Object.keys(INPUT_FLAGS)) delete INPUT_FLAGS[key];
-  Object.assign(INPUT_FLAGS, JSON.parse(JSON.stringify(config.inputFlags)));
-  for (const key of Object.keys(PLAYER_CHARACTER_CONFIG)) delete PLAYER_CHARACTER_CONFIG[key];
-  Object.assign(PLAYER_CHARACTER_CONFIG, JSON.parse(JSON.stringify(config.playerCharacter)));
+  // Configuration modules are intentionally immutable. Do not mutate or
+  // replace their exported objects at runtime: modules such as gameplay,
+  // physics and input keep direct references to these definitions.
+  //
+  // The manifest hash is calculated from the complete authoritative config.
+  // Require the joining client to run the exact same build/config instead of
+  // trying to overwrite frozen module exports with network data.
+  const localManifest = createWorldManifest();
+  if ((manifest.hash >>> 0) !== localManifest.hash) {
+    throw new Error(
+      `World configuration mismatch: host=${manifest.hash >>> 0}, client=${localManifest.hash >>> 0}`
+    );
+  }
 
   return manifest.hash >>> 0;
 }
