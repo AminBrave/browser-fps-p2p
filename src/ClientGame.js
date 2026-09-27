@@ -206,7 +206,7 @@ export class ClientGame {
     this._updateHUD();
     const velocity = this.localEntity?.physics?.velocity;
     const speed = Math.hypot(Number(velocity?.x) || 0, Number(velocity?.z) || 0);
-    this.hud.updateCrosshair(speed);
+    this.hud.updateCrosshair(speed, !!this.localEntity?.input?.isAiming);
   }
 
   _handleServerPacket(dataView) {
@@ -382,6 +382,7 @@ export class ClientGame {
       entity.character?.setWeaponType?.(entity.player.remoteWeaponId);
       entity.input.stance = entity.player.remoteStance;
       entity.input.pitch = entity.player.remotePitch;
+      entity.input.isAiming = !!remote.isAiming;
     }
 
     // A player missing from an authoritative snapshot has left the match.
