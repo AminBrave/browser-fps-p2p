@@ -82,7 +82,10 @@ export class HostNetworkSystem {
     if (currentTime - this.lastBroadcastTime < this.broadcastIntervalMs) return;
     this.lastBroadcastTime = currentTime;
 
-    const players = ecsWorld.with('player', 'transform', 'input');
+    // Miniplex queries are iterable but are not guaranteed to expose Array
+    // helpers such as .find(). Materialize once because we need both iteration
+    // and lookup by peerId below.
+    const players = Array.from(ecsWorld.with('player', 'transform', 'input'));
     const snapshots = [];
 
     for (const entity of players) {
