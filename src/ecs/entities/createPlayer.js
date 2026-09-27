@@ -7,6 +7,7 @@ import { createPlayer as createPlayerComponent } from '../components/Player.js';
 import { createWeapon, createLoadout } from '../components/Weapon.js';
 import { createInput } from '../components/Input.js';
 import { GAME_CONFIG, peerIdToNumeric, DEFAULT_WEAPON } from '../../config/constants.js';
+import { WORLD_CONFIG } from '../../config/world.js';
 
 export function createPlayer(
   ecsWorld,
@@ -19,9 +20,13 @@ export function createPlayer(
 ) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
 
+  const groundedY = spawnPos.y ?? (
+    WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2
+  );
+
   const phys = physicsWorld.createPlayerBody(
     spawnPos.x,
-    spawnPos.y,
+    groundedY,
     spawnPos.z,
     GAME_CONFIG.PLAYER_RADIUS,
     GAME_CONFIG.PLAYER_HEIGHT
@@ -40,7 +45,7 @@ export function createPlayer(
     metalness: 0.2,
   });
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(spawnPos.x, spawnPos.y, spawnPos.z);
+  mesh.position.set(spawnPos.x, groundedY, spawnPos.z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   if (isLocal) mesh.visible = false;
@@ -50,16 +55,6 @@ export function createPlayer(
   const numericId = peerIdToNumeric(playerId);
 
   const loadout = createLoadout();
-  // Fix pellet counts from config
-  for (let i = 0; i < loadout.slots.length; i++) {
-    const cfg = [DEFAULT_WEAPON][0];
-  }
-  // Re-read PELLETS from WEAPON_LOADOUT via createWeapon already — patch:
-  loadout.slots.forEach((w, i) => {
-    // shotgun is index 2
-    if (i === 2) w.pelletCount = 8;
-    else w.pelletCount = 1;
-  });
 
   const activeWeapon = loadout.slots[0];
 
