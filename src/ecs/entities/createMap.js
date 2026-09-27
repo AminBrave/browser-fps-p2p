@@ -195,8 +195,8 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
   const safePosition = clampToIsland(
     placement.x,
     placement.z,
-    config.COLLIDER.SIZE.x / 2,
-    config.COLLIDER.SIZE.z / 2
+    config.COLLIDER.BOUNDS.x / 2,
+    config.COLLIDER.BOUNDS.z / 2
   );
 
   const group = new THREE.Group();
