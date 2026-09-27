@@ -105,7 +105,7 @@ function spiral(bounds, count, padding) {
 
 const ALGORITHMS = { EVEN: evenGrid, GRID: evenGrid, MANHATTAN: manhattan, ROADSIDE: roadside, RURAL: rural, RANDOM: rural, RADIAL: radial, RING: ring, CLUSTERED: clustered, POISSON: poisson, QUINCUNX: quincunx, SPIRAL: spiral };
 
-export function generateObjectPlacements({ pattern = 'MANHATTAN', count = 20, density = 1, bounds, padding = 2, minSpacing = 2.5, roadSpacing = 8, seed = 'world', reservedZones = [] } = {}) {
+export function generateObjectPlacements({ pattern = 'MANHATTAN', count = 20, density = 1, bounds, padding = 2, minSpacing = 2.5, roadSpacing = 8, seed = 'world', reservedZones = [], reservedRectangles = [] } = {}) {
   const total = Math.max(0, Math.round(count * Math.max(0, Math.min(1, density))));
   const generator = ALGORITHMS[String(pattern).toUpperCase()] || ALGORITHMS.MANHATTAN;
   const candidates = generator(bounds, total, padding, seed, minSpacing, roadSpacing);
@@ -113,6 +113,7 @@ export function generateObjectPlacements({ pattern = 'MANHATTAN', count = 20, de
   for (const candidate of candidates) {
     if (!inside(bounds, candidate.x, candidate.z, padding)) continue;
     if (reservedZones.some((zone) => (candidate.x - zone.x) ** 2 + (candidate.z - zone.z) ** 2 < zone.radius ** 2)) continue;
+    if (reservedRectangles.some((rect) => Math.abs(candidate.x - rect.x) <= rect.halfWidth && Math.abs(candidate.z - rect.z) <= rect.halfLength)) continue;
     if (accepted.some((p) => (p.x - candidate.x) ** 2 + (p.z - candidate.z) ** 2 < minSq)) continue;
     accepted.push(candidate);
     if (accepted.length >= total) break;
