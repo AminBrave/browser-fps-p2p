@@ -19,10 +19,7 @@ export function createPlayer(
   isHost = false
 ) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
-
-  const groundedY = spawnPos.y ?? (
-    WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2
-  );
+  const groundedY = spawnPos.y ?? (WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2);
 
   const phys = physicsWorld.createPlayerBody(
     spawnPos.x,
@@ -106,7 +103,11 @@ export function createPlayer(
   teamRing.rotation.x = Math.PI / 2;
   teamRing.position.y = -0.88;
 
-  mesh.add(body, head, helmet, leftArm, rightArm, leftLeg, rightLeg, backpack, remoteWeapon, healthBack, healthFill, teamRing);
+  const pose = new THREE.Group();
+  pose.name = 'characterPose';
+  mesh.add(pose);
+  pose.add(body, head, helmet, leftArm, rightArm, leftLeg, rightLeg, backpack, remoteWeapon, healthBack, healthFill, teamRing);
+
   mesh.traverse((child) => {
     if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
   });
@@ -115,6 +116,7 @@ export function createPlayer(
 
   const character = {
     mesh,
+    pose,
     parts: { head, helmet, leftArm, rightArm, healthFill, healthBack, remoteWeapon, teamRing },
     setWeaponType(typeId) {
       const scale = typeId === 3 ? 1.18 : typeId === 4 ? 1.3 : typeId === 2 ? 0.92 : 0.8;
@@ -123,19 +125,25 @@ export function createPlayer(
     updateVisuals({ stance = 0, pitch = 0, health = 100, maxHealth = 100, isDead = false }) {
       const crouch = stance === 1;
       const prone = stance === 2;
-      mesh.scale.y = prone ? 0.42 : crouch ? 0.72 : 1;
-      mesh.position.y += prone ? -0.58 : crouch ? -0.28 : 0;
+      pose.position.y = prone ? -0.58 : crouch ? -0.28 : 0;
+      pose.scale.y = prone ? 0.72 : crouch ? 0.9 : 1;
+
       const aim = THREE.MathUtils.clamp(pitch * 0.45, -0.55, 0.55);
       head.rotation.x = aim;
       helmet.rotation.x = aim;
       leftArm.rotation.x = -0.55 - aim;
       rightArm.rotation.x = -0.55 - aim;
+
       const alive = !isDead && health > 0;
       mesh.visible = alive && !isLocal;
       healthBack.visible = alive && !isLocal;
       healthFill.visible = alive && !isLocal;
       teamRing.visible = alive && !isLocal;
-      const ratio = THREE.MathUtils.clamp(Number(health) / Math.max(1, Number(maxHealth) || 100), 0, 1);
+      const ratio = THREE.MathUtils.clamp(
+        Number(health) / Math.max(1, Number(maxHealth) || 100),
+        0,
+        1
+      );
       healthFill.scale.x = ratio;
       healthFill.position.x = -0.29 * (1 - ratio);
     },
@@ -153,9 +161,7 @@ export function createPlayer(
 
   const peerId = typeof playerId === 'string' ? playerId : String(playerId ?? '');
   const numericId = peerIdToNumeric(playerId);
-
   const loadout = createLoadout();
-
   const activeWeapon = loadout.slots[0];
 
   const playerEntity = ecsWorld.add({
@@ -176,11 +182,11 @@ export function createPlayer(
   });
 
   character.setWeaponType(activeWeapon?.typeId ?? 1);
-  character.updateVisuals({ health: GAME_CONFIG.MAX_HEALTH, maxHealth: GAME_CONFIG.MAX_HEALTH });
+  character.updateVisuals({
+    health: GAME_CONFIG.MAX_HEALTH,
+    maxHealth: GAME_CONFIG.MAX_HEALTH,
+  });
 
-  if (physicsWorld?.registerColliderEntity) {
-    physicsWorld.registerColliderEntity(phys.collider, playerEntity);
-  }
-
+  physicsWorld.registerColliderEntity?.(phys.collider, playerEntity);
   return playerEntity;
 }
