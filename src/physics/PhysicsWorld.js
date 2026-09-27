@@ -191,38 +191,51 @@ export class PhysicsWorld {
     };
     addExcluded(excludeCollider);
 
-    let currentOrigin = { x: origin.x, y: origin.y, z: origin.z };
-    let remaining = maxDistance;
-    for (let attempt = 0; attempt < 16 && remaining > 0.001; attempt++) {
-      const ray = new RAPIER.Ray(currentOrigin, dir);
-      const hit = typeof this.world.castRayAndGetNormal === 'function'
-        ? this.world.castRayAndGetNormal(ray, remaining, true)
-        : this.world.castRay(ray, remaining, true);
-      if (!hit) return null;
+    const ray = new RAPIER.Ray({ x: origin.x, y: origin.y, z: origin.z }, dir);
+    const filterPredicate = (collider) => {
+      const handle = collider?.handle ?? collider;
+      if (excluded.has(handle)) return false;
 
-      const collider = hit.collider || null;
-      const handle = collider ? collider.handle ?? collider : null;
-      const toi = hit.timeOfImpact ?? hit.toi ?? 0;
-      const hitEntity = handle != null ? this.colliderToEntity.get(handle) || null : null;
-      const hitZone = handle != null ? this.colliderToHitZone.get(handle) || null : null;
-      // The full-height player movement collider is for solidity only. Skip it
-      // so bullets continue to the anatomical collider and preserve hit zones.
-      if (!excluded.has(handle) && !(hitEntity?.player && !hitZone)) {
-        const normal = hit.normal
-          ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
-          : null;
-        return this._formatHit(currentOrigin, dir, hit, normal);
-      }
+      // Movement capsules are physical locomotion envelopes, not bullet
+      // hitboxes. Exclude them at the query level instead of hitting them
+      // first and then advancing the ray from inside the same solid collider.
+      // With solid=true, the old loop could repeatedly return that collider
+      // at toi=0 and never reach the anatomical sensors inside it.
+      const hitEntity = this.colliderToEntity.get(handle) || null;
+      const hitZone = this.colliderToHitZone.get(handle) || null;
+      return !(hitEntity?.player && !hitZone);
+    };
 
-      const advance = Math.max(0.002, toi + 0.002);
-      currentOrigin = {
-        x: currentOrigin.x + dir.x * advance,
-        y: currentOrigin.y + dir.y * advance,
-        z: currentOrigin.z + dir.z * advance,
-      };
-      remaining -= advance;
-    }
-    return null;
+    const hit = typeof this.world.castRayAndGetNormal === 'function'
+      ? this.world.castRayAndGetNormal(
+          ray,
+          maxDistance,
+          true,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          filterPredicate
+        )
+      : this.world.castRay(
+          ray,
+          maxDistance,
+          true,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          filterPredicate
+        );
+
+    if (!hit) return null;
+    const normal = hit.normal
+      ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
+      : null;
+    return this._formatHit(origin, dir, hit, normal);
+  }
+
+  _formatHit    return null;
   }
 
   _formatHit(origin, dir, hit, normalFromApi) {
