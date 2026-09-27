@@ -136,7 +136,7 @@ export class HUD {
     const center = 50;
     const arm = Math.max(2, length);
     const thickness = cfg.RESTING_THICKNESS_PX;
-    const scale = 50 / 100;
+    const scale = 1;
 
     const top = this.crosshairParts[0];
     const right = this.crosshairParts[1];
