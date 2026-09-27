@@ -52,7 +52,7 @@ export class PeerManager {
           requestedRoomId || PeerManager.createInvitationCode();
         this.invitationCode = invitationCode;
 
-        const peer = new Peer(invitationCode);
+        const peer = new Peer(invitationCode, this._getPeerOptions());
         this.peer = peer;
 
         peer.on('open', (id) => {
@@ -88,6 +88,19 @@ export class PeerManager {
     return Array.from(values, (value) => ALPHABET[value % ALPHABET.length]).join('');
   }
 
+  _getPeerOptions() {
+    return {
+      // Vercel serves the game over HTTPS, so PeerJS uses its secure cloud
+      // signaling transport. ICE then attempts direct P2P first and falls
+      // back to TURN when direct connectivity is impossible.
+      secure: true,
+      config: {
+        iceServers: NETWORK_CONFIG.WEBRTC.ICE_SERVERS,
+        sdpSemantics: NETWORK_CONFIG.WEBRTC.SDP_SEMANTICS,
+      },
+    };
+  }
+
   initializeHost(customRoomId = null) {
     return this.initHost(customRoomId);
   }
@@ -103,7 +116,7 @@ export class PeerManager {
 
     return new Promise((resolve, reject) => {
       let settled = false;
-      const peer = new Peer();
+      const peer = new Peer(this._getPeerOptions());
       this.peer = peer;
 
       const fail = (error) => {
