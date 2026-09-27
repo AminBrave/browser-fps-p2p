@@ -225,9 +225,11 @@ export class WeaponSystem {
       let yawOff = 0;
       let pitchOff = 0;
       if (pelletCount > 1) {
-        const s = weapon.spreadBase || 0.04;
-        yawOff = (Math.random() * 2 - 1) * s;
-        pitchOff = (Math.random() * 2 - 1) * s;
+        const s = ((Number(weapon.spreadBase) || 0.04) + (Number(weapon.steadySpread) || 0.008) + moveSpread + sprintSpread) * aimMultiplier;
+        const angle = Math.random() * Math.PI * 2;
+        const radius = Math.sqrt(Math.random()) * s;
+        yawOff = Math.cos(angle) * radius;
+        pitchOff = Math.sin(angle) * radius;
       } else {
         const spread = (steadySpread + baseSpread + bloom + moveSpread + sprintSpread) * aimMultiplier;
         if (spread > 0) {
