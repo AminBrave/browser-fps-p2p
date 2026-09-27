@@ -174,6 +174,7 @@ export function createPlayer(
     setWeaponType(typeId) {
       const scale = typeId === 3 ? 1.18 : typeId === 4 ? 1.3 : typeId === 2 ? 0.92 : 0.8;
       remoteWeapon.scale.setScalar(scale);
+      remoteWeapon.userData.weaponTypeId = Number(typeId) || 1;
     },
     updateVisuals({ stance = 0, pitch = 0, health = 100, maxHealth = 100, isDead = false }) {
       const crouch = stance === 1;
@@ -216,7 +217,7 @@ export function createPlayer(
   const peerId = typeof playerId === 'string' ? playerId : String(playerId ?? '');
   const numericId = peerIdToNumeric(playerId);
   const loadout = createLoadout();
-  const activeWeapon = loadout.slots[0];
+  const activeWeapon = { ...loadout.slots[0] };
 
   const playerEntity = ecsWorld.add({
     player: createPlayerComponent(
