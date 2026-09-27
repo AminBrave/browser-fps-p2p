@@ -15,6 +15,8 @@ import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
 import { disposeImpactDecals } from './ecs/entities/createBullet.js';
+import { Protocol } from './network/Protocol.js';
+import { createWorldManifest } from './network/WorldSync.js';
 
 export class HostGame {
   constructor(containerElement) {
@@ -114,7 +116,21 @@ export class HostGame {
   }
 
   _handleClientConnect(peerId) {
-    this._ensureClientEntity(peerId);
+    const entity = this._ensureClientEntity(peerId);
+    if (!entity) return;
+
+    // A client cannot construct or simulate a match from its own assumptions.
+    // Send the authoritative world definition and the exact server-assigned
+    // spawn before normal state snapshots begin.
+    this.peerManager.sendTo(peerId, Protocol.encodeWorldInit(createWorldManifest()));
+    this.peerManager.sendTo(
+      peerId,
+      Protocol.encodeJoinAccept(
+        entity.player?.numericId ?? 0,
+        entity.player?.id ?? 0,
+        entity.transform?.position
+      )
+    );
   }
 
   _ensureClientEntity(peerId) {
