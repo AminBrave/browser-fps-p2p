@@ -13,6 +13,8 @@ export const PlayerComponent = {
   maxHealth: 100,
   isDead: false,
   respawnTimer: 0,
+  lastDamagedAt: 0,
+  impactMarkClearAccumulator: 0,
   kills: 0,
   deaths: 0,
 };
@@ -36,6 +38,8 @@ export function createPlayer(id, peerId = '', isLocal = false, isHost = false, m
     maxHealth,
     isDead: false,
     respawnTimer: 0,
+    lastDamagedAt: 0,
+    impactMarkClearAccumulator: 0,
     kills: 0,
     deaths: 0,
   };
