@@ -431,7 +431,7 @@ export class WeaponViewModel {
    * @param {number} moveIntensity 0..1
    * @param {boolean} isAiming hold RMB to aim down sights
    */
-  update(dt, isMoving = false, isReloading = false, moveIntensity = 0, isAiming = false) {
+  update(dt, isMoving = false, isReloading = false, moveIntensity = 0, isAiming = false, stance = 0) {
     if (!this.visible) {
       this.root.visible = false;
       return;
@@ -445,11 +445,16 @@ export class WeaponViewModel {
       this.anchor.updateMatrixWorld(true);
     }
 
-    const bobSpeed = 8 + moveIntensity * 6;
+    const stanceProfile =
+      stance === 2 ? { amp: 0.34, sway: 1.35, roll: 1.9, frequency: 0.52 } :
+      stance === 1 ? { amp: 0.68, sway: 0.78, roll: 0.82, frequency: 0.78 } :
+      { amp: 1, sway: 1, roll: 1, frequency: 1 };
+
+    const bobSpeed = (8 + moveIntensity * 6) * stanceProfile.frequency;
     this._bobTime += dt * bobSpeed;
-    const bobAmp = 0.004 + moveIntensity * 0.014;
-    const bobX = Math.sin(this._bobTime) * bobAmp;
-    const bobY = Math.cos(this._bobTime * 2) * bobAmp * 1.2;
+    const bobAmp = (0.004 + moveIntensity * 0.014) * stanceProfile.amp;
+    const bobX = Math.sin(this._bobTime) * bobAmp * stanceProfile.sway;
+    const bobY = Math.cos(this._bobTime * 2) * bobAmp;
 
     // Extra micro-shake when moving hard
     this._swayX += (Math.random() - 0.5) * moveIntensity * 0.004;
@@ -519,14 +524,14 @@ export class WeaponViewModel {
     const baseY = THREE.MathUtils.lerp(this.restPosition.y, targetY, aim);
     const baseZ = THREE.MathUtils.lerp(this.restPosition.z, targetZ, aim);
     this.root.position.set(
-      baseX + bobX * (1 - aim * 0.85) + this._swayX * (1 - aim * 0.7) + reloadX - this._recoilKick * 0.22,
-      baseY + bobY * (1 - aim * 0.85) + this._swayY * (1 - aim * 0.7) + reloadY - this._recoilKick * 0.22,
+      baseX + bobX * (1 - aim * 0.85) + this._swayX * stanceProfile.sway * (1 - aim * 0.7) + reloadX - this._recoilKick * 0.22,
+      baseY + bobY * (1 - aim * 0.85) + this._swayY * stanceProfile.sway * (1 - aim * 0.7) + reloadY - this._recoilKick * 0.22,
       baseZ + this._recoilKick * 0.11
     );
     this.root.rotation.set(
       THREE.MathUtils.lerp(this.restRotation.x, pose.pitch, aim) - this._recoilKick * 1.25 + this._swayY * 2 * (1 - aim * 0.75),
       THREE.MathUtils.lerp(this.restRotation.y, pose.yaw, aim) + this._swayX * 2 * (1 - aim * 0.75),
-      THREE.MathUtils.lerp(this.restRotation.z, pose.roll, aim) + bobX * 0.6 * (1 - aim)
+      THREE.MathUtils.lerp(this.restRotation.z, pose.roll, aim) + bobX * 0.6 * stanceProfile.roll * (1 - aim)
     );
     const hipScale = 1;
     const aimScale = RENDER_CONFIG.AIM.WEAPON_SCALE;
