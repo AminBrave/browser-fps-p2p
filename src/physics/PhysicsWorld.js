@@ -235,9 +235,6 @@ export class PhysicsWorld {
     return this._formatHit(origin, dir, hit, normal);
   }
 
-  _formatHit    return null;
-  }
-
   _formatHit(origin, dir, hit, normalFromApi) {
     const toi = hit.timeOfImpact ?? hit.toi ?? 0;
     const point = { x: origin.x + dir.x * toi, y: origin.y + dir.y * toi, z: origin.z + dir.z * toi };
