@@ -112,8 +112,9 @@ export class RenderSystem {
                 spark.position.z += velocity.z * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
               }
               if (spark.material) spark.material.opacity = Math.max(0, 1 - t * t);
-              const scale = 1 + t * 0.35;
-              spark.scale.set(scale, scale, Math.max(0.05, 1 - t * 0.65));
+              const baseScale = Number(spark.userData?.baseScale) || 1;
+              const scale = baseScale * (1 + t * 0.75);
+              spark.scale.set(scale, scale, Math.max(0.05, 1 - t * 0.8));
             });
           }
           if (t >= 1) {
