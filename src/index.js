@@ -39,7 +39,8 @@ class App {
 
       const hostRoomId = await hostGame.initialize();
 
-      this.lobbyUI.setStatus(`Host Active! Room ID: ${hostRoomId} (Share with clients)`, '#10ac84');
+      this.lobbyUI.showInvitationCode(hostRoomId);
+      this.lobbyUI.setStatus('Host Active! Share the 5-character invitation code.', '#10ac84');
       
       // Delay lobby hide to allow host user to view and copy their Room ID
       setTimeout(() => {
@@ -59,12 +60,17 @@ class App {
    */
   async startClientSession(roomId) {
     try {
-      this.lobbyUI.setStatus(`Connecting to Host [${roomId}]...`, '#ffda79');
+      const invitationCode = String(roomId || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (invitationCode.length !== 5) {
+        this.lobbyUI.setStatus('Invitation code must be exactly 5 characters.', '#ff4757');
+        return;
+      }
+      this.lobbyUI.setStatus(`Connecting to Host [${invitationCode}]...`, '#ffda79');
 
       const clientGame = new ClientGame(document.body);
       this.gameInstance = clientGame;
 
-      await clientGame.initialize(roomId);
+      await clientGame.initialize(invitationCode);
 
       this.lobbyUI.setStatus('Connected! Starting session...', '#10ac84');
       this.lobbyUI.setVisible(false);
