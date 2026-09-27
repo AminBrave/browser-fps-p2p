@@ -26,15 +26,15 @@ export class HUD {
       .join('');
 
     this.container.innerHTML = `
-      <svg id="crosshair" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"
-        style="position:absolute;top:50%;left:50%;width:100px;height:100px;transform:translate(-50%,-50%);overflow:visible;pointer-events:none;">
+      <svg id="crosshair" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet" aria-hidden="true"
+        style="position:absolute;top:50%;left:50%;width:140px;height:140px;transform:translate(-50%,-50%);overflow:visible;pointer-events:none;">
         <g data-crosshair-arms fill="rgba(255,255,255,0.96)" stroke="rgba(0,0,0,0.65)" stroke-width="0.7">
-          <rect data-crosshair-part="top" x="49" y="0" width="2" height="7" rx="1"></rect>
-          <rect data-crosshair-part="right" x="93" y="49" width="7" height="2" rx="1"></rect>
-          <rect data-crosshair-part="bottom" x="49" y="93" width="2" height="7" rx="1"></rect>
-          <rect data-crosshair-part="left" x="0" y="49" width="7" height="2" rx="1"></rect>
+          <rect data-crosshair-part="top" x="99" y="0" width="2" height="7" rx="1"></rect>
+          <rect data-crosshair-part="right" x="193" y="99" width="7" height="2" rx="1"></rect>
+          <rect data-crosshair-part="bottom" x="99" y="193" width="2" height="7" rx="1"></rect>
+          <rect data-crosshair-part="left" x="0" y="99" width="7" height="2" rx="1"></rect>
         </g>
-        <circle data-crosshair-dot cx="50" cy="50" r="1.35" fill="rgba(255,255,255,0.98)" stroke="rgba(0,0,0,0.7)" stroke-width="0.5"></circle>
+        <circle data-crosshair-dot cx="100" cy="100" r="1.35" fill="rgba(255,255,255,0.98)" stroke="rgba(0,0,0,0.7)" stroke-width="0.5"></circle>
       </svg>
 
       <div id="hud-scoreboard" style="position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;background:rgba(0,0,0,0.42);padding:7px 14px;border-radius:8px;backdrop-filter:blur(6px);font-weight:700;letter-spacing:1px;">
@@ -104,7 +104,7 @@ export class HUD {
     this._crosshairLength = 7;
   }
 
-  updateCrosshair(speed = 0, isAiming = false, weaponSpread = 0, weaponSpreadMax = 0.05, isFiring = false, recoil = 0, isSprinting = false) {
+  updateCrosshair(speed = 0, isAiming = false, weaponSpread = 0, weaponSpreadMax = 0.12, isFiring = false, recoil = 0, isSprinting = false) {
     if (!this.crosshair) return;
 
     const cfg = RENDER_CONFIG.CROSSHAIR;
@@ -113,32 +113,42 @@ export class HUD {
       0,
       Math.min(1, (safeSpeed - cfg.MIN_SPEED) / Math.max(0.001, cfg.MAX_SPEED - cfg.MIN_SPEED))
     );
-    const spreadT = Math.max(0, Math.min(1, (Number(weaponSpread) || 0) / Math.max(0.001, Number(weaponSpreadMax) || 0.05)));
-    const movementGap = isSprinting
-      ? cfg.MAX_SPRINT_GAP_PX
-      : cfg.RESTING_GAP_PX + speedT * (cfg.MAX_MOVEMENT_GAP_PX - cfg.RESTING_GAP_PX);
-    const targetGap = isAiming
-      ? cfg.AIM_GAP_PX
-      : movementGap +
-        spreadT * cfg.MAX_BLOOM_GAP_PX +
-        (isFiring ? cfg.FIRE_BLOOM_PX : 0) +
-        Math.min(1, Math.abs(Number(recoil) || 0) * 4) * cfg.RECOIL_BLOOM_PX;
-    const targetLength = isAiming
+    const spread = Math.max(0, Number(weaponSpread) || 0);
+    const spreadMax = Math.max(0.001, Number(weaponSpreadMax) || 0.12);
+    const spreadT = Math.max(0, Math.min(1, spread / spreadMax));
+
+    // The crosshair is driven by the same effective spread model as the
+    // weapon, not just by "is moving". Stationary hip-fire has a small but
+    // permanent gap; ADS nearly closes it; movement and sprinting open it.
+    const movementGap =
+      cfg.RESTING_GAP_PX +
+      speedT * (isSprinting
+        ? cfg.MAX_SPRINT_GAP_PX - cfg.RESTING_GAP_PX
+        : cfg.MAX_MOVEMENT_GAP_PX - cfg.RESTING_GAP_PX);
+    const accuracyGap = spreadT * cfg.MAX_BLOOM_GAP_PX;
+    const firingGap = isFiring ? cfg.FIRE_BLOOM_PX : 0;
+    const recoilGap = Math.min(1, Math.abs(Number(recoil) || 0) * 4) * cfg.RECOIL_BLOOM_PX;
+    const targetGap = isAiming && !isSprinting
+      ? cfg.AIM_GAP_PX + accuracyGap * 0.35 + firingGap * 0.35 + recoilGap * 0.25
+      : movementGap + accuracyGap + firingGap + recoilGap;
+
+    const targetLength = isAiming && !isSprinting
       ? cfg.AIM_LENGTH_PX
       : cfg.RESTING_LENGTH_PX + speedT * (cfg.MAX_LENGTH_PX - cfg.RESTING_LENGTH_PX);
 
     if (!Number.isFinite(this._crosshairGap)) this._crosshairGap = targetGap;
     if (!Number.isFinite(this._crosshairLength)) this._crosshairLength = targetLength;
+
+    // Use frame-rate independent exponential smoothing so the transition is
+    // visibly responsive rather than looking like a fixed/static reticle.
     const response = 1 - Math.exp(-cfg.RESPONSE / 60);
     this._crosshairGap += (targetGap - this._crosshairGap) * response;
     this._crosshairLength += (targetLength - this._crosshairLength) * response;
 
+    const center = 100;
     const gap = this._crosshairGap;
-    const length = this._crosshairLength;
-    const center = 50;
-    const arm = Math.max(2, length);
+    const length = Math.max(2, this._crosshairLength);
     const thickness = cfg.RESTING_THICKNESS_PX;
-    const scale = 1;
 
     const top = this.crosshairParts[0];
     const right = this.crosshairParts[1];
@@ -146,33 +156,35 @@ export class HUD {
     const left = this.crosshairParts[3];
 
     if (top) {
-      top.setAttribute('x', center - thickness * scale);
-      top.setAttribute('y', center - (gap + arm) * scale);
-      top.setAttribute('width', thickness * scale * 2);
-      top.setAttribute('height', arm * scale);
+      top.setAttribute('x', center - thickness);
+      top.setAttribute('y', center - gap - length);
+      top.setAttribute('width', thickness * 2);
+      top.setAttribute('height', length);
     }
     if (right) {
-      right.setAttribute('x', center + gap * scale);
-      right.setAttribute('y', center - thickness * scale);
-      right.setAttribute('width', arm * scale);
-      right.setAttribute('height', thickness * scale * 2);
+      right.setAttribute('x', center + gap);
+      right.setAttribute('y', center - thickness);
+      right.setAttribute('width', length);
+      right.setAttribute('height', thickness * 2);
     }
     if (bottom) {
-      bottom.setAttribute('x', center - thickness * scale);
-      bottom.setAttribute('y', center + gap * scale);
-      bottom.setAttribute('width', thickness * scale * 2);
-      bottom.setAttribute('height', arm * scale);
+      bottom.setAttribute('x', center - thickness);
+      bottom.setAttribute('y', center + gap);
+      bottom.setAttribute('width', thickness * 2);
+      bottom.setAttribute('height', length);
     }
     if (left) {
-      left.setAttribute('x', center - (gap + arm) * scale);
-      left.setAttribute('y', center - thickness * scale);
-      left.setAttribute('width', arm * scale);
-      left.setAttribute('height', thickness * scale * 2);
+      left.setAttribute('x', center - gap - length);
+      left.setAttribute('y', center - thickness);
+      left.setAttribute('width', length);
+      left.setAttribute('height', thickness * 2);
     }
 
     if (this.crosshairDot) {
-      this.crosshairDot.setAttribute('r', isAiming ? '1.0' : '1.35');
-      this.crosshairDot.style.opacity = isAiming ? '0.75' : '1';
+      this.crosshairDot.setAttribute('cx', String(center));
+      this.crosshairDot.setAttribute('cy', String(center));
+      this.crosshairDot.setAttribute('r', isAiming && !isSprinting ? '1.0' : '1.35');
+      this.crosshairDot.style.opacity = isAiming && !isSprinting ? '0.78' : '1';
     }
   }
 
