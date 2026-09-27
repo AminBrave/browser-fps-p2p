@@ -133,7 +133,11 @@ export class ClientReconcileSystem {
         z: currentPos.z + correctedMovement.z,
       };
 
-      if (physComp.rigidBody?.setNextKinematicTranslation) {
+      if (physComp.rigidBody?.setTranslation) {
+        // Reconciliation runs from a network callback between simulation ticks.
+        // Apply immediately so the next prediction reads the corrected body.
+        physComp.rigidBody.setTranslation(reconciledPos, true);
+      } else if (physComp.rigidBody?.setNextKinematicTranslation) {
         physComp.rigidBody.setNextKinematicTranslation(reconciledPos);
       }
 
