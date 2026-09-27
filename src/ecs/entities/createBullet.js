@@ -121,78 +121,51 @@ export function createImpactDecal(
   sparkGroup.position.copy(localPoint);
   sparkGroup.quaternion.copy(q);
 
-  // Chunky, low-poly sparks: intentionally oversized cubes/rectangular pixels
-  // for a Minecraft-like block impact rather than thin particle streaks.
-  const sparkMaterials = [
-    new THREE.MeshBasicMaterial({
-      color: 0xfff0a6,
-      transparent: true,
-      opacity: 1,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    }),
-    new THREE.MeshBasicMaterial({
-      color: 0xff9f1c,
-      transparent: true,
-      opacity: 1,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    }),
+  const cfg = RENDER_CONFIG.IMPACT_FLASH;
+  const tangent = new THREE.Vector3().crossVectors(
+    Math.abs(localNormal.y) < 0.92 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0),
+    localNormal
+  ).normalize();
+  const bitangent = new THREE.Vector3().crossVectors(localNormal, tangent).normalize();
+
+  const materials = [
+    new THREE.MeshBasicMaterial({ color: 0xfff4b0, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0xffa31a, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0xff5a18, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }),
   ];
 
-  const sparkCount = 12;
-  for (let i = 0; i < sparkCount; i++) {
-    const angle = (i / sparkCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
-    const size = RENDER_CONFIG.IMPACT_FLASH.SPARK_SIZE_MIN +
-      Math.random() * (RENDER_CONFIG.IMPACT_FLASH.SPARK_SIZE_MAX - RENDER_CONFIG.IMPACT_FLASH.SPARK_SIZE_MIN);
-    const length = RENDER_CONFIG.IMPACT_FLASH.SPARK_LENGTH_MIN +
-      Math.random() * (RENDER_CONFIG.IMPACT_FLASH.SPARK_LENGTH_MAX - RENDER_CONFIG.IMPACT_FLASH.SPARK_LENGTH_MIN);
+  const spawnSpark = (chunky) => {
+    const azimuth = Math.random() * Math.PI * 2;
+    const elevation = Math.random() * Math.PI * 0.5;
+    const radial = Math.sin(elevation);
+    const normalBias = Math.cos(elevation);
+    const tangentSpeed = cfg.TANGENTIAL_SPEED_MIN + Math.random() * (cfg.TANGENTIAL_SPEED_MAX - cfg.TANGENTIAL_SPEED_MIN);
+    const normalSpeed = cfg.NORMAL_SPEED_MIN + Math.random() * (cfg.NORMAL_SPEED_MAX - cfg.NORMAL_SPEED_MIN);
+    const size = chunky ? cfg.BLOCK_SIZE_MIN + Math.random() * (cfg.BLOCK_SIZE_MAX - cfg.BLOCK_SIZE_MIN) : cfg.SPARK_SIZE_MIN + Math.random() * (cfg.SPARK_SIZE_MAX - cfg.SPARK_SIZE_MIN);
+    const length = chunky ? size * (0.8 + Math.random() * 0.7) : cfg.SPARK_LENGTH_MIN + Math.random() * (cfg.SPARK_LENGTH_MAX - cfg.SPARK_LENGTH_MIN);
     const spark = new THREE.Mesh(
       new THREE.BoxGeometry(size, size, length),
-      sparkMaterials[i % sparkMaterials.length].clone()
+      materials[Math.floor(Math.random() * materials.length)].clone()
     );
     spark.name = 'spark';
-    spark.position.set(
-      Math.cos(angle) * 0.025,
-      Math.sin(angle) * 0.025,
-      0.025
-    );
-    spark.rotation.set(
-      (Math.random() - 0.5) * 0.8,
-      (Math.random() - 0.5) * 0.8,
-      angle
-    );
-    spark.userData.velocity = {
-      x: Math.cos(angle) * (0.8 + Math.random() * 1.2),
-      y: Math.sin(angle) * (0.8 + Math.random() * 1.2),
-      z: 0.35 + Math.random() * 0.9,
-    };
-    spark.userData.baseScale = 0.9 + Math.random() * 0.5;
+    spark.position.copy(localNormal).multiplyScalar(cfg.SPAWN_OFFSET);
+    spark.position.addScaledVector(tangent, Math.cos(azimuth) * radial * cfg.PATTERN_RADIUS);
+    spark.position.addScaledVector(bitangent, Math.sin(azimuth) * radial * cfg.PATTERN_RADIUS);
+    const direction = localNormal.clone().multiplyScalar(normalBias)
+      .addScaledVector(tangent, Math.cos(azimuth) * radial * cfg.TANGENT_DIRECTION)
+      .addScaledVector(bitangent, Math.sin(azimuth) * radial * cfg.TANGENT_DIRECTION)
+      .normalize();
+    spark.rotation.set((Math.random() - 0.5) * Math.PI, (Math.random() - 0.5) * Math.PI, Math.random() * Math.PI * 2);
+    spark.userData.velocity = direction.multiplyScalar(Math.max(normalSpeed, tangentSpeed));
+    spark.userData.drag = cfg.DRAG_MIN + Math.random() * (cfg.DRAG_MAX - cfg.DRAG_MIN);
+    spark.userData.gravity = cfg.GRAVITY * (0.7 + Math.random() * 0.6);
+    spark.userData.age = -(Math.random() * cfg.SPAWN_DELAY_MS / 1000);
+    spark.userData.baseScale = 0.75 + Math.random() * 0.7;
+    spark.userData.angularVelocity = { x: (Math.random() - 0.5) * 18, y: (Math.random() - 0.5) * 18, z: (Math.random() - 0.5) * 18 };
     sparkGroup.add(spark);
-  }
-
-  // A few large square pixels stay near the impact center for the first
-  // frames, making the hit read clearly even at high frame rates.
-  for (let i = 0; i < 3; i++) {
-    const blockSize = 0.06 + Math.random() * 0.04;
-    const block = new THREE.Mesh(
-      new THREE.BoxGeometry(blockSize, blockSize, blockSize),
-      sparkMaterials[0].clone()
-    );
-    block.name = 'spark';
-    block.position.set(
-      (Math.random() - 0.5) * 0.08,
-      (Math.random() - 0.5) * 0.08,
-      0.035
-    );
-    block.userData.velocity = {
-      x: (Math.random() - 0.5) * 0.5,
-      y: (Math.random() - 0.5) * 0.5,
-      z: 0.2 + Math.random() * 0.45,
-    };
-    block.userData.baseScale = 1;
-    sparkGroup.add(block);
-  }
+  };
+  for (let i = 0; i < cfg.SPARK_COUNT; i++) spawnSpark(false);
+  for (let i = 0; i < cfg.BLOCK_COUNT; i++) spawnSpark(true);
   group.add(sparkGroup);
 
   const flash = new THREE.Mesh(
