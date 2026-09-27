@@ -329,7 +329,12 @@ export class ClientGame {
           null;
         if (targetMesh) {
           createBloodImpact(
-            this.ecsWorld, this.sceneManager, end, event.normal, targetMesh
+            this.ecsWorld,
+            this.sceneManager,
+            end,
+            event.normal,
+            targetMesh,
+            target
           );
         }
       } else if (event.hit) {
