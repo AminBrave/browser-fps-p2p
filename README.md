@@ -108,7 +108,7 @@ The world geometry is centralized in `src/config/world.js`. It is the single sou
 - Player spawn points and grounded player placement.
 - Crate, tree, car, barrier, path and mountain dimensions and layouts.
 - Shared object placement rules that clamp world objects inside the playable island.
-- Object definitions also contain their collision dimensions and visual offsets; there are no separate per-factory size/position constants for trees and cars.
+- Object definitions also contain their collision dimensions and visual offsets; there are no separate per-factory size/position constants for trees and cars. Cars use a compound collider made from the same body, cabin and wheel dimensions as the visible model.
 
 Rendering and Rapier physics consume the same dimensions. Ground objects are created with solid static colliders, and mountains use Rapier's native cone collider so player collision and bullet raycasts use the same solid volume as the visual mountain. An invisible safety floor provides a final containment layer below the playable ground.
 
