@@ -134,6 +134,11 @@ export class HostNetworkSystem {
     this.postUpdate(ecsWorld, currentTime);
   }
 
+  emitGameEvent(event) {
+    const packet = Protocol.encodeGameEvent(event);
+    this.peerManager.broadcast(packet);
+  }
+
   removePeer(peerId) {
     this.incomingInputs.delete(peerId);
     this.lastReceivedSequence.delete(peerId);
