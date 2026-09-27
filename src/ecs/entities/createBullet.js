@@ -194,9 +194,8 @@ export function createImpactDecal(
     impactFlashUntil: performance.now() + 90,
     impactSparkUntil: performance.now() + 180,
     impactSparkStartedAt: performance.now(),
-    impactMarkOwner: targetEntity?.player ? targetEntity : null,
+    impactMarkOwnerId: targetEntity?.player?.id ?? null,
     isPlayerImpactMark: !!targetEntity?.player,
-    impactHealthOpacity: 1,
     impactHealthOpacity: 1,
   });
 
@@ -227,7 +226,8 @@ export function createImpact(ecsWorld, sceneOrManager, position, normal, targetM
 
 export function updatePlayerImpactMarksForHealth(ecsWorld, playerEntity, health, maxHealth) {
   const decals = decalRegistry.get(ecsWorld);
-  if (!decals || !playerEntity) return;
+  const playerId = playerEntity?.player?.id ?? playerEntity;
+  if (!decals || playerId == null) return;
 
   const max = Math.max(1, Number(maxHealth) || 100);
   const current = THREE.MathUtils.clamp(Number(health) || 0, 0, max);
@@ -260,7 +260,8 @@ export function updatePlayerImpactMarksForHealth(ecsWorld, playerEntity, health,
 
 export function getPlayerImpactMarkCount(ecsWorld, playerEntity) {
   const decals = decalRegistry.get(ecsWorld);
-  if (!decals || !playerEntity) return 0;
+  const playerId = playerEntity?.player?.id ?? playerEntity;
+  if (!decals || playerId == null) return 0;
   return decals.filter((e) =>
     e?.isPlayerImpactMark &&
     e?.impactMarkOwner === playerEntity &&
@@ -270,7 +271,8 @@ export function getPlayerImpactMarkCount(ecsWorld, playerEntity) {
 
 export function clearPlayerImpactMarks(ecsWorld, playerEntity, fraction) {
   const decals = decalRegistry.get(ecsWorld);
-  if (!decals || !playerEntity) return 0;
+  const playerId = playerEntity?.player?.id ?? playerEntity;
+  if (!decals || playerId == null) return 0;
   const amount = THREE.MathUtils.clamp(Number(fraction) || 0, 0, 1);
   const marks = decals.filter((e) => e?.isPlayerImpactMark && e?.impactMarkOwner === playerEntity && e?.renderMesh?.mesh);
   const removeCount = Math.min(marks.length, Math.floor(marks.length * amount + 1e-6));
@@ -362,7 +364,7 @@ export function createBloodImpact(ecsWorld, sceneOrManager, position, normal, ta
     transform: createTransform(point.x, point.y, point.z),
     renderMesh: { mesh: group },
     impactFlashUntil: performance.now() + 70,
-    impactMarkOwner: targetEntity?.player ? targetEntity : null,
+    impactMarkOwnerId: targetEntity?.player?.id ?? null,
     isPlayerImpactMark: !!targetEntity?.player,
   });
 
