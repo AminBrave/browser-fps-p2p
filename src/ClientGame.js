@@ -1,4 +1,4 @@
-import { GAME_CONFIG, STANCE } from './config/index.js';
+import { GAME_CONFIG, NETWORK_CONFIG, STANCE } from './config/index.js';
 import { WORLD_CONFIG } from './config/index.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
@@ -33,8 +33,8 @@ export class ClientGame {
     this.localEntity = null;
     this.playerEntities = [];
     this.playerById = new Map();
-    this.pendingInputBuffer = new CircularBuffer(128);
-    this.fixedDeltaTime = 1 / (GAME_CONFIG.TICK_RATE || 60);
+    this.pendingInputBuffer = new CircularBuffer(NETWORK_CONFIG.INPUT_HISTORY_SIZE);
+    this.fixedDeltaTime = 1 / (NETWORK_CONFIG.CLIENT_TICK_RATE || GAME_CONFIG.TICK_RATE || 60);
     this.isRunning = false;
 
     this._audioUnlockHandler = () => audio.unlock();
