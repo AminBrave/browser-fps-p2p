@@ -74,105 +74,105 @@ export class ClientReconcileSystem {
       0
     ) >>> 0;
 
-    // A snapshot can arrive every network tick even when it has not processed
-    // any new input. Acknowledgement, not snapshot arrival, is the prediction
-    // timeline boundary.
-    let ackAdvanced = false;
-    if (
-      this.inputBuffer &&
-      this.inputBuffer.size > 0 &&
-      (this.lastAckedSequence == null || isNewerSequence(ack, this.lastAckedSequence))
-    ) {
-      this.inputBuffer.discardUpTo((frame) => {
-        if (!frame) return true;
-        const seq = Number(frame.sequence) >>> 0;
-        return seq === ack || !isNewerSequence(seq, ack);
-      });
-      this.lastAckedSequence = ack;
-      ackAdvanced = true;
+    const frames = this.inputBuffer?.toArray?.() || [];
+    const ackFrame = frames.find(
+      (frame) => frame && (Number(frame.sequence) >>> 0) === ack
+    );
+
+    // A snapshot describes an older point in the simulation. Comparing that
+    // position with the player's current predicted position is incorrect:
+    // during a jump the player may be several frames ahead vertically, so a
+    // perfectly correct prediction would look like a large error every
+    // snapshot. Reconcile against the prediction at the ACKed input instead.
+    const ackAdvanced =
+      this.lastAckedSequence == null ||
+      isNewerSequence(ack, this.lastAckedSequence);
+
+    if (!ackAdvanced || !ackFrame?.predictedPosition) {
+      // Still update non-positional authoritative state, but never pull the
+      // current predicted player toward an older server snapshot.
+      if (transform.rotation) {
+        transform.rotation.yaw = Number(authoritative.yaw ?? authoritative.rotation?.yaw ?? transform.rotation.yaw ?? 0);
+        transform.rotation.pitch = Number(authoritative.pitch ?? authoritative.rotation?.pitch ?? transform.rotation.pitch ?? 0);
+      }
+      return false;
     }
 
-    const body = physics.rigidBody;
-    const current = body?.translation?.() || transform.position;
     const serverPos = {
       x: Number(authoritative.x ?? authoritative.position?.x ?? 0),
       y: Number(authoritative.y ?? authoritative.position?.y ?? 0),
       z: Number(authoritative.z ?? authoritative.position?.z ?? 0),
     };
-
+    const predictedAtAck = ackFrame.predictedPosition;
     const error = {
-      x: serverPos.x - current.x,
-      y: serverPos.y - current.y,
-      z: serverPos.z - current.z,
+      x: serverPos.x - predictedAtAck.x,
+      y: serverPos.y - predictedAtAck.y,
+      z: serverPos.z - predictedAtAck.z,
     };
     const errorMagnitude = Math.hypot(error.x, error.y, error.z);
+
+    // Retire acknowledged input only after using its predicted state as the
+    // correct comparison point.
+    this.inputBuffer.discardUpTo((frame) => {
+      if (!frame) return true;
+      const seq = Number(frame.sequence) >>> 0;
+      return seq === ack || !isNewerSequence(seq, ack);
+    });
+    this.lastAckedSequence = ack;
+
     const threshold = 0.12;
-
-    // Do not teleport the local player on every snapshot. Small differences
-    // are normal network/prediction drift and must remain entirely invisible.
-    // Only a meaningful divergence causes a simulation rewind.
-    if (errorMagnitude > threshold) {
-      if (body?.setTranslation) body.setTranslation(serverPos, true);
-
-      transform.position.x = serverPos.x;
-      transform.position.y = serverPos.y;
-      transform.position.z = serverPos.z;
-
-      if (!physics.velocity) physics.velocity = { x: 0, y: 0, z: 0 };
-      if (authoritative.velocity) {
-        physics.velocity.x = Number(authoritative.velocity.x) || 0;
-        physics.velocity.y = Number(authoritative.velocity.y) || 0;
-        physics.velocity.z = Number(authoritative.velocity.z) || 0;
-      }
-      physics.isGrounded =
-        authoritative.isGrounded !== undefined
-          ? !!authoritative.isGrounded
-          : physics.isGrounded;
-
-      if (transform.rotation) {
-        transform.rotation.yaw = Number(authoritative.yaw ?? authoritative.rotation?.yaw ?? 0);
-        transform.rotation.pitch = Number(authoritative.pitch ?? authoritative.rotation?.pitch ?? 0);
-      }
-
-      // Replay only the still-unacknowledged input frames. These are already
-      // ordered in the same chronological order in which the client sampled
-      // them.
-      for (const frame of this.inputBuffer?.toArray?.() || []) {
-        if (!frame) continue;
-        this._reSimulateInputFrame(physics, transform, frame);
-      }
-
-      const after = body?.translation?.() || transform.position;
-      const correction = {
-        x: current.x - after.x,
-        y: current.y - after.y,
-        z: current.z - after.z,
-      };
-
-      // RenderSystem decays this visual-only offset over subsequent frames,
-      // so a genuine correction is visible as a smooth blend instead of a
-      // camera teleport.
-      if (Math.hypot(correction.x, correction.y, correction.z) < 4) {
-        localEntity.networkVisualCorrection = correction;
-      }
-    } else if (ackAdvanced) {
-      // The server has confirmed inputs that the client already predicted
-      // correctly. Keep the predicted body exactly where it is; rewriting it
-      // here would create the characteristic one-frame jitter.
-      transform.position.x = current.x;
-      transform.position.y = current.y;
-      transform.position.z = current.z;
+    if (errorMagnitude <= threshold) {
+      // The server agrees with the historical predicted state. The current
+      // player may be ahead because it contains unacknowledged input; leave it
+      // completely untouched. This is essential for smooth jumping.
+      return false;
     }
 
-    // Server orientation/health are authoritative, but position remains
-    // client-predicted until an actual positional divergence requires a
-    // rewind.
+    if (physics.velocity == null) {
+      physics.velocity = { x: 0, y: 0, z: 0 };
+    }
+
+    if (physics.rigidBody?.setTranslation) {
+      physics.rigidBody.setTranslation(serverPos, true);
+    }
+
+    transform.position.x = serverPos.x;
+    transform.position.y = serverPos.y;
+    transform.position.z = serverPos.z;
+
+    if (authoritative.velocity) {
+      physics.velocity.x = Number(authoritative.velocity.x) || 0;
+      physics.velocity.y = Number(authoritative.velocity.y) || 0;
+      physics.velocity.z = Number(authoritative.velocity.z) || 0;
+    }
+    if (authoritative.isGrounded !== undefined) {
+      physics.isGrounded = !!authoritative.isGrounded;
+    }
+
     if (transform.rotation) {
-      transform.rotation.yaw = Number(authoritative.yaw ?? authoritative.rotation?.yaw ?? transform.rotation.yaw ?? 0);
-      transform.rotation.pitch = Number(authoritative.pitch ?? authoritative.rotation?.pitch ?? transform.rotation.pitch ?? 0);
+      transform.rotation.yaw = Number(authoritative.yaw ?? authoritative.rotation?.yaw ?? 0);
+      transform.rotation.pitch = Number(authoritative.pitch ?? authoritative.rotation?.pitch ?? 0);
     }
 
-    return errorMagnitude > threshold;
+    // Replay only input sampled after the acknowledged server state.
+    for (const frame of this.inputBuffer?.toArray?.() || []) {
+      if (!frame) continue;
+      this._reSimulateInputFrame(physics, transform, frame);
+    }
+
+    const after = physics.rigidBody?.translation?.() || transform.position;
+    const current = ackFrame.predictedPosition;
+    const correction = {
+      x: current.x - after.x,
+      y: current.y - after.y,
+      z: current.z - after.z,
+    };
+
+    if (Math.hypot(correction.x, correction.y, correction.z) < 4) {
+      localEntity.networkVisualCorrection = correction;
+    }
+
+    return true;
   }
 
   _reSimulateInputFrame(physics, transform, inputFrame) {
