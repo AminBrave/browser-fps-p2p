@@ -7,6 +7,7 @@ export class PhysicsWorld {
     this.world = null;
     this.initialized = false;
     this.colliderToEntity = new Map();
+    this.colliderToRenderTarget = new Map();
   }
 
   async init() {
@@ -20,14 +21,18 @@ export class PhysicsWorld {
     if (this.world) this.world.step();
   }
 
-  registerColliderEntity(collider, entity) {
+  registerColliderEntity(collider, entity, renderTarget = null) {
     if (!collider) return;
-    this.colliderToEntity.set(collider.handle ?? collider, entity);
+    const handle = collider.handle ?? collider;
+    this.colliderToEntity.set(handle, entity);
+    if (renderTarget) this.colliderToRenderTarget.set(handle, renderTarget);
   }
 
   unregisterCollider(collider) {
     if (!collider) return;
-    this.colliderToEntity.delete(collider.handle ?? collider);
+    const handle = collider.handle ?? collider;
+    this.colliderToEntity.delete(handle);
+    this.colliderToRenderTarget.delete(handle);
   }
 
   createPlayerBody(x, y, z, radius = 0.4, height = 1.8) {
@@ -92,6 +97,7 @@ export class PhysicsWorld {
       body,
       collider: colliders[0],
       colliders,
+      colliderTargets: parts.map((part) => part.renderTarget || null),
     };
   }
 
@@ -223,14 +229,18 @@ export class PhysicsWorld {
     const entity = handle != null
       ? this.colliderToEntity.get(handle) || null
       : null;
+    const renderTarget = handle != null
+      ? this.colliderToRenderTarget.get(handle) || null
+      : null;
 
-    return { point, normal, toi, collider, entity };
+    return { point, normal, toi, collider, entity, renderTarget };
   }
 
   dispose() {
     if (!this.initialized) return;
 
     this.colliderToEntity.clear();
+    this.colliderToRenderTarget.clear();
     this.world?.free?.();
     this.world = null;
     this.initialized = false;
