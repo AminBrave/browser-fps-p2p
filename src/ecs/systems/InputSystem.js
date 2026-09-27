@@ -1,4 +1,4 @@
-import { INPUT_FLAGS, STANCE } from '../../config/constants.js';
+import { INPUT_FLAGS, STANCE } from '../../config/index.js';
 import { DEFAULT_KEYBINDINGS, MOUSE_CONFIG } from '../../config/controls.js';
 import { setFlag, clearFlag } from '../../utils/BitFlags.js';
 
