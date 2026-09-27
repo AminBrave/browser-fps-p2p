@@ -38,6 +38,8 @@ export class ClientGame {
     this.isRunning = false;
     this._spawnPosition = null;
     this._worldHash = null;
+    // Apply network corrections only on the fixed simulation boundary.
+    this._pendingSnapshot = null;
     this._worldReadyPromise = new Promise((resolve, reject) => {
       this._resolveWorldReady = resolve;
       this._rejectWorldReady = reject;
@@ -118,6 +120,25 @@ export class ClientGame {
   _fixedUpdate(dt) {
     if (!this.localEntity) return;
 
+    // WebRTC callbacks are asynchronous. Applying Rapier/camera state from
+    // that callback can race the fixed simulation and produce visible jitter.
+    const snapshot = this._pendingSnapshot;
+    this._pendingSnapshot = null;
+    if (snapshot) {
+      this.reconcileSystem.update(this.ecsWorld, this.localEntity, snapshot);
+      const players = snapshot.players || snapshot.entities || [];
+      const me = players.find(
+        (player) => (player.id ?? player.entityId) === this.localEntity.player?.id
+      );
+      if (me && this.localEntity.player) {
+        const wasAlive = !this.localEntity.player.isDead;
+        this.localEntity.player.health = me.health;
+        this.localEntity.player.isDead = me.health <= 0;
+        if (wasAlive && this.localEntity.player.isDead) audio.playDeath();
+      }
+      this._syncRemoteEntities(players);
+    }
+
     const inputPayload = this.inputSystem.sample(
       this.ecsWorld,
       this.localEntity
@@ -196,31 +217,7 @@ export class ClientGame {
     const snapshot = Protocol.decodeWorldSnapshot(dataView);
     if (!snapshot || !this.interpolationSystem) return;
 
-    this.interpolationSystem.addSnapshot(snapshot);
-
-    if (this.localEntity) {
-      this.reconcileSystem.update(
-        this.ecsWorld,
-        this.localEntity,
-        snapshot
-      );
-
-      const players = snapshot.players || snapshot.entities || [];
-      const me = players.find(
-        (player) => (player.id ?? player.entityId) === this.localEntity.player?.id
-      );
-
-      if (me && this.localEntity.player) {
-        const wasAlive = !this.localEntity.player.isDead;
-        this.localEntity.player.health = me.health;
-        this.localEntity.player.isDead = me.health <= 0;
-        if (wasAlive && this.localEntity.player.isDead) {
-          audio.playDeath();
-        }
-      }
-
-      this._syncRemoteEntities(players);
-    }
+    this.interpolationSystem.addSnapshot(snapshot);\n\n    // Store the newest snapshot; body/physics changes are applied by\n    // _fixedUpdate() so Rapier is never mutated from an async network event.\n    this._pendingSnapshot = snapshot;
   }
 
   _syncRemoteEntities(remotePlayers) {
