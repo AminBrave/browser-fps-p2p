@@ -45,7 +45,9 @@ export class WeaponSystem {
       weapon.justReloaded = false;
       weapon.justStartedReload = false;
 
-      if (player.isLocal && input.weaponSlot != null && input.weaponSlot >= 0) {
+      // Weapon selection is authoritative on the host, but the same input
+      // path is used locally for prediction/visual response.
+      if (input.weaponSlot != null && input.weaponSlot >= 0) {
         this._trySwitchWeapon(entity, input.weaponSlot);
         input.weaponSlot = -1;
       }
@@ -100,9 +102,8 @@ export class WeaponSystem {
         const cooled =
           now - (weapon.lastFiredTime || 0) >= (weapon.fireRateMs || 200);
 
-        let shouldFire = false;
-        if (mode === FIRE_MODE.AUTO) shouldFire = wantShoot && cooled;
-        else shouldFire = shootPressed && cooled;
+        const shouldFire =
+          mode === FIRE_MODE.AUTO ? wantShoot && cooled : shootPressed && cooled;
 
         if (shouldFire) {
           if (mag > 0) this._fireShot(ecsWorld, entity, now);
@@ -113,9 +114,9 @@ export class WeaponSystem {
   }
 
   _trySwitchWeapon(entity, slotIndex) {
-    if (!entity.loadout?.slots) return;
+    if (!entity.loadout?.slots || !entity.weapon) return;
     const slots = entity.loadout.slots;
-    if (slotIndex < 0 || slotIndex >= slots.length) return;
+    if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= slots.length) return;
     if (entity.loadout.active === slotIndex) return;
 
     const cur = entity.loadout.active;
@@ -155,15 +156,11 @@ export class WeaponSystem {
 
     const aimYaw = input.yaw || 0;
     const aimPitch = input.pitch || 0;
-
     const isFirstInBurst = (weapon.shotsInBurst || 0) === 0;
     const bloom = isFirstInBurst ? 0 : weapon.currentSpread || 0;
     const baseSpread = isFirstInBurst ? 0 : weapon.spreadBase || 0;
-
-    // Movement accuracy penalty (always applies, including first shot while sprinting)
     const intensity = moveIntensity(physics?.velocity);
-    const moveSpread =
-      intensity * (GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035);
+    const moveSpread = intensity * (GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035);
 
     weapon.magazine = Math.max(0, (weapon.magazine ?? 1) - 1);
     weapon.ammo = weapon.magazine;
@@ -183,10 +180,7 @@ export class WeaponSystem {
     const exclude = physics?.collider || null;
 
     let origin;
-    if (
-      player.isLocal &&
-      this.renderSystem?.weaponViewModel?.getMuzzleWorldPosition
-    ) {
+    if (player.isLocal && this.renderSystem?.weaponViewModel?.getMuzzleWorldPosition) {
       origin = this.renderSystem.weaponViewModel.getMuzzleWorldPosition();
     } else {
       const eyeY = GAME_CONFIG.CAMERA_HEIGHT_OFFSET || 1.6;
@@ -201,7 +195,6 @@ export class WeaponSystem {
     for (let p = 0; p < pelletCount; p++) {
       let yawOff = 0;
       let pitchOff = 0;
-
       if (pelletCount > 1) {
         const s = weapon.spreadBase || 0.04;
         yawOff = (Math.random() * 2 - 1) * s;
@@ -223,9 +216,7 @@ export class WeaponSystem {
         z: -Math.cos(yaw) * cosPitch,
       };
       const dLen = Math.hypot(dir.x, dir.y, dir.z) || 1;
-      dir.x /= dLen;
-      dir.y /= dLen;
-      dir.z /= dLen;
+      dir.x /= dLen; dir.y /= dLen; dir.z /= dLen;
 
       let endPos = {
         x: origin.x + dir.x * range,
@@ -250,7 +241,13 @@ export class WeaponSystem {
 
       createBullet(ecsWorld, this.sceneManager, origin, endPos);
       if (didHit) {
-        createImpactDecal(ecsWorld, this.sceneManager, endPos, hitNormal, hitRenderTarget);
+        createImpactDecal(
+          ecsWorld,
+          this.sceneManager,
+          endPos,
+          hitNormal,
+          hitRenderTarget
+        );
         if (player.isLocal && p === 0) audio.playImpact();
       }
 
@@ -269,7 +266,6 @@ export class WeaponSystem {
       }
     }
 
-    // Visual recoil AFTER ray resolved
     const yawKick =
       (Math.random() * 2 - 1) * (weapon.recoilYawSpread || 0.01);
     const pitchKick = weapon.recoilPitch || 0.04;
