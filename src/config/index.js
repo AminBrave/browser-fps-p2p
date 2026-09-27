@@ -2,7 +2,7 @@
 // Public configuration surface. Domain files remain separate so each concern
 // has one owner, while gameplay systems import from this stable barrel.
 
-export {
+import {
   NETWORK_CONFIG,
   GAME_CONFIG,
   INPUT_FLAGS,
@@ -14,7 +14,20 @@ export {
   peerIdToNumeric,
 } from './constants.js';
 
-export { WORLD_CONFIG } from './world.js';
+import { WORLD_CONFIG } from './world.js';
+
+export {
+  NETWORK_CONFIG,
+  GAME_CONFIG,
+  INPUT_FLAGS,
+  FIRE_MODE,
+  STANCE,
+  WEAPON_CONFIG,
+  WEAPON_LOADOUT,
+  DEFAULT_WEAPON,
+  peerIdToNumeric,
+  WORLD_CONFIG,
+};
 
 export {
   generateObjectPlacements,
