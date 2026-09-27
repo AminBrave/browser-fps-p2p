@@ -97,3 +97,16 @@ See **CHANGELOG.md** for a full history of gameplay and systems work on this bra
 ## License
 
 MIT — see `LICENSE` if present.
+
+## World and object conventions
+
+The world geometry is centralized in `src/config/world.js`. It is the single source of truth for:
+
+- Ground height, island dimensions, boundary walls, object padding and the safety floor.
+- Player spawn points and grounded player placement.
+- Crate, tree, car, barrier, path and mountain dimensions and layouts.
+- Shared object placement rules that clamp world objects inside the playable island.
+
+Rendering and Rapier physics consume the same dimensions. Ground objects are created with solid static colliders, and mountains use Rapier's native cone collider so player collision and bullet raycasts use the same solid volume as the visual mountain. An invisible safety floor provides a final containment layer below the playable ground.
+
+To modify map scale or object placement, edit `src/config/world.js` rather than changing geometry literals in entity factories.
