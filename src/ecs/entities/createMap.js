@@ -5,7 +5,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
 import { createPhysics } from '../components/Physics.js';
-import { WORLD_CONFIG } from '../../config/world.js';
+import { WORLD_CONFIG } from '../../config/index.js';
 import { createUrbanObjects } from './createUrbanObjects.js';
 
 function addToScene(sceneManager, object) {
