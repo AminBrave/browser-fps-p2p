@@ -2,6 +2,18 @@
 
 ### World geometry, normalization and containment
 
+### Rendering and physics alignment
+
+- Fixed normalized box objects disappearing while their Rapier colliders remained active by restoring scene attachment through the shared object factory.
+- Standardized every solid world-object ECS transform to a ground-level root (GROUND_Y), with visible meshes offset locally by their configured dimensions.
+- Fixed trees so trunk/canopy visuals and solid Rapier cylinder/cone colliders share the same radii, heights and local Y offsets.
+- Fixed cars so body, cabin, wheels and the solid collider share one ground-origin definition; corrected the collider height/center to cover the visible vehicle instead of leaving an invisible collision volume on the ground.
+- Converted tree and mountain rendering to local geometry offsets so RenderSystem updates cannot move their visuals away from their colliders.
+- Consolidated crate, tree, car, barrier and mountain placements into declarative entries in src/config/world.js.
+- Added a deterministic RenderSystem invariant that keeps non-boundary solid world objects visible while preserving invisible boundary walls.
+- Added native Rapier cylinder colliders for tree trunks; cone colliders remain aligned with the rendered canopy and mountains.
+
+
 - Added `src/config/world.js` as the single source of truth for ground height, island bounds, boundary dimensions, object sizes, object positions and player spawn points.
 - Normalized world-object placement through shared ground and island-boundary calculations so objects remain inside the playable area and rest on the configured ground plane.
 - Centralized player spawn height from configured player dimensions instead of hard-coded world Y positions.
