@@ -15,7 +15,9 @@ import {
   PLAYER_CHARACTER_CONFIG,
 } from '../config/index.js';
 
-export const WORLD_SCHEMA_VERSION = 1;
+export const WORLD_SCHEMA_VERSION = 2;
+export const WORLD_BUILD_ID = 'map-builder-v1';
+export const PHYSICS_PROFILE = 'rapier3d-compat-0.11.x';
 
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -49,6 +51,8 @@ export function createWorldManifest() {
   };
   const canonical = JSON.stringify({
     schemaVersion: WORLD_SCHEMA_VERSION,
+    buildId: WORLD_BUILD_ID,
+    physicsProfile: PHYSICS_PROFILE,
     config: canonicalize(config),
   });
 
@@ -64,6 +68,10 @@ export function applyWorldManifest(manifest) {
     throw new Error(
       `Unsupported world schema: ${manifest?.schemaVersion ?? 'missing'}`
     );
+  }
+
+  if (manifest.buildId !== WORLD_BUILD_ID || manifest.physicsProfile !== PHYSICS_PROFILE) {
+    throw new Error('Incompatible world build or physics profile');
   }
 
   if (!manifest.config || typeof manifest.config !== 'object') {
