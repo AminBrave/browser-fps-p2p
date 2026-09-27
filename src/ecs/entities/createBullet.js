@@ -54,11 +54,30 @@ export function createImpactDecal(
   if (n.lengthSq() < 1e-8) n.set(0, 1, 0);
   n.normalize();
 
-  // Use the Rapier hit point directly in world space. This deliberately avoids
-  // projected decals: projected decals are sensitive to a mesh's local transform,
-  // while this patch is guaranteed to sit on the exact physics surface.
+  // The physics hit is world-space, but many targets are children of a
+  // transformed root (cars, signs, trees, etc.). Parent the impact to the
+  // exact visual hit mesh and convert both point and normal into that mesh's
+  // local space. This makes the impact follow the same transform hierarchy as
+  // the surface instead of being drawn in a second, unrelated coordinate space.
   const point = new THREE.Vector3(position.x, position.y, position.z)
-    .addScaledVector(n, 0.0015);
+    .addScaledVector(n, 0.002);
+
+  if (targetMesh?.updateWorldMatrix) {
+    targetMesh.updateWorldMatrix(true, false);
+  }
+
+  const localPoint = targetMesh?.worldToLocal
+    ? targetMesh.worldToLocal(point.clone())
+    : point.clone();
+
+  let localNormal = n.clone();
+  if (targetMesh?.worldToLocal) {
+    const normalPoint = targetMesh.worldToLocal(
+      point.clone().addScaledVector(n, 1)
+    );
+    localNormal = normalPoint.sub(localPoint).normalize();
+  }
+  if (localNormal.lengthSq() < 1e-8) localNormal.set(0, 1, 0);
 
   const group = new THREE.Group();
   group.name = 'bulletImpact';
@@ -66,7 +85,7 @@ export function createImpactDecal(
 
   const q = new THREE.Quaternion().setFromUnitVectors(
     new THREE.Vector3(0, 0, 1),
-    n
+    localNormal
   );
 
   const makePatch = (radius, color, opacity, segments = 20) => {
@@ -84,7 +103,7 @@ export function createImpactDecal(
         polygonOffsetUnits: -1,
       })
     );
-    mesh.position.copy(point);
+    mesh.position.copy(localPoint);
     mesh.quaternion.copy(q);
     return mesh;
   };
@@ -108,10 +127,11 @@ export function createImpactDecal(
     })
   );
   flash.name = 'impactFlash';
-  flash.position.copy(point);
+  flash.position.copy(localPoint);
   group.add(flash);
 
-  scene?.add?.(group);
+  if (targetMesh) targetMesh.add(group);
+  else scene?.add?.(group);
 
   const entity = ecsWorld.add({
     isImpact: true,
