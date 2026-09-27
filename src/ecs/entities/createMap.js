@@ -468,7 +468,9 @@ function addPath(ecsWorld, physicsWorld, sceneManager, mapEntities) {
       0,
       size.x / 2,
       THICKNESS / 2,
-      size.z / 2
+      size.z / 2,
+      0,
+      path
     );
     addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
       position: { x: 0, y: groundY(), z: 0 },
@@ -483,6 +485,15 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
   const mapEntities = [];
   const { WIDTH, LENGTH, FLOOR_THICKNESS } = WORLD_CONFIG.MAP;
 
+  // Build the render surface before constructing the collider so the
+  // collider can retain the exact mesh target for bullet impact decals.
+  const floorMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(WIDTH, FLOOR_THICKNESS, LENGTH),
+    new THREE.MeshStandardMaterial({
+      color: WORLD_CONFIG.COLORS.GROUND,
+      roughness: 0.95,
+    })
+  );
   const floorPhysics = physicsWorld.createStaticBox(
     0,
     groundY() - FLOOR_THICKNESS / 2,
@@ -492,13 +503,6 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
     LENGTH / 2,
     0,
     floorMesh
-  );
-  const floorMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(WIDTH, FLOOR_THICKNESS, LENGTH),
-    new THREE.MeshStandardMaterial({
-      color: WORLD_CONFIG.COLORS.GROUND,
-      roughness: 0.95,
-    })
   );
   floorMesh.position.y = -FLOOR_THICKNESS / 2;
   floorMesh.receiveShadow = true;
