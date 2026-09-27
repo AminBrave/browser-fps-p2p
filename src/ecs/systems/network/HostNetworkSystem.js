@@ -1,8 +1,6 @@
 import { PACKET_TYPES } from '../../../network/PacketTypes.js';
 import { Protocol } from '../../../network/Protocol.js';
-import { INPUT_FLAGS, STANCE } from '../../../config/index.js';
-
-const MAX_PENDING_PEERS = 32;
+import { GAME_CONFIG, INPUT_FLAGS, NETWORK_CONFIG, STANCE } from '../../../config/index.js';
 
 function isNewerSequence(next, previous) {
   if (previous == null) return true;
@@ -22,7 +20,7 @@ export class HostNetworkSystem {
     this.lastReceivedSequence = new Map();
     this.serverTick = 0;
     this.lastBroadcastTime = 0;
-    this.broadcastIntervalMs = 1000 / 30;
+    this.broadcastIntervalMs = 1000 / Math.max(1, NETWORK_CONFIG.SNAPSHOT_BROADCAST_RATE);
 
     this.peerManager.onData((peerId, dataView) => {
       if (
@@ -43,7 +41,7 @@ export class HostNetworkSystem {
 
       // Defensive bound in case a PeerJS connection survives while its ECS
       // entity is being removed.
-      while (this.incomingInputs.size > MAX_PENDING_PEERS) {
+      while (this.incomingInputs.size > GAME_CONFIG.MAX_PLAYERS) {
         const oldestPeer = this.incomingInputs.keys().next().value;
         this.incomingInputs.delete(oldestPeer);
         this.lastReceivedSequence.delete(oldestPeer);
