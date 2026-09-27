@@ -117,6 +117,7 @@ export class WeaponSystem {
             audio.playReloadStart();
             this.renderSystem?.weaponViewModel?.onReloadStart?.();
           }
+          // Emit exactly one reload-start event; keep this block balanced for Vite parsing.
           this._emit({ type: EVENT_TYPES.SFX, sfx: 'reloadStart', sourceId: player.id, position: { ...transform.position } });
         }
       }
