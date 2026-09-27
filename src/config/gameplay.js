@@ -1,0 +1,8 @@
+// src/config/gameplay.js
+
+export const GAME_CONFIG = Object.freeze({
+  TICK_RATE: 60,
+  MAX_DECALS: 100,
+  RECOIL_RECOVERY: 10.0,
+  BOB_INTENSITY: 1.0,
+});
