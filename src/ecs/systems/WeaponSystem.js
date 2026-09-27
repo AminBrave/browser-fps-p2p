@@ -230,10 +230,6 @@ export class WeaponSystem {
       this.renderSystem?.weaponViewModel?.onFired?.(0.1 + (weapon.recoilPitch || 0) * 2);
     }
 
-    const effectiveSteadySpread = (steadySpread + baseSpread + bloom) * aimMultiplier * stanceMultiplier;
-    const effectiveMoveSpread = moveSpread * movementMultiplier;
-    const effectiveSpread = effectiveSteadySpread + effectiveMoveSpread + sprintSpread;
-
     const pelletCount = Math.max(1, weapon.pelletCount || 1);
     const range = weapon.range || 100;
     const exclude = physics?.colliders || physics?.collider || null;
