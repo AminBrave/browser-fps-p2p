@@ -4,7 +4,7 @@ import {
   INPUT_FLAGS,
   GAME_CONFIG,
   FIRE_MODE,
-} from '../../config/constants.js';
+} from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { createBullet, createImpactDecal, createBloodImpact } from '../entities/createBullet.js';
 import { copyWeaponState } from '../components/Weapon.js';
