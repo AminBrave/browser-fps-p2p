@@ -517,7 +517,7 @@ function addPath(ecsWorld, physicsWorld, sceneManager, mapEntities) {
       path
     );
     addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
-      position: { x: 0, y: groundY(), z: 0 },
+      position: { x: 0, y: groundY() + THICKNESS / 2, z: 0 },
       physics,
       mesh: path,
       name: 'path',
@@ -552,7 +552,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
   floorMesh.receiveShadow = true;
 
   addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
-    position: { x: 0, y: groundY(), z: 0 },
+    position: { x: 0, y: groundY() - FLOOR_THICKNESS / 2, z: 0 },
     physics: floorPhysics,
     mesh: floorMesh,
     name: 'ground',
