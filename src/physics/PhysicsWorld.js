@@ -144,12 +144,12 @@ export class PhysicsWorld {
     const scale = pose.scaleY;
     const radialScale = PHYSICS_CONFIG.HITBOX.RADIAL_BASE + PHYSICS_CONFIG.HITBOX.RADIAL_SCALE * scale;
 
-    const torsoHalf = Math.max(0.12, height * PHYSICS_CONFIG.HITBOX.TORSO_HALF_HEIGHT_FACTOR) * scale;
+    const torsoHalf = Math.max(PHYSICS_CONFIG.HITBOX.TORSO_MIN_HALF_HEIGHT, height * PHYSICS_CONFIG.HITBOX.TORSO_HALF_HEIGHT_FACTOR) * scale;
     const torsoRadius = Math.min(radius * PHYSICS_CONFIG.HITBOX.TORSO_RADIUS_FACTOR, PHYSICS_CONFIG.HITBOX.TORSO_MAX_RADIUS) * radialScale;
     const headRadius = Math.min(radius * PHYSICS_CONFIG.HITBOX.HEAD_RADIUS_FACTOR, PHYSICS_CONFIG.HITBOX.HEAD_MAX_RADIUS) * radialScale;
-    const limbRadius = Math.max(0.055, radius * PHYSICS_CONFIG.HITBOX.LIMB_RADIUS_FACTOR) * radialScale;
-    const armHalf = Math.max(0.08, height * PHYSICS_CONFIG.HITBOX.ARM_HALF_HEIGHT_FACTOR) * scale;
-    const legHalf = Math.max(0.10, height * PHYSICS_CONFIG.HITBOX.LEG_HALF_HEIGHT_FACTOR) * scale;
+    const limbRadius = Math.max(PHYSICS_CONFIG.HITBOX.LIMB_MIN_RADIUS, radius * PHYSICS_CONFIG.HITBOX.LIMB_RADIUS_FACTOR) * radialScale;
+    const armHalf = Math.max(PHYSICS_CONFIG.HITBOX.ARM_MIN_HALF_HEIGHT, height * PHYSICS_CONFIG.HITBOX.ARM_HALF_HEIGHT_FACTOR) * scale;
+    const legHalf = Math.max(PHYSICS_CONFIG.HITBOX.LEG_MIN_HALF_HEIGHT, height * PHYSICS_CONFIG.HITBOX.LEG_HALF_HEIGHT_FACTOR) * scale;
     const armX = radius * PHYSICS_CONFIG.HITBOX.ARM_X_FACTOR * radialScale;
     const legX = radius * PHYSICS_CONFIG.HITBOX.LEG_X_FACTOR * radialScale;
 
@@ -166,9 +166,9 @@ export class PhysicsWorld {
     setCapsule(colliders[1], torsoHalf, torsoRadius, 0, height * PHYSICS_CONFIG.HITBOX.TORSO_Y_FACTOR * scale + pose.offsetY);
     setBall(colliders[2], headRadius, 0, height * PHYSICS_CONFIG.HITBOX.HEAD_Y_FACTOR * scale + pose.offsetY + (scale < 1 ? PHYSICS_CONFIG.HITBOX.CROUCH_HEAD_Y_BIAS : 0));
     setCapsule(colliders[3], armHalf, limbRadius, -armX, height * PHYSICS_CONFIG.HITBOX.ARM_Y_FACTOR * scale + pose.offsetY);
-    setCapsule(colliders[4], armHalf, limbRadius, armX, height * 0.02 * scale + pose.offsetY);
+    setCapsule(colliders[4], armHalf, limbRadius, armX, height * PHYSICS_CONFIG.HITBOX.ARM_Y_FACTOR * scale + pose.offsetY);
     setCapsule(colliders[5], legHalf, limbRadius, -legX, height * PHYSICS_CONFIG.HITBOX.LEG_Y_FACTOR * scale + pose.offsetY);
-    setCapsule(colliders[6], legHalf, limbRadius, legX, -height * 0.38 * scale + pose.offsetY);
+    setCapsule(colliders[6], legHalf, limbRadius, legX, height * PHYSICS_CONFIG.HITBOX.LEG_Y_FACTOR * scale + pose.offsetY);
   }
 
   createStaticBox(x, y, z, hx, hy, hz, rotationY = 0, renderTarget = null) {
