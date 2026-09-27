@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GAME_CONFIG, PLAYER_CONFIG, DEFAULT_WEAPON } from '../../config/index.js';
 import { WORLD_CONFIG } from '../../config/index.js';
+import { clearPlayerImpactMarks } from '../entities/createBullet.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
 
@@ -107,6 +108,7 @@ export class HealthSystem {
         player.health = Math.max(0, player.health - damage);
         if (damage > 0 && event.attackerId != null) {
           player.lastDamagedBy = event.attackerId;
+          player.lastDamagedAt = now;
         }
         if (player.health <= 0 && before > 0) {
           player.isDead = true;
@@ -138,6 +140,23 @@ export class HealthSystem {
       const player = entity.player;
       const transform = entity.transform;
       const physics = entity.physics;
+      if (player && !player.isDead) {
+        const maxHealth = Math.max(1, Number(player.maxHealth) || PLAYER_CONFIG.MAX_HEALTH || 100);
+        const health = Math.max(0, Number(player.health) || 0);
+        const delay = Math.max(0, Number(GAME_CONFIG.HEALTH_REGEN?.DELAY_MS) || 3500);
+        const rate = Math.max(0, Number(GAME_CONFIG.HEALTH_REGEN?.RATE_PER_SECOND) || 12);
+        if (health < maxHealth && now - (Number(player.lastDamagedAt) || 0) >= delay) {
+          const previousHealth = health;
+          const delta = Math.min(maxHealth - health, rate / 60);
+          player.health = health + delta;
+          player.impactMarkClearAccumulator = (Number(player.impactMarkClearAccumulator) || 0) + delta / maxHealth;
+          const clearFraction = Math.min(1, player.impactMarkClearAccumulator);
+          if (clearFraction > 0) {
+            clearPlayerImpactMarks(ecsWorld, entity, clearFraction);
+            player.impactMarkClearAccumulator = Math.max(0, player.impactMarkClearAccumulator - clearFraction);
+          }
+        }
+      }
       if (!player?.isDead) continue;
 
       const respawnDelay = GAME_CONFIG.RESPAWN_TIME_MS || 3000;
@@ -146,6 +165,8 @@ export class HealthSystem {
       const spawn = this._findSpawn(ecsWorld, entity);
       player.isDead = false;
       player.health = player.maxHealth || PLAYER_CONFIG.MAX_HEALTH || 100;
+      player.lastDamagedAt = now;
+      player.impactMarkClearAccumulator = 0;
       player.respawnTimer = 0;
 
       transform.position.x = spawn.x;
