@@ -8,8 +8,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
 import { createPhysics } from '../components/Physics.js';
-import { WORLD_CONFIG } from '../../config/index.js';
-import { generateObjectPlacements } from '../../config/index.js';
+import { WORLD_CONFIG, generateObjectPlacements } from '../../config/index.js';
 
 const MAT = {
   concrete: new THREE.MeshStandardMaterial({ color: 0x777b78, roughness: 0.88 }),
