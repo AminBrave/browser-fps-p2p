@@ -1,4 +1,4 @@
-import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, WORLD_CONFIG, validateConfig } from './config/index.js';
+import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, INPUT_FLAGS, WORLD_CONFIG, validateConfig } from './config/index.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
@@ -19,6 +19,7 @@ import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
 import { createBullet, createImpactDecal, createBloodImpact, disposeImpactDecals } from './ecs/entities/createBullet.js';
 import { applyWorldManifest } from './network/WorldSync.js';
+import { moveIntensity } from './utils/Movement.js';
 
 export class ClientGame {
   constructor(containerElement) {
@@ -209,18 +210,35 @@ export class ClientGame {
     const input = this.localEntity?.input;
     const weapon = this.localEntity?.weapon;
     const recoil = Math.abs(Number(weapon?.cameraRecoilPitch) || 0);
+    const mask = input?.inputMask || 0;
     const isSprinting = !!(
-      input?.inputMask &&
-      (input.inputMask & (1 << 9)) &&
-      (input.inputMask & (1 << 0)) &&
-      (input.stance ?? 0) === 0
+      (mask & INPUT_FLAGS.SPRINT) &&
+      (mask & INPUT_FLAGS.FORWARD) &&
+      (input?.stance ?? STANCE.STAND) === STANCE.STAND
     );
+
+    // Feed the HUD the same live spread components used by WeaponSystem so
+    // the reticle is a visual readout of actual shot dispersion.
+    const intensity = moveIntensity(velocity);
+    const stanceMultiplier =
+      (input?.stance ?? STANCE.STAND) === STANCE.PRONE ? 0.60 :
+      (input?.stance ?? STANCE.STAND) === STANCE.CROUCH ? 0.78 : 1.0;
+    const steady = Number(weapon?.steadySpread) || 0.003;
+    const base = Number(weapon?.spreadBase) || 0;
+    const bloom = Number(weapon?.currentSpread) || 0;
+    const aimMultiplier = input?.isAiming && !isSprinting ? 0.08 : 1.0;
+    const movementMultiplier = input?.isAiming && !isSprinting ? 0.45 : 1.0;
+    const movementSpread = intensity * (GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035) * movementMultiplier;
+    const sprintSpread = isSprinting ? 0.075 : 0;
+    const liveSpread = (steady + base + bloom) * aimMultiplier * stanceMultiplier +
+      movementSpread + sprintSpread;
+
     this.hud.updateCrosshair(
       speed,
       !!input?.isAiming,
-      Number(weapon?.currentSpread) || 0,
-      Number(weapon?.spreadMax) || 0.05,
-      !!(input?.inputMask && (input.inputMask & (1 << 5))),
+      liveSpread,
+      Math.max(0.12, Number(weapon?.spreadMax) || 0.05),
+      !!(mask & INPUT_FLAGS.SHOOT),
       recoil,
       isSprinting
     );
