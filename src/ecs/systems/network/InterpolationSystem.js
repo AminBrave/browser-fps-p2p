@@ -1,50 +1,51 @@
-// src/ecs/systems/network/InterpolationSystem.js
-
 import { GAME_CONFIG, NETWORK_CONFIG } from '../../../config/constants.js';
 
 /**
- * InterpolationSystem (Client-Only)
- * Buffers snapshot state updates received from the host and smoothly interpolates (LERPs)
- * remote player positions and rotations behind real-time to eliminate visual jitter.
+ * Client-only snapshot interpolation.
  *
- * Uses Miniplex v2 entity objects (playerEntities is an array of entity objects).
+ * Snapshots are indexed by entity id for O(players) interpolation rather than
+ * performing an Array.find for every entity on every render frame.
  */
 export class InterpolationSystem {
-  /**
-   * @param {number} [renderDelayMs]
-   */
   constructor(renderDelayMs) {
     this.renderDelayMs =
       renderDelayMs ??
       GAME_CONFIG.INTERPOLATION_DELAY_MS ??
       NETWORK_CONFIG.INTERPOLATION_BUFFER_MS ??
       100;
+
     this.snapshotBuffer = [];
+    this.maxSnapshots = 30;
   }
 
-  /**
-   * @param {object} snapshot - Decoded state snapshot from host (must have timestamp + players/entities)
-   */
   addSnapshot(snapshot) {
     if (!snapshot) return;
-    // Ensure timestamp exists (Protocol.decodeWorldSnapshot already stamps it)
-    if (snapshot.timestamp == null) {
-      snapshot.timestamp = performance.now();
-    }
-    this.snapshotBuffer.push(snapshot);
-    if (this.snapshotBuffer.length > 30) {
-      this.snapshotBuffer.shift();
+
+    const timestamp =
+      typeof snapshot.timestamp === 'number'
+        ? snapshot.timestamp
+        : performance.now();
+
+    const normalized = {
+      ...snapshot,
+      timestamp,
+      players: snapshot.players || snapshot.entities || [],
+    };
+
+    const last = this.snapshotBuffer[this.snapshotBuffer.length - 1];
+    if (last && timestamp <= last.timestamp) return;
+
+    this.snapshotBuffer.push(normalized);
+    if (this.snapshotBuffer.length > this.maxSnapshots) {
+      this.snapshotBuffer.splice(
+        0,
+        this.snapshotBuffer.length - this.maxSnapshots
+      );
     }
   }
 
-  /**
-   * @param {object} ecsWorld
-   * @param {Array<object>} playerEntities - Array of Miniplex entity objects
-   * @param {object|null} localEntity - Local player entity (excluded from remote interpolation)
-   * @param {number} currentTime
-   */
   update(ecsWorld, playerEntities, localEntity, currentTime) {
-    if (!this.snapshotBuffer || this.snapshotBuffer.length < 2) return;
+    if (this.snapshotBuffer.length < 2) return;
 
     const renderTime = currentTime - this.renderDelayMs;
 
@@ -55,64 +56,70 @@ export class InterpolationSystem {
       this.snapshotBuffer.shift();
     }
 
-    const fromSnapshot = this.snapshotBuffer[0];
-    const toSnapshot = this.snapshotBuffer[1];
+    const from = this.snapshotBuffer[0];
+    const to = this.snapshotBuffer[1];
+    if (!from || !to || from.timestamp >= to.timestamp) return;
 
-    if (
-      !fromSnapshot ||
-      !toSnapshot ||
-      fromSnapshot.timestamp >= toSnapshot.timestamp
-    ) {
-      return;
-    }
+    const alpha = Math.max(
+      0,
+      Math.min(
+        1,
+        (renderTime - from.timestamp) / (to.timestamp - from.timestamp)
+      )
+    );
 
-    const totalSpan = toSnapshot.timestamp - fromSnapshot.timestamp;
-    if (totalSpan <= 0) return;
-    const elapsedSpan = renderTime - fromSnapshot.timestamp;
-    const alpha = Math.max(0, Math.min(1, elapsedSpan / totalSpan));
+    const fromById = this._indexPlayers(from.players);
+    const toById = this._indexPlayers(to.players);
 
-    const fromPlayers = fromSnapshot.players || fromSnapshot.entities || [];
-    const toPlayers = toSnapshot.players || toSnapshot.entities || [];
-
-    const entities = Array.isArray(playerEntities) ? playerEntities : [];
-
-    for (let i = 0; i < entities.length; i++) {
-      const entity = entities[i];
+    for (const entity of playerEntities || []) {
       if (!entity || entity === localEntity) continue;
+      const player = entity.player;
+      const transform = entity.transform;
+      if (!player || !transform || player.isLocal) continue;
 
-      const playerComp = entity.player;
-      const transformComp = entity.transform;
-      if (!playerComp || !transformComp) continue;
-      if (playerComp.isLocal) continue;
+      const before = fromById.get(player.id);
+      const after = toById.get(player.id);
+      if (!before || !after) continue;
 
-      const id = playerComp.id;
-      const pFrom = fromPlayers.find((p) => (p.id ?? p.entityId) === id);
-      const pTo = toPlayers.find((p) => (p.id ?? p.entityId) === id);
+      const fx = before.x ?? before.position?.x ?? 0;
+      const fy = before.y ?? before.position?.y ?? 0;
+      const fz = before.z ?? before.position?.z ?? 0;
+      const tx = after.x ?? after.position?.x ?? 0;
+      const ty = after.y ?? after.position?.y ?? 0;
+      const tz = after.z ?? after.position?.z ?? 0;
 
-      if (!pFrom || !pTo) continue;
+      const x = fx + (tx - fx) * alpha;
+      const y = fy + (ty - fy) * alpha;
+      const z = fz + (tz - fz) * alpha;
 
-      const fx = pFrom.x ?? pFrom.position?.x ?? 0;
-      const fy = pFrom.y ?? pFrom.position?.y ?? 0;
-      const fz = pFrom.z ?? pFrom.position?.z ?? 0;
-      const tx = pTo.x ?? pTo.position?.x ?? 0;
-      const ty = pTo.y ?? pTo.position?.y ?? 0;
-      const tz = pTo.z ?? pTo.position?.z ?? 0;
+      transform.position.x = x;
+      transform.position.y = y;
+      transform.position.z = z;
 
-      transformComp.position.x = fx + (tx - fx) * alpha;
-      transformComp.position.y = fy + (ty - fy) * alpha;
-      transformComp.position.z = fz + (tz - fz) * alpha;
+      // Keep the remote physics proxy aligned with the rendered transform.
+      // This prevents client-side raycasts from using the original spawn point.
+      entity.physics?.rigidBody?.setTranslation?.({ x, y, z }, true);
 
-      const yawFrom = pFrom.yaw ?? pFrom.rotation?.yaw ?? 0;
-      const yawTo = pTo.yaw ?? pTo.rotation?.yaw ?? 0;
-      if (transformComp.rotation) {
-        transformComp.rotation.yaw = this._lerpAngle(yawFrom, yawTo, alpha);
+      const yawFrom = before.yaw ?? before.rotation?.yaw ?? 0;
+      const yawTo = after.yaw ?? after.rotation?.yaw ?? 0;
+      if (transform.rotation) {
+        transform.rotation.yaw = this._lerpAngle(yawFrom, yawTo, alpha);
       }
 
-      if (pTo.health !== undefined) {
-        playerComp.health = pTo.health;
-        playerComp.isDead = playerComp.health <= 0;
+      if (after.health !== undefined) {
+        player.health = after.health;
+        player.isDead = player.health <= 0;
       }
     }
+  }
+
+  _indexPlayers(players) {
+    const map = new Map();
+    for (const player of players || []) {
+      const id = player?.id ?? player?.entityId;
+      if (id != null) map.set(id, player);
+    }
+    return map;
   }
 
   _lerpAngle(from, to, alpha) {
@@ -120,5 +127,9 @@ export class InterpolationSystem {
     if (delta > Math.PI) delta -= Math.PI * 2;
     if (delta < -Math.PI) delta += Math.PI * 2;
     return from + delta * alpha;
+  }
+
+  dispose() {
+    this.snapshotBuffer.length = 0;
   }
 }
