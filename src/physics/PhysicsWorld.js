@@ -1,6 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { GAME_CONFIG } from '../config/constants.js';
-import { WORLD_CONFIG } from '../config/world.js';
+import { GAME_CONFIG } from '../config/index.js';
+import { WORLD_CONFIG } from '../config/index.js';
 
 export class PhysicsWorld {
   constructor() {
