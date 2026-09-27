@@ -235,7 +235,7 @@ export function updatePlayerImpactMarksForHealth(ecsWorld, playerEntity, health,
   const healthOpacity = 1 - current / max;
 
   for (const entity of decals) {
-    if (!entity?.isPlayerImpactMark || entity.impactMarkOwner !== playerEntity) continue;
+    if (!entity?.isPlayerImpactMark || entity.impactMarkOwnerId !== playerId) continue;
     const mesh = entity.renderMesh?.mesh;
     if (!mesh) continue;
 
@@ -264,7 +264,7 @@ export function getPlayerImpactMarkCount(ecsWorld, playerEntity) {
   if (!decals || playerId == null) return 0;
   return decals.filter((e) =>
     e?.isPlayerImpactMark &&
-    e?.impactMarkOwner === playerEntity &&
+    e?.impactMarkOwnerId === playerId &&
     e?.renderMesh?.mesh
   ).length;
 }
