@@ -202,7 +202,14 @@ export class WeaponSystem {
       (input.stance ?? 0) === 0;
     const moveSpread = intensity * (GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035);
     const sprintSpread = sprinting ? 0.075 : 0;
-    const aimMultiplier = input.isAiming ? 0.12 : 1.0;
+    const stanceMultiplier =
+      (input.stance ?? 0) === 2 ? 0.60 :
+      (input.stance ?? 0) === 1 ? 0.78 : 1.0;
+    // ADS tightens the weapon's inherent/bloom cone by ~92%. Movement is
+    // intentionally only partially reduced: a moving shooter is still less
+    // stable than a stationary shooter even while aiming.
+    const aimMultiplier = input.isAiming && !sprinting ? 0.08 : 1.0;
+    const movementMultiplier = input.isAiming && !sprinting ? 0.45 : 1.0;
 
     weapon.magazine = Math.max(0, (weapon.magazine ?? 1) - 1);
     weapon.ammo = weapon.magazine;
@@ -215,6 +222,10 @@ export class WeaponSystem {
       this.renderSystem?.weaponViewModel?.onFired?.(0.1 + (weapon.recoilPitch || 0) * 2);
     }
 
+    const effectiveSteadySpread = (steadySpread + baseSpread + bloom) * aimMultiplier * stanceMultiplier;
+    const effectiveMoveSpread = moveSpread * movementMultiplier;
+    const effectiveSpread = effectiveSteadySpread + effectiveMoveSpread + sprintSpread;
+
     const pelletCount = Math.max(1, weapon.pelletCount || 1);
     const range = weapon.range || 100;
     const exclude = physics?.colliders || physics?.collider || null;
@@ -225,13 +236,13 @@ export class WeaponSystem {
       let yawOff = 0;
       let pitchOff = 0;
       if (pelletCount > 1) {
-        const s = ((Number(weapon.spreadBase) || 0.04) + (Number(weapon.steadySpread) || 0.008) + moveSpread + sprintSpread) * aimMultiplier;
+        const s = ((Number(weapon.spreadBase) || 0.04) + (Number(weapon.steadySpread) || 0.008) + bloom) * aimMultiplier * stanceMultiplier + effectiveMoveSpread + sprintSpread;
         const angle = Math.random() * Math.PI * 2;
         const radius = Math.sqrt(Math.random()) * s;
         yawOff = Math.cos(angle) * radius;
         pitchOff = Math.sin(angle) * radius;
       } else {
-        const spread = (steadySpread + baseSpread + bloom + moveSpread + sprintSpread) * aimMultiplier;
+        const spread = effectiveSpread;
         if (spread > 0) {
           // Uniform disk sampling avoids the unnatural square-shaped accuracy cone.
           const angle = Math.random() * Math.PI * 2;
