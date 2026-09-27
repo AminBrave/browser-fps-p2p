@@ -124,7 +124,7 @@ export function createPlayer(
       const crouch = stance === 1;
       const prone = stance === 2;
       mesh.scale.y = prone ? 0.42 : crouch ? 0.72 : 1;
-      mesh.position.y = groundedY + (prone ? -0.58 : crouch ? -0.28 : 0);
+      mesh.position.y += prone ? -0.58 : crouch ? -0.28 : 0;
       const aim = THREE.MathUtils.clamp(pitch * 0.45, -0.55, 0.55);
       head.rotation.x = aim;
       helmet.rotation.x = aim;
