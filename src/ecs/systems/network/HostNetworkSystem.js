@@ -1,6 +1,6 @@
 import { PACKET_TYPES } from '../../../network/PacketTypes.js';
 import { Protocol } from '../../../network/Protocol.js';
-import { INPUT_FLAGS, STANCE } from '../../../config/constants.js';
+import { INPUT_FLAGS, STANCE } from '../../../config/index.js';
 
 const MAX_PENDING_PEERS = 32;
 
