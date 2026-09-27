@@ -1,4 +1,5 @@
 import { PACKET_TYPES } from './PacketTypes.js';
+import { GAME_CONFIG } from '../config/index.js';
 
 const CLIENT_INPUT_SIZE = 16;
 const SNAPSHOT_HEADER_SIZE = 10;
@@ -142,7 +143,7 @@ export class Protocol {
       );
       view.setUint8(
         offset + 24,
-        Math.max(0, Math.min(255, Number(e.health ?? 100) | 0))
+        Math.max(0, Math.min(255, Number(e.health ?? GAME_CONFIG.MAX_HEALTH) | 0))
       );
       view.setUint8(
         offset + 25,
