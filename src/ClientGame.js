@@ -64,6 +64,15 @@ export class ClientGame {
       this.renderSystem
     );
 
+    this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
+    await this._worldReadyPromise;
+    validateConfig();
+
+    // Rebuild simulation timing/buffers from the host's authoritative
+    // configuration before constructing any prediction/reconciliation system.
+    this.fixedDeltaTime =
+      1 / (NETWORK_CONFIG.CLIENT_TICK_RATE || GAME_CONFIG.TICK_RATE || 60);
+    this.pendingInputBuffer = new CircularBuffer(NETWORK_CONFIG.INPUT_HISTORY_SIZE);
     this.predictSystem = new ClientPredictSystem(
       this.physicsWorld,
       this.pendingInputBuffer
@@ -73,10 +82,6 @@ export class ClientGame {
       this.pendingInputBuffer
     );
     this.interpolationSystem = new InterpolationSystem();
-
-    this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
-    await this._worldReadyPromise;
-    validateConfig();
 
     createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
 
