@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
-import { GAME_CONFIG } from '../../config/constants.js';
+import { GAME_CONFIG } from '../../config/index.js';
 
 // Scope decal ownership to an ECS world. A module-global array would retain
 // entities/scenes after a match is destroyed.
