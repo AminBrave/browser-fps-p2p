@@ -58,6 +58,8 @@ export function createWorldManifest() {
 
   return {
     schemaVersion: WORLD_SCHEMA_VERSION,
+    buildId: WORLD_BUILD_ID,
+    physicsProfile: PHYSICS_PROFILE,
     hash: fnv1a32(canonical),
     config,
   };
@@ -80,6 +82,8 @@ export function applyWorldManifest(manifest) {
 
   const canonical = JSON.stringify({
     schemaVersion: WORLD_SCHEMA_VERSION,
+    buildId: manifest.buildId,
+    physicsProfile: manifest.physicsProfile,
     config: canonicalize(manifest.config),
   });
 
