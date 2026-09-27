@@ -54,12 +54,7 @@ export class PhysicsWorld {
     const body = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.fixed()
         .setTranslation(x, y, z)
-        .setRotation({
-          x: 0,
-          y: Math.sin(rotationY / 2),
-          z: 0,
-          w: Math.cos(rotationY / 2),
-        })
+        .setRotation(this._yawQuaternion(rotationY))
     );
     const collider = this.world.createCollider(
       RAPIER.ColliderDesc.cuboid(hx, hy, hz),
@@ -68,17 +63,43 @@ export class PhysicsWorld {
     return { body, collider };
   }
 
-  createStaticCone(x, y, z, radius, height) {
+  createStaticCone(x, y, z, radius, height, rotationY = 0) {
     if (!this.world) throw new Error('Physics world is not initialized');
 
     const body = this.world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z)
+      RAPIER.RigidBodyDesc.fixed()
+        .setTranslation(x, y, z)
+        .setRotation(this._yawQuaternion(rotationY))
     );
     const collider = this.world.createCollider(
       RAPIER.ColliderDesc.cone(height / 2, radius),
       body
     );
     return { body, collider };
+  }
+
+  createStaticCylinder(x, y, z, radius, height, rotationY = 0) {
+    if (!this.world) throw new Error('Physics world is not initialized');
+
+    const body = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed()
+        .setTranslation(x, y, z)
+        .setRotation(this._yawQuaternion(rotationY))
+    );
+    const collider = this.world.createCollider(
+      RAPIER.ColliderDesc.cylinder(height / 2, radius),
+      body
+    );
+    return { body, collider };
+  }
+
+  _yawQuaternion(rotationY = 0) {
+    return {
+      x: 0,
+      y: Math.sin(rotationY / 2),
+      z: 0,
+      w: Math.cos(rotationY / 2),
+    };
   }
 
   createWorldSafetyFloor() {
