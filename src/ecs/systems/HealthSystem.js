@@ -31,65 +31,56 @@ export class HealthSystem {
   }
 
   _isSpawnFree(ecsWorld, entity, x, y, z) {
-    const radius = PLAYER_CONFIG.RADIUS + 0.08;
-    const halfHeight = PLAYER_CONFIG.HEIGHT / 2;
-
-    const overlapsAabb = (box) => {
-      const closestX = Math.max(box.min.x, Math.min(x, box.max.x));
-      const closestZ = Math.max(box.min.z, Math.min(z, box.max.z));
-      const dx = x - closestX;
-      const dz = z - closestZ;
-      const vertical = y - halfHeight < box.max.y && y + halfHeight > box.min.y;
-      return vertical && dx * dx + dz * dz <= radius * radius;
-    };
-
-    for (const other of ecsWorld.with('player', 'transform')) {
-      if (other === entity || other.player?.isDead) continue;
-      const p = other.transform.position;
-      if (Math.hypot(p.x - x, p.z - z) < GAME_CONFIG.PLAYER_RADIUS * 2 + 0.12) {
-        return false;
-      }
-    }
-
-    for (const object of ecsWorld.with('isSolid', 'renderMesh')) {
-      if (object === entity || object.isBoundary === false && object.isMap === false) continue;
-      const mesh = object.renderMesh?.mesh;
-      if (!mesh) continue;
-      mesh.updateWorldMatrix(true, true);
-      const box = new THREE.Box3().setFromObject(mesh);
-      if (box.isEmpty()) continue;
-      if (overlapsAabb(box)) return false;
-    }
-
-    return true;
+    return this.physicsWorld?.isSpawnPositionSafe?.(
+      ecsWorld,
+      { x, y, z },
+      PLAYER_CONFIG.RADIUS,
+      PLAYER_CONFIG.HEIGHT,
+      entity
+    ) ?? false;
   }
 
   _findSpawn(ecsWorld, entity) {
+    const map = WORLD_CONFIG.MAP;
+    const halfWidth = Math.max(1, map.WIDTH / 2 - PLAYER_CONFIG.RADIUS - 0.5);
+    const halfLength = Math.max(1, map.LENGTH / 2 - PLAYER_CONFIG.RADIUS - 0.5);
+    const y = WORLD_CONFIG.GROUND_Y + PLAYER_CONFIG.HEIGHT / 2 + 0.04;
+
+    // Respawns are intentionally randomized rather than cycling through fixed
+    // points. The authoritative host chooses the position; clients receive it
+    // through the normal world snapshot, so there is only one source of truth.
+    const attempts = 96;
+    for (let i = 0; i < attempts; i++) {
+      const x = THREE.MathUtils.randFloat(-halfWidth, halfWidth);
+      const z = THREE.MathUtils.randFloat(-halfLength, halfLength);
+      if (this._isSpawnFree(ecsWorld, entity, x, y, z)) {
+        return { x, y, z };
+      }
+    }
+
+    // If the random search is saturated, fall back to configured spawn points,
+    // but still validate every point against the real physics world. Never
+    // teleport into a mesh merely because a configured point exists.
     const configured = WORLD_CONFIG.PLAYER.SPAWN_POINTS || [];
-    const candidates = [];
-    for (const point of configured) candidates.push(point);
-
-    // Deterministic fallback grid: no random respawns inside geometry.
-    for (let z = -28; z <= 28; z += 8) {
-      for (let x = -28; x <= 28; x += 8) {
-        candidates.push({ x, z });
+    const offset = Math.floor(Math.random() * Math.max(1, configured.length));
+    for (let i = 0; i < configured.length; i++) {
+      const point = configured[(offset + i) % configured.length];
+      const px = Number(point.x) || 0;
+      const pz = Number(point.z) || 0;
+      if (this._isSpawnFree(ecsWorld, entity, px, y, pz)) {
+        return { x: px, y, z: pz };
       }
     }
 
-    const start = this.spawnCursor++ % Math.max(1, candidates.length);
-    for (let i = 0; i < candidates.length; i++) {
-      const point = candidates[(start + i) % candidates.length];
-      const y = WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2 + 0.04;
-      if (this._isSpawnFree(ecsWorld, entity, point.x, y, point.z)) {
-        return { x: point.x, y, z: point.z };
-      }
+    // Last-resort search around the map center. It is bounded and physics
+    // validated; if no valid location exists, keep the player at its current
+    // position rather than injecting it into world geometry.
+    const current = entity.transform?.position;
+    if (current && this._isSpawnFree(ecsWorld, entity, current.x, y, current.z)) {
+      return { x: current.x, y, z: current.z };
     }
 
-    return {
-      x: 0,
-      y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2 + 0.5,
-      z: 0,
-    };
+    return null;
   }
 
   update(ecsWorld, damageQueue = null) {
@@ -193,6 +184,12 @@ export class HealthSystem {
       if (now - (player.deathTime || 0) < respawnDelay) continue;
 
       const spawn = this._findSpawn(ecsWorld, entity);
+      if (!spawn) {
+        // No safe location exists this tick. Keep the player dead and retry on
+        // the next health-system update instead of forcing an invalid teleport.
+        continue;
+      }
+
       player.isDead = false;
       player.health = player.maxHealth || PLAYER_CONFIG.MAX_HEALTH || 100;
       player.lastDamagedAt = now;
