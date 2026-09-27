@@ -152,6 +152,7 @@ export class HostNetworkSystem {
         kills: player.kills ?? 0,
         deaths: player.deaths ?? 0,
         isHost: !!player.isHost,
+        isAiming: !!entity.input?.isAiming,
       });
     }
 
