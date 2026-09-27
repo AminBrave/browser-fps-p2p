@@ -486,9 +486,17 @@ export class WeaponViewModel {
     }
 
     const aim = this._aimAmount;
-    const targetX = RENDER_CONFIG.AIM.WEAPON_POSITION_X;
-    const targetY = RENDER_CONFIG.AIM.WEAPON_POSITION_Y;
-    const targetZ = RENDER_CONFIG.AIM.WEAPON_POSITION_Z;
+    const pose = RENDER_CONFIG.AIM.WEAPON_POSES?.[this._activeId] || {
+      x: RENDER_CONFIG.AIM.WEAPON_POSITION_X,
+      y: RENDER_CONFIG.AIM.WEAPON_POSITION_Y,
+      z: RENDER_CONFIG.AIM.WEAPON_POSITION_Z,
+      pitch: 0,
+      yaw: 0,
+      roll: 0,
+    };
+    const targetX = pose.x;
+    const targetY = pose.y;
+    const targetZ = pose.z;
     const baseX = THREE.MathUtils.lerp(this.restPosition.x, targetX, aim);
     const baseY = THREE.MathUtils.lerp(this.restPosition.y, targetY, aim);
     const baseZ = THREE.MathUtils.lerp(this.restPosition.z, targetZ, aim);
@@ -498,9 +506,9 @@ export class WeaponViewModel {
       baseZ + this._recoilKick * 0.11
     );
     this.root.rotation.set(
-      this.restRotation.x * (1 - aim * 0.75) - this._recoilKick * 1.25 + this._swayY * 2 * (1 - aim * 0.75),
-      this.restRotation.y * (1 - aim * 0.8) + this._swayX * 2 * (1 - aim * 0.75),
-      this.restRotation.z * (1 - aim * 0.8) + bobX * 0.6 * (1 - aim)
+      THREE.MathUtils.lerp(this.restRotation.x, pose.pitch, aim) - this._recoilKick * 1.25 + this._swayY * 2 * (1 - aim * 0.75),
+      THREE.MathUtils.lerp(this.restRotation.y, pose.yaw, aim) + this._swayX * 2 * (1 - aim * 0.75),
+      THREE.MathUtils.lerp(this.restRotation.z, pose.roll, aim) + bobX * 0.6 * (1 - aim)
     );
     const hipScale = 1;
     const aimScale = RENDER_CONFIG.AIM.WEAPON_SCALE;
