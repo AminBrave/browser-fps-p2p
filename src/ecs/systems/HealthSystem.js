@@ -4,10 +4,16 @@ import * as THREE from 'three';
 import { GAME_CONFIG, DEFAULT_WEAPON } from '../../config/index.js';
 import { WORLD_CONFIG } from '../../config/index.js';
 import { audio } from '../../audio/AudioManager.js';
+import { EVENT_TYPES } from '../../network/PacketTypes.js';
 
 export class HealthSystem {
-  constructor(physicsWorld) {
+  constructor(physicsWorld, eventSink = null) {
     this.physicsWorld = physicsWorld;
+    this.eventSink = eventSink;
+  }
+
+  setEventSink(eventSink) {
+    this.eventSink = eventSink;
     this.pendingDamageEvents = [];
     this.spawnCursor = 0;
   }
@@ -104,6 +110,12 @@ export class HealthSystem {
           entity.physics?.rigidBody?.setLinvel?.({ x: 0, y: 0, z: 0 }, true);
           entity.physics?.rigidBody?.setAngvel?.({ x: 0, y: 0, z: 0 }, true);
           if (entity.renderMesh?.mesh) entity.renderMesh.mesh.visible = false;
+          this.eventSink?.({
+            type: EVENT_TYPES.SFX,
+            sfx: 'death',
+            sourceId: player.id,
+            position: { ...entity.transform.position },
+          });
           if (player.isLocal) audio.playDeath();
         }
       }
