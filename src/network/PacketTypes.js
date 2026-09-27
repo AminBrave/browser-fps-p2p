@@ -22,4 +22,7 @@ export const EVENT_TYPES = {
   PLAYER_HIT: 1,
   PLAYER_DIED: 2,
   PLAYER_RESPAWN: 3,
+  SHOT: 4,
+  IMPACT: 5,
+  SFX: 6,
 };
