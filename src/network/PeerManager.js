@@ -31,10 +31,8 @@ export class PeerManager {
 
     return new Promise((resolve, reject) => {
       let settled = false;
-      const invitationCode = String(customRoomId || PeerManager.createInvitationCode());
-      this.invitationCode = invitationCode;
-      const peer = new Peer(invitationCode);
-      this.peer = peer;
+      let attempt = 0;
+      const requestedRoomId = String(customRoomId || '').trim();
 
       const fail = (error) => {
         if (!settled) {
@@ -43,13 +41,43 @@ export class PeerManager {
         }
       };
 
-      peer.on('open', (id) => {
-        if (this.destroyed) return fail(new Error('Peer manager was destroyed'));
-        this._setupHostListeners();
-        settled = true;
-        resolve(id);
-      });
-      peer.on('error', fail);
+      const createPeer = () => {
+        if (settled || this.destroyed) {
+          fail(new Error('Peer manager was destroyed'));
+          return;
+        }
+
+        attempt += 1;
+        const invitationCode =
+          requestedRoomId || PeerManager.createInvitationCode();
+        this.invitationCode = invitationCode;
+
+        const peer = new Peer(invitationCode);
+        this.peer = peer;
+
+        peer.on('open', (id) => {
+          if (this.destroyed || this.peer !== peer) return;
+          this._setupHostListeners();
+          settled = true;
+          resolve(id);
+        });
+
+        peer.on('error', (error) => {
+          if (this.destroyed || this.peer !== peer || settled) return;
+          const isCollision = error?.type === 'unavailable-id';
+          const canRetry = !requestedRoomId && isCollision && attempt < NETWORK_CONFIG.INVITATION_CODE.MAX_RETRIES;
+          if (!canRetry) {
+            fail(error);
+            return;
+          }
+
+          try { peer.destroy(); } catch {}
+          if (this.peer === peer) this.peer = null;
+          createPeer();
+        });
+      };
+
+      createPeer();
     });
   }
 
