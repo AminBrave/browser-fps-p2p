@@ -39,7 +39,7 @@ export class RenderSystem {
     this._previousPosition = null;
     this._currentPosition = null;
     this._networkVisualCorrection = { x: 0, y: 0, z: 0 };
-    this._cameraShake = { phase: 0, intensity: 0, landing: 0 };
+    this._cameraShake = { phase: 0, intensity: 0, landing: 0, lastVerticalVelocity: 0 };
   }
 
   setEventSink(eventSink) {
@@ -248,42 +248,36 @@ export class RenderSystem {
 
       const cameraBase = this._renderPosition || transform.position;
 
-      // Camera motion is a render-only effect. It is driven by actual
-      // horizontal movement speed, not by input buttons, so strafing, slopes,
-      // acceleration and network reconciliation do not create artificial
-      // footsteps. The small landing impulse gives jumps a physical sense of
-      // weight without feeding anything back into gameplay/reconciliation.
+      // Render-only camera bob. The amplitude is exponentially smoothed so
+      // fixed-step velocity changes never become visible as camera jitter.
       const velocity = physics?.velocity || { x: 0, y: 0, z: 0 };
       const horizontalSpeed = Math.hypot(Number(velocity.x) || 0, Number(velocity.z) || 0);
       const maxRunSpeed = Math.max(1, GAME_CONFIG.PLAYER_SPEED || 8);
-      const grounded = physics?.isGrounded !== false;
       const moveAmount = THREE.MathUtils.clamp(horizontalSpeed / maxRunSpeed, 0, 1.25);
-      const targetShake = grounded ? THREE.MathUtils.smoothstep(moveAmount, 0.05, 0.75) : 0;
-      const shakeBlend = 1 - Math.exp(-10 * dt);
-      this._cameraShake.intensity = THREE.MathUtils.lerp(
-        this._cameraShake.intensity,
-        targetShake,
-        shakeBlend
-      );
+      const grounded = physics?.isGrounded !== false;
+      const targetShake = grounded ? THREE.MathUtils.smoothstep(moveAmount, 0.05, 0.9) : 0;
+      const blend = 1 - Math.exp(-12 * Math.max(0, dt));
+      this._cameraShake.intensity = THREE.MathUtils.lerp(this._cameraShake.intensity, targetShake, blend);
 
-      if (!this._wasGrounded && grounded) {
-        this._cameraShake.landing = 1;
+      const previousY = this._cameraShake.lastVerticalVelocity;
+      const verticalVelocity = Number(velocity.y) || 0;
+      if (!grounded && previousY < -1 && verticalVelocity >= -0.25) {
+        this._cameraShake.landing = Math.min(1, -previousY * 0.035);
       }
-      this._cameraShake.landing = Math.max(
-        0,
-        this._cameraShake.landing - dt * 7
-      );
-      this._cameraShake.phase +=
-        dt * (Math.PI * 2) * (7 + 4 * Math.min(1, moveAmount));
+      this._cameraShake.lastVerticalVelocity = verticalVelocity;
+      this._cameraShake.landing = Math.max(0, this._cameraShake.landing - Math.max(0, dt) * 6);
 
+      const frequency = 6 + 3 * Math.min(1, moveAmount);
+      this._cameraShake.phase += Math.max(0, dt) * Math.PI * 2 * frequency;
+      if (this._cameraShake.phase > Math.PI * 2) this._cameraShake.phase %= Math.PI * 2;
       const gait = this._cameraShake.phase;
-      const gaitIntensity = this._cameraShake.intensity;
+      const amount = this._cameraShake.intensity;
       const landing = this._cameraShake.landing;
-      const bobY = Math.sin(gait * 2) * 0.018 * gaitIntensity - landing * 0.028;
-      const bobX = Math.cos(gait) * 0.012 * gaitIntensity;
-      const bobPitch = Math.sin(gait * 2) * 0.006 * gaitIntensity + landing * 0.018;
-      const bobYaw = Math.cos(gait) * 0.003 * gaitIntensity;
-      const bobRoll = Math.sin(gait) * 0.012 * gaitIntensity - landing * 0.008;
+      const bobY = Math.sin(gait * 2) * 0.012 * amount - landing * 0.018;
+      const bobX = Math.cos(gait) * 0.007 * amount;
+      const bobPitch = Math.sin(gait * 2) * 0.0035 * amount + landing * 0.010;
+      const bobYaw = Math.cos(gait) * 0.0018 * amount;
+      const bobRoll = Math.sin(gait) * 0.006 * amount - landing * 0.004;
 
       this.camera.position.set(
         cameraBase.x + bobX,
