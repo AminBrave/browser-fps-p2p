@@ -228,8 +228,10 @@ export class PeerManager {
 
     this.connections.set(peerId, connection);
 
+    let announced = false;
     const announceConnected = () => {
-      if (this.destroyed) return;
+      if (announced || this.destroyed) return;
+      announced = true;
       this._setState(this.isHost ? STATE.READY : STATE.CONNECTED);
       this.onConnectCallback?.(peerId, connection);
       this._attachConnectionDiagnostics(connection);
