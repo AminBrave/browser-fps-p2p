@@ -138,6 +138,16 @@ export class AudioManager {
   playImpactAt(position) { this._playAt(position, output => this._noise(0.04, 0.09, 1400, output)); }
   playReloadStartAt(position) { this._playAt(position, output => { this._tone(200, 0.07, 'triangle', 0.09, 140, output); }); }
   playReloadEndAt(position) { this._playAt(position, output => { this._tone(300, 0.05, 'square', 0.1, 250, output); }); }
+  playFootstepAt(position, stance = 0) {
+    const gain = stance === 2 ? 0.03 : stance === 1 ? 0.05 : 0.07;
+    this._playAt(position, output => {
+      this._noise(0.035, gain, 380, output);
+      this._tone(80, 0.04, 'sine', gain * 0.7, 45, output);
+    });
+  }
+
+  playJumpAt(position) { this._playAt(position, output => this._tone(140, 0.1, 'sine', 0.09, 260, output)); }
+  playLandAt(position) { this._playAt(position, output => this._noise(0.05, 0.11, 280, output)); }
 
   playEmptyClick() {
     this._tone(420, 0.035, 'square', 0.07, 180);
