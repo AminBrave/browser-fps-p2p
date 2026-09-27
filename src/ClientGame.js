@@ -42,6 +42,10 @@ export class ClientGame {
       this._resolveWorldReady = resolve;
       this._rejectWorldReady = reject;
     });
+    this._joinReadyPromise = new Promise((resolve, reject) => {
+      this._resolveJoinReady = resolve;
+      this._rejectJoinReady = reject;
+    });
 
     // Install the handler before opening the WebRTC connection. The host sends
     // the world manifest immediately when the connection opens.
@@ -65,7 +69,7 @@ export class ClientGame {
     );
 
     this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
-    await this._worldReadyPromise;
+    await Promise.all([this._worldReadyPromise, this._joinReadyPromise]);
     validateConfig();
 
     // Rebuild simulation timing/buffers from the host's authoritative
@@ -167,9 +171,18 @@ export class ClientGame {
 
     if (packetType === PACKET_TYPES.JOIN_ACCEPT) {
       const accepted = Protocol.decodeJoinAccept(dataView);
-      if (accepted?.spawn) {
+      if (!accepted) return;
+
+      if (accepted.spawn) {
         this._spawnPosition = accepted.spawn;
       }
+
+      // Do not construct the local map/player until the host has assigned the
+      // authoritative spawn. WorldInit + JoinAccept together form the match
+      // bootstrap barrier.
+      this._resolveJoinReady?.(accepted);
+      this._resolveJoinReady = null;
+      this._rejectJoinReady = null;
       return;
     }
 
