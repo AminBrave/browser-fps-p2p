@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
-import { GAME_CONFIG } from '../../config/index.js';
+import { GAME_CONFIG, RENDER_CONFIG } from '../../config/index.js';
 
 // Scope decal ownership to an ECS world. A module-global array would retain
 // entities/scenes after a match is destroyed.
@@ -143,8 +143,10 @@ export function createImpactDecal(
   const sparkCount = 12;
   for (let i = 0; i < sparkCount; i++) {
     const angle = (i / sparkCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
-    const size = 0.018 + Math.random() * 0.025;
-    const length = 0.12 + Math.random() * 0.20;
+    const size = RENDER_CONFIG.IMPACT_FLASH.SPARK_SIZE_MIN +
+      Math.random() * (RENDER_CONFIG.IMPACT_FLASH.SPARK_SIZE_MAX - RENDER_CONFIG.IMPACT_FLASH.SPARK_SIZE_MIN);
+    const length = RENDER_CONFIG.IMPACT_FLASH.SPARK_LENGTH_MIN +
+      Math.random() * (RENDER_CONFIG.IMPACT_FLASH.SPARK_LENGTH_MAX - RENDER_CONFIG.IMPACT_FLASH.SPARK_LENGTH_MIN);
     const spark = new THREE.Mesh(
       new THREE.BoxGeometry(size, size, length),
       sparkMaterials[i % sparkMaterials.length].clone()
