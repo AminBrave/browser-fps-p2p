@@ -351,9 +351,12 @@ export class WeaponViewModel {
     }
     effect.add(rays);
 
-    const light = new THREE.PointLight(color, 0, RENDER_CONFIG.MUZZLE_FLASH.LIGHT_DISTANCE);
+    // Keep the flash self-lit. A point light here illuminates the gun body,
+    // which makes the whole weapon appear to glow during firing.
+    const light = new THREE.PointLight(color, 0, 0.45);
     light.name = 'muzzleFlashLight';
     light.position.set(0, 0, 0);
+    light.visible = false;
     effect.add(light);
 
     effect.userData.life = 0;
@@ -404,7 +407,7 @@ export class WeaponViewModel {
     if (effect) {
       effect.userData.life = effect.userData.maxLife;
       effect.visible = true;
-      effect.userData.light.intensity = RENDER_CONFIG.MUZZLE_FLASH.LIGHT_INTENSITY * effect.userData.scale;
+      effect.userData.light.intensity = 0;
     }
     if (active?.userData?.flash?.material) active.userData.flash.material.opacity = 1;
   }
@@ -465,7 +468,7 @@ export class WeaponViewModel {
           ray.material.opacity = t * (0.7 - i * 0.06);
           ray.scale.z = 0.65 + t * (0.5 + (i % 2) * 0.35);
         });
-        effect.userData.light.intensity = t * RENDER_CONFIG.MUZZLE_FLASH.LIGHT_INTENSITY * effect.userData.scale;
+        effect.userData.light.intensity = 0;
       } else {
         effect.visible = false;
         effect.userData.light.intensity = 0;
