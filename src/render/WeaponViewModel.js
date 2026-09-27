@@ -1,6 +1,7 @@
 // src/render/WeaponViewModel.js
 
 import * as THREE from 'three';
+import { RENDER_CONFIG } from '../config/index.js';
 
 /**
  * Distinct procedural viewmodels for Pistol / SMG / Shotgun / Rifle.
@@ -44,6 +45,7 @@ export class WeaponViewModel {
     this.visible = true;
     this._muzzleWorld = new THREE.Vector3();
     this._muzzleEffects = new Map();
+    this._firePulse = 0;
   }
 
   _mat(color, metal = 0.6, rough = 0.4) {
@@ -63,6 +65,11 @@ export class WeaponViewModel {
       g.visible = false;
       this.root.add(g);
     }
+
+    this._addMuzzleEffect(this._models[1], this._models[1].userData.muzzle, 0xff9f1c, 1.15);
+    this._addMuzzleEffect(this._models[2], this._models[2].userData.muzzle, 0xffb52e, 1.05);
+    this._addMuzzleEffect(this._models[3], this._models[3].userData.muzzle, 0xff8a18, 1.45);
+    this._addMuzzleEffect(this._models[4], this._models[4].userData.muzzle, 0xffb52e, 1.2);
   }
 
   _buildPistol() {
@@ -343,13 +350,13 @@ export class WeaponViewModel {
     }
     effect.add(rays);
 
-    const light = new THREE.PointLight(color, 0, 1.8);
+    const light = new THREE.PointLight(color, 0, RENDER_CONFIG.MUZZLE_FLASH.LIGHT_DISTANCE);
     light.name = 'muzzleFlashLight';
     light.position.set(0, 0, 0);
     effect.add(light);
 
     effect.userData.life = 0;
-    effect.userData.maxLife = 0.075;
+    effect.userData.maxLife = RENDER_CONFIG.MUZZLE_FLASH.DURATION_SECONDS;
     effect.userData.scale = scale;
     effect.userData.core = core;
     effect.userData.halo = halo;
@@ -389,11 +396,16 @@ export class WeaponViewModel {
   }
 
   onFired(amount = 0.12) {
-    this._recoilKick = Math.min(this._recoilKick + amount, 0.4);
+    this._recoilKick = Math.min(this._recoilKick + amount, 0.55);
+    this._firePulse = 1;
     const active = this._models[this._activeId];
-    if (active?.userData?.flash?.material) {
-      active.userData.flash.material.opacity = 1;
+    const effect = active?.userData?.muzzleEffect;
+    if (effect) {
+      effect.userData.life = effect.userData.maxLife;
+      effect.visible = true;
+      effect.userData.light.intensity = RENDER_CONFIG.MUZZLE_FLASH.LIGHT_INTENSITY * effect.userData.scale;
     }
+    if (active?.userData?.flash?.material) active.userData.flash.material.opacity = 1;
   }
 
   onReloadStart() {
@@ -433,6 +445,7 @@ export class WeaponViewModel {
     this._swayY *= 0.85;
 
     this._recoilKick = Math.max(0, this._recoilKick - dt * 2.4);
+    this._firePulse = Math.max(0, this._firePulse - dt * 18);
     const active = this._models[this._activeId];
     const effect = active?.userData?.muzzleEffect;
     if (effect) {
@@ -447,11 +460,14 @@ export class WeaponViewModel {
           ray.material.opacity = t * (0.7 - i * 0.06);
           ray.scale.z = 0.65 + t * (0.5 + (i % 2) * 0.35);
         });
-        effect.userData.light.intensity = t * 7.5 * effect.userData.scale;
+        effect.userData.light.intensity = t * RENDER_CONFIG.MUZZLE_FLASH.LIGHT_INTENSITY * effect.userData.scale;
       } else {
         effect.visible = false;
         effect.userData.light.intensity = 0;
       }
+    }
+    if (active?.userData?.flash?.material) {
+      active.userData.flash.material.opacity = Math.max(0, this._firePulse);
     }
 
     let reloadY = 0;
@@ -466,11 +482,11 @@ export class WeaponViewModel {
 
     this.root.position.set(
       this.restPosition.x + bobX + this._swayX + reloadX,
-      this.restPosition.y + bobY + this._swayY + reloadY - this._recoilKick * 0.18,
-      this.restPosition.z + this._recoilKick * 0.07
+      this.restPosition.y + bobY + this._swayY + reloadY - this._recoilKick * 0.22,
+      this.restPosition.z + this._recoilKick * 0.11
     );
     this.root.rotation.set(
-      this.restRotation.x - this._recoilKick + this._swayY * 2,
+      this.restRotation.x - this._recoilKick * 1.25 + this._swayY * 2,
       this.restRotation.y + this._swayX * 2,
       this.restRotation.z + bobX * 0.6
     );
