@@ -14,8 +14,7 @@ export class PhysicsSystem {
     const dt = deltaTime || 1 / 60;
 
     for (const entity of ecsWorld.with('transform', 'physics')) {
-      if (entity.networkRole === 'remote') continue;
-      const transform = entity.transform;
+      // The host is authoritative for every player, including connected clients.\n      // Client-side prediction is handled by ClientPredictSystem; HostGame must\n      // still run the same physics pipeline for entities marked as remote.\n      const transform = entity.transform;
       const physics = entity.physics;
       const input = entity.input;
       if (!transform || !physics) continue;
