@@ -6,8 +6,8 @@ import { createPhysics } from '../components/Physics.js';
 import { createPlayer as createPlayerComponent } from '../components/Player.js';
 import { createWeapon, createLoadout } from '../components/Weapon.js';
 import { createInput } from '../components/Input.js';
-import { GAME_CONFIG, peerIdToNumeric } from '../../config/constants.js';
-import { WORLD_CONFIG } from '../../config/world.js';
+import { GAME_CONFIG, peerIdToNumeric } from '../../config/index.js';
+import { WORLD_CONFIG } from '../../config/index.js';
 
 export function createPlayer(
   ecsWorld,
