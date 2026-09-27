@@ -41,12 +41,17 @@ function addSolidMapEntity(
     transform: createTransform(position.x, position.y, position.z),
     physics: {
       ...createPhysics(physics.body, physics.collider),
-      colliders: [physics.collider, ...colliders],
+      colliders: [
+        ...(physics.colliders || [physics.collider]),
+        ...colliders,
+      ],
     },
     renderMesh: { mesh },
   });
 
-  physicsWorld.registerColliderEntity(physics.collider, entity);
+  for (const collider of physics.colliders || [physics.collider]) {
+    physicsWorld.registerColliderEntity(collider, entity);
+  }
   for (const collider of colliders) {
     physicsWorld.registerColliderEntity(collider, entity);
   }
@@ -137,7 +142,20 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
     roughness: 0.9,
   });
 
-  const canopyColliders = [];
+  const compoundParts = [
+    {
+      shape: new RAPIER.Cylinder(
+        config.TRUNK.HEIGHT / 2,
+        config.TRUNK.RADIUS
+      ),
+      position: {
+        x: 0,
+        y: config.TRUNK.HEIGHT / 2,
+        z: 0,
+      },
+    },
+  ];
+
   for (let i = 0; i < config.CANOPY.LAYERS; i++) {
     const radius = Math.max(
       0.05,
@@ -159,30 +177,24 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
     cone.receiveShadow = true;
     group.add(cone);
 
-    const canopyPhysics = physicsWorld.createStaticCone(
-      safePosition.x,
-      groundY() + centerY,
-      safePosition.z,
-      radius,
-      config.CANOPY.HEIGHT
-    );
-    canopyColliders.push(canopyPhysics.collider);
+    compoundParts.push({
+      shape: new RAPIER.Cone(config.CANOPY.HEIGHT / 2, radius),
+      position: { x: 0, y: centerY, z: 0 },
+    });
   }
 
   addToScene(sceneManager, group);
 
-  const trunkPhysics = physicsWorld.createStaticCylinder(
+  const physics = physicsWorld.createStaticCompound(
     safePosition.x,
-    groundY() + config.TRUNK.HEIGHT / 2,
+    groundY(),
     safePosition.z,
-    config.TRUNK.RADIUS,
-    config.TRUNK.HEIGHT
+    compoundParts
   );
 
   const entity = addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
     position: { x: safePosition.x, y: groundY(), z: safePosition.z },
-    physics: trunkPhysics,
-    colliders: canopyColliders,
+    physics,
     mesh: group,
     name: 'tree',
   });
@@ -274,48 +286,44 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
     w: Math.SQRT1_2,
   };
 
+  // One car = one fixed rigid body + body/cabin/wheel child colliders.
+  // The child transforms use the same local coordinates as the meshes.
+  const compoundParts = [
+    {
+      shape: new RAPIER.Cuboid(
+        config.BODY.SIZE.x / 2,
+        config.BODY.SIZE.y / 2,
+        config.BODY.SIZE.z / 2
+      ),
+      position: { x: 0, y: config.BODY.CENTER_Y, z: 0 },
+    },
+    {
+      shape: new RAPIER.Cuboid(
+        config.CABIN.SIZE.x / 2,
+        config.CABIN.SIZE.y / 2,
+        config.CABIN.SIZE.z / 2
+      ),
+      position: {
+        x: 0,
+        y: config.CABIN.CENTER_Y,
+        z: config.CABIN.CENTER_Z,
+      },
+    },
+    ...wheelPositions.map(({ x, z }) => ({
+      shape: new RAPIER.Cylinder(
+        config.WHEELS.WIDTH / 2,
+        config.WHEELS.RADIUS
+      ),
+      position: { x, y: config.WHEELS.RADIUS, z },
+      rotation: wheelRotation,
+    })),
+  ];
+
   const physics = physicsWorld.createStaticCompound(
     safePosition.x,
     groundY(),
     safePosition.z,
-    [
-      {
-        shape: new RAPIER.Cuboid(
-          config.BODY.SIZE.x / 2,
-          config.BODY.SIZE.y / 2,
-          config.BODY.SIZE.z / 2
-        ),
-        position: {
-          x: 0,
-          y: config.BODY.CENTER_Y,
-          z: 0,
-        },
-      },
-      {
-        shape: new RAPIER.Cuboid(
-          config.CABIN.SIZE.x / 2,
-          config.CABIN.SIZE.y / 2,
-          config.CABIN.SIZE.z / 2
-        ),
-        position: {
-          x: 0,
-          y: config.CABIN.CENTER_Y,
-          z: config.CABIN.CENTER_Z,
-        },
-      },
-      ...wheelPositions.map(({ x, z }) => ({
-        shape: new RAPIER.Cylinder(
-          config.WHEELS.WIDTH / 2,
-          config.WHEELS.RADIUS
-        ),
-        position: {
-          x,
-          y: config.WHEELS.RADIUS,
-          z,
-        },
-        rotation: wheelRotation,
-      })),
-    ],
+    compoundParts,
     placement.rotationY
   );
 
