@@ -24,6 +24,26 @@ export const WORLD_CONFIG = {
       { x: -16, z: 24 }, { x: 16, z: 24 },
     ],
   },
+  // Static props are generated deterministically on every peer. Change only
+  // this policy to switch between urban/rural layouts without changing entity code.
+  OBJECT_PLACEMENT: {
+    ENABLED: true,
+    PATTERN: 'MANHATTAN',
+    SEED: 'browser-fps-city-v1',
+    DENSITY: 0.65,
+    MAX_OBJECTS: 42,
+    MIN_SPACING: 2.6,
+    ROAD_SPACING: 10,
+    PADDING: 2.0,
+    // Spawn-safe and gameplay-safe zones are never populated.
+    RESERVED_ZONES: [
+      { x: -16, z: -24, radius: 5 },
+      { x: 16, z: -24, radius: 5 },
+      { x: -16, z: 24, radius: 5 },
+      { x: 16, z: 24, radius: 5 },
+      { x: 0, z: 0, radius: 5 },
+    ],
+  },
   OBJECTS: {
     CRATE: {
       PLACEMENTS: [
