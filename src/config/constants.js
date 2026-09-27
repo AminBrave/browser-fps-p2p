@@ -1,120 +1,41 @@
 // src/config/constants.js
+// Compatibility barrel for older modules. New code should import the domain
+// config it needs from ./index.js or the specific config module.
 
-const SIMULATION_TICK_RATE = 60;
+import { NETWORK_CONFIG, PROTOCOL_CONFIG } from './network.js';
+import { PLAYER_CONFIG, PLAYER_CHARACTER_CONFIG, STANCE, getPlayerEyeOffset } from './player.js';
+import { INPUT_FLAGS } from './input.js';
+import { FIRE_MODE, WEAPON_CONFIG, WEAPON_LOADOUT, DEFAULT_WEAPON } from './weapons.js';
+import { GAME_CONFIG as GAMEPLAY_CONFIG } from './gameplay.js';
+import { CAMERA_CONFIG } from './camera.js';
+import { COMBAT_CONFIG } from './combat.js';
 
-export const NETWORK_CONFIG = {
-  SERVER_TICK_RATE: SIMULATION_TICK_RATE,
-  CLIENT_TICK_RATE: SIMULATION_TICK_RATE,
-  SNAPSHOT_BROADCAST_RATE: 20,
-  INPUT_SEND_RATE: SIMULATION_TICK_RATE,
-  INTERPOLATION_BUFFER_MS: 100,
-  INPUT_HISTORY_SIZE: 128,
-};
+export { NETWORK_CONFIG, PROTOCOL_CONFIG, PLAYER_CONFIG, PLAYER_CHARACTER_CONFIG, INPUT_FLAGS, FIRE_MODE, STANCE, WEAPON_CONFIG, WEAPON_LOADOUT, DEFAULT_WEAPON, CAMERA_CONFIG, COMBAT_CONFIG, getPlayerEyeOffset };
 
-// World-space convention: 1.0 unit = 1 metre.
-export const GAME_CONFIG = {
-  TICK_RATE: SIMULATION_TICK_RATE,
-  MAX_PLAYERS: 4,
-  PLAYER_SPEED: 8.0,
-  PLAYER_JUMP_FORCE: 6.5,
-  GRAVITY: -19.62,
-  PLAYER_HEIGHT: 1.8,
-  // A human shoulder/hip envelope of ~0.68 m diameter.
-  PLAYER_RADIUS: 0.34,
-  // Camera height is derived from the same head/pose geometry used by the
-  // visible player model. These legacy names remain for compatibility.
-  CAMERA_HEIGHT_OFFSET: 0.73,
-  CAMERA_HEIGHT_CROUCH: 0.377,
-  CAMERA_HEIGHT_PRONE: -0.054,
-  SPEED_MULT_CROUCH: 0.45,
-  SPEED_MULT_PRONE: 0.2,
-  MAX_HEALTH: 100,
-  RESPAWN_TIME_MS: 3000,
-  FOV: 75,
-  NEAR_PLANE: 0.05,
-  FAR_PLANE: 500,
-  RECONCILIATION_THRESHOLD: 0.15,
-  RECOIL_RECOVERY: 10.0,
-  MAX_DECALS: 100,
-  MOVE_SPREAD_MAX: 0.035,
-  BOB_INTENSITY: 1.0,
-};
-
-export const INPUT_FLAGS = {
-  FORWARD: 1 << 0,
-  BACKWARD: 1 << 1,
-  LEFT: 1 << 2,
-  RIGHT: 1 << 3,
-  JUMP: 1 << 4,
-  SHOOT: 1 << 5,
-  RELOAD: 1 << 6,
-  CROUCH: 1 << 7,
-  PRONE: 1 << 8,
-};
-
-export const FIRE_MODE = { SEMI: 'semi', AUTO: 'auto' };
-export const STANCE = { STAND: 0, CROUCH: 1, PRONE: 2 };
-
-// The character mesh and first-person camera use the same anatomical reference.
-// The player transform/physics body is at the capsule centre (0.9 m above ground).
-export const PLAYER_CHARACTER_CONFIG = {
-  HEAD_CENTER_Y: 0.67,
-  EYE_ABOVE_HEAD: 0.06,
-  POSE: {
-    [STANCE.STAND]: { offsetY: 0, scaleY: 1 },
-    [STANCE.CROUCH]: { offsetY: -0.28, scaleY: 0.9 },
-    [STANCE.PRONE]: { offsetY: -0.58, scaleY: 0.72 },
-  },
-};
-
-export function getPlayerEyeOffset(stance = STANCE.STAND) {
-  const pose = PLAYER_CHARACTER_CONFIG.POSE[stance] || PLAYER_CHARACTER_CONFIG.POSE[STANCE.STAND];
-  return pose.offsetY +
-    (PLAYER_CHARACTER_CONFIG.HEAD_CENTER_Y + PLAYER_CHARACTER_CONFIG.EYE_ABOVE_HEAD) *
-      pose.scaleY;
-}
-
-/** Real-world-ish rates (ms between shots) */
-export const WEAPON_CONFIG = {
-  PISTOL: {
-    ID: 1, SLOT: 0, NAME: 'Pistol',
-    FIRE_RATE_MS: 280, DAMAGE: 30,
-    MAGAZINE_SIZE: 12, RESERVE_AMMO: 36, RELOAD_TIME_MS: 1600, RANGE: 100,
-    RECOIL_PITCH: 0.042, RECOIL_YAW_SPREAD: 0.012,
-    SPREAD_BASE: 0, SPREAD_GROW: 0.01, SPREAD_MAX: 0.045, SPREAD_DECAY: 0.14,
-    PELLETS: 1, FIRE_MODE: FIRE_MODE.SEMI, SFX: 'pistol',
-  },
-  SMG: {
-    ID: 2, SLOT: 1, NAME: 'SMG', FIRE_RATE_MS: 75, DAMAGE: 13,
-    MAGAZINE_SIZE: 30, RESERVE_AMMO: 90, RELOAD_TIME_MS: 2000, RANGE: 75,
-    RECOIL_PITCH: 0.02, RECOIL_YAW_SPREAD: 0.022,
-    SPREAD_BASE: 0, SPREAD_GROW: 0.014, SPREAD_MAX: 0.08, SPREAD_DECAY: 0.16,
-    PELLETS: 1, FIRE_MODE: FIRE_MODE.AUTO, SFX: 'smg',
-  },
-  SHOTGUN: {
-    ID: 3, SLOT: 2, NAME: 'Shotgun', FIRE_RATE_MS: 850, DAMAGE: 11,
-    MAGAZINE_SIZE: 6, RESERVE_AMMO: 24, RELOAD_TIME_MS: 2600, RANGE: 30,
-    RECOIL_PITCH: 0.1, RECOIL_YAW_SPREAD: 0.035,
-    SPREAD_BASE: 0.045, SPREAD_GROW: 0.012, SPREAD_MAX: 0.11, SPREAD_DECAY: 0.22,
-    PELLETS: 8, FIRE_MODE: FIRE_MODE.SEMI, SFX: 'shotgun',
-  },
-  RIFLE: {
-    ID: 4, SLOT: 3, NAME: 'Rifle', FIRE_RATE_MS: 95, DAMAGE: 24,
-    MAGAZINE_SIZE: 25, RESERVE_AMMO: 75, RELOAD_TIME_MS: 2200, RANGE: 160,
-    RECOIL_PITCH: 0.03, RECOIL_YAW_SPREAD: 0.011,
-    SPREAD_BASE: 0, SPREAD_GROW: 0.007, SPREAD_MAX: 0.05, SPREAD_DECAY: 0.11,
-    PELLETS: 1, FIRE_MODE: FIRE_MODE.AUTO, SFX: 'rifle',
-  },
-};
-
-export const WEAPON_LOADOUT = [
-  WEAPON_CONFIG.PISTOL,
-  WEAPON_CONFIG.SMG,
-  WEAPON_CONFIG.SHOTGUN,
-  WEAPON_CONFIG.RIFLE,
-];
-
-export const DEFAULT_WEAPON = WEAPON_CONFIG.PISTOL;
+// Legacy GAME_CONFIG surface. Values have a single owner in their domain
+// config; this object only preserves the public API used by older systems.
+export const GAME_CONFIG = Object.freeze({
+  ...GAMEPLAY_CONFIG,
+  TICK_RATE: GAMEPLAY_CONFIG.TICK_RATE,
+  MAX_PLAYERS: PLAYER_CONFIG.MAX_PLAYERS,
+  PLAYER_SPEED: PLAYER_CONFIG.SPEED,
+  PLAYER_JUMP_FORCE: PLAYER_CONFIG.JUMP_FORCE,
+  GRAVITY: PLAYER_CONFIG.GRAVITY,
+  PLAYER_HEIGHT: PLAYER_CONFIG.HEIGHT,
+  PLAYER_RADIUS: PLAYER_CONFIG.RADIUS,
+  CAMERA_HEIGHT_OFFSET: PLAYER_CONFIG.CAMERA_HEIGHT_OFFSET,
+  CAMERA_HEIGHT_CROUCH: PLAYER_CONFIG.CAMERA_HEIGHT_CROUCH,
+  CAMERA_HEIGHT_PRONE: PLAYER_CONFIG.CAMERA_HEIGHT_PRONE,
+  SPEED_MULT_CROUCH: PLAYER_CONFIG.SPEED_MULTIPLIERS[STANCE.CROUCH],
+  SPEED_MULT_PRONE: PLAYER_CONFIG.SPEED_MULTIPLIERS[STANCE.PRONE],
+  MAX_HEALTH: PLAYER_CONFIG.MAX_HEALTH,
+  RESPAWN_TIME_MS: PLAYER_CONFIG.RESPAWN_TIME_MS,
+  FOV: CAMERA_CONFIG.FOV,
+  NEAR_PLANE: CAMERA_CONFIG.NEAR_PLANE,
+  FAR_PLANE: CAMERA_CONFIG.FAR_PLANE,
+  RECONCILIATION_THRESHOLD: COMBAT_CONFIG.RECONCILIATION_THRESHOLD,
+  MOVE_SPREAD_MAX: COMBAT_CONFIG.MOVE_SPREAD_MAX,
+});
 
 export function peerIdToNumeric(peerId) {
   if (typeof peerId === 'number' && Number.isFinite(peerId)) return peerId >>> 0;
