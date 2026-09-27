@@ -329,6 +329,67 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
     name: 'car',
   });
 }
+function addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
+  const cfg = WORLD_CONFIG.OBJECTS.STREETLIGHT;
+  const safe = clampToIsland(placement.x, placement.z, 0.8, 0.8);
+  const group = new THREE.Group();
+  group.position.set(safe.x, groundY(), safe.z);
+
+  const metal = new THREE.MeshStandardMaterial({ color: 0x34383c, metalness: 0.75, roughness: 0.35 });
+  const lampMat = new THREE.MeshStandardMaterial({ color: 0xffe7a3, emissive: 0x6b5420, emissiveIntensity: 1.8 });
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(cfg.BASE.SIZE.x, cfg.BASE.SIZE.y, cfg.BASE.SIZE.z), metal);
+  base.position.y = cfg.BASE.SIZE.y / 2;
+  base.castShadow = true; base.receiveShadow = true; group.add(base);
+
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(cfg.POLE.RADIUS, cfg.POLE.RADIUS * 1.15, cfg.POLE.HEIGHT, 12), metal);
+  pole.position.y = cfg.POLE.HEIGHT / 2 + cfg.BASE.SIZE.y;
+  pole.castShadow = true; pole.receiveShadow = true; group.add(pole);
+
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(cfg.ARM.RADIUS, cfg.ARM.RADIUS, cfg.ARM.LENGTH, 10), metal);
+  arm.rotation.z = Math.PI / 2;
+  arm.position.set(cfg.ARM.LENGTH / 2, cfg.POLE.HEIGHT + cfg.BASE.SIZE.y - 0.12, 0);
+  arm.castShadow = true; group.add(arm);
+
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 8), lampMat);
+  lamp.position.set(cfg.ARM.LENGTH, cfg.POLE.HEIGHT + cfg.BASE.SIZE.y - 0.12, 0);
+  group.add(lamp);
+
+  const parts = [
+    { desc: RAPIER.ColliderDesc.cuboid(cfg.BASE.SIZE.x/2, cfg.BASE.SIZE.y/2, cfg.BASE.SIZE.z/2), position:{x:0,y:cfg.BASE.SIZE.y/2,z:0}, renderTarget:base },
+    { desc: RAPIER.ColliderDesc.cylinder(cfg.POLE.HEIGHT/2, cfg.POLE.RADIUS), position:{x:0,y:cfg.POLE.HEIGHT/2+cfg.BASE.SIZE.y,z:0}, renderTarget:pole },
+    { desc: RAPIER.ColliderDesc.cylinder(cfg.ARM.LENGTH/2, cfg.ARM.RADIUS), position:{x:cfg.ARM.LENGTH/2,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, rotation:{x:0,y:0,z:Math.SQRT1_2,w:Math.SQRT1_2}, renderTarget:arm },
+    { desc: RAPIER.ColliderDesc.ball(0.14), position:{x:cfg.ARM.LENGTH,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, renderTarget:lamp },
+  ];
+  const physics = physicsWorld.createStaticCompound(safe.x, groundY(), safe.z, parts);
+  addToScene(sceneManager, group);
+  return addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
+    position:{x:safe.x,y:groundY(),z:safe.z}, physics, mesh:group, name:'streetlight'
+  });
+}
+
+function addDumpster(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
+  const size = WORLD_CONFIG.OBJECTS.DUMPSTER.SIZE;
+  const safe = clampToIsland(placement.x, placement.z, size.x/2, size.z/2);
+  const group = new THREE.Group();
+  group.position.set(safe.x, groundY(), safe.z);
+  const bodyMat = new THREE.MeshStandardMaterial({ color:0x3f5149, metalness:0.35, roughness:0.65 });
+  const lidMat = new THREE.MeshStandardMaterial({ color:0x26342f, metalness:0.45, roughness:0.55 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(size.x,size.y,size.z), bodyMat);
+  body.position.y=size.y/2; body.castShadow=true; body.receiveShadow=true; group.add(body);
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(size.x+0.04,0.08,size.z+0.04),lidMat);
+  lid.position.set(0,size.y+0.04,0); lid.castShadow=true; group.add(lid);
+  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75,0.06,0.08),lidMat);
+  handle.position.set(0,size.y+0.12,size.z/2+0.04); group.add(handle);
+  const parts=[
+    {desc:RAPIER.ColliderDesc.cuboid(size.x/2,size.y/2,size.z/2),position:{x:0,y:size.y/2,z:0},renderTarget:body},
+    {desc:RAPIER.ColliderDesc.cuboid((size.x+0.04)/2,0.04,(size.z+0.04)/2),position:{x:0,y:size.y+0.04,z:0},renderTarget:lid},
+  ];
+  const physics=physicsWorld.createStaticCompound(safe.x,groundY(),safe.z,parts);
+  addToScene(sceneManager,group);
+  return addSolidMapEntity(ecsWorld,physicsWorld,mapEntities,{position:{x:safe.x,y:groundY(),z:safe.z},physics,mesh:group,name:'dumpster'});
+}
+
 function addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities) {
   const { WIDTH, LENGTH, BOUNDARY } = WORLD_CONFIG.MAP;
   const halfW = WIDTH / 2;
@@ -502,6 +563,8 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
 
   addPath(ecsWorld, physicsWorld, sceneManager, mapEntities);
   addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities);
+  for (const p of WORLD_CONFIG.OBJECTS.STREETLIGHT.POSITIONS) addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, p);
+  for (const p of WORLD_CONFIG.OBJECTS.DUMPSTER.POSITIONS) addDumpster(ecsWorld, physicsWorld, sceneManager, mapEntities, p);
 
   for (const placement of WORLD_CONFIG.OBJECTS.CRATE.PLACEMENTS) {
     addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
