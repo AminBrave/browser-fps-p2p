@@ -248,7 +248,7 @@ export class WeaponSystem {
 
       createBullet(ecsWorld, this.sceneManager, origin, endPos);
       if (didHit) {
-        createImpactDecal(ecsWorld, this.sceneManager, endPos, hitNormal);
+        createImpactDecal(ecsWorld, this.sceneManager, endPos, hitNormal, hit?.renderTarget || null);
         if (player.isLocal && p === 0) audio.playImpact();
       }
 
