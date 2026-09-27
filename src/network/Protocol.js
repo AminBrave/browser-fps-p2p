@@ -2,7 +2,7 @@ import { PACKET_TYPES } from './PacketTypes.js';
 
 const CLIENT_INPUT_SIZE = 16;
 const SNAPSHOT_HEADER_SIZE = 10;
-const SNAPSHOT_ENTITY_SIZE = 21;
+const SNAPSHOT_ENTITY_SIZE = 28;
 
 function asDataView(data) {
   if (data instanceof DataView) return data;
@@ -135,10 +135,27 @@ export class Protocol {
         Number(e.yaw ?? rotation.yaw ?? rotation.y ?? 0),
         true
       );
-      view.setUint8(
+      view.setFloat32(
         offset + 20,
+        Number(e.pitch ?? rotation.pitch ?? 0),
+        true
+      );
+      view.setUint8(
+        offset + 24,
         Math.max(0, Math.min(255, Number(e.health ?? 100) | 0))
       );
+      view.setUint8(
+        offset + 25,
+        Math.max(0, Math.min(255, Number(e.stance ?? 0) | 0))
+      );
+      view.setUint8(
+        offset + 26,
+        Math.max(0, Math.min(255, Number(e.weaponId ?? 1) | 0))
+      );
+      let flags = 0;
+      if (e.isDead) flags |= 1;
+      if (e.isHost) flags |= 2;
+      view.setUint8(offset + 27, flags);
     }
 
     return buffer;
@@ -165,6 +182,11 @@ export class Protocol {
       const y = view.getFloat32(offset + 8, true);
       const z = view.getFloat32(offset + 12, true);
       const yaw = view.getFloat32(offset + 16, true);
+      const pitch = view.getFloat32(offset + 20, true);
+      const health = view.getUint8(offset + 24);
+      const stance = view.getUint8(offset + 25);
+      const weaponId = view.getUint8(offset + 26);
+      const flags = view.getUint8(offset + 27);
 
       entities[i] = {
         entityId,
@@ -174,8 +196,13 @@ export class Protocol {
         z,
         position: { x, y, z },
         yaw,
-        rotation: { yaw, pitch: 0 },
-        health: view.getUint8(offset + 20),
+        pitch,
+        rotation: { yaw, pitch },
+        health,
+        stance,
+        weaponId,
+        isDead: !!(flags & 1),
+        isHost: !!(flags & 2),
       };
     }
 
