@@ -99,7 +99,7 @@ export class HostNetworkSystem {
         z: transform.position.z,
         yaw: transform.rotation?.yaw ?? transform.rotation?.y ?? 0,
         pitch: transform.rotation?.pitch ?? entity.input?.pitch ?? 0,
-        health: player.health ?? 100,
+        health: player.health ?? GAME_CONFIG.MAX_HEALTH,
         stance: entity.input?.stance ?? STANCE.STAND,
         weaponId: entity.weapon?.typeId ?? 1,
         isDead: !!player.isDead,
