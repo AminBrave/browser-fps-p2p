@@ -18,6 +18,7 @@ export class HostNetworkSystem {
     this.peerManager = peerManager;
     this.incomingInputs = new Map();
     this.lastReceivedSequence = new Map();
+    this.lastProcessedSequence = new Map();
     this.serverTick = 0;
     this.lastBroadcastTime = 0;
     this.broadcastIntervalMs = 1000 / Math.max(1, NETWORK_CONFIG.SNAPSHOT_BROADCAST_RATE);
@@ -37,15 +38,17 @@ export class HostNetworkSystem {
       if (!isNewerSequence(input.sequence, previous)) return;
 
       this.lastReceivedSequence.set(peerId, input.sequence);
-      this.incomingInputs.set(peerId, input);
+      const queue = this.incomingInputs.get(peerId) || [];
+      queue.push(input);
+      this.incomingInputs.set(peerId, queue);
 
       // Defensive bound in case a PeerJS connection survives while its ECS
       // entity is being removed.
-      while (this.incomingInputs.size > GAME_CONFIG.MAX_PLAYERS) {
-        const oldestPeer = this.incomingInputs.keys().next().value;
-        this.incomingInputs.delete(oldestPeer);
-        this.lastReceivedSequence.delete(oldestPeer);
-      }
+      // Bound each peer's unprocessed history without dropping the newest
+      // frame. Reliable ordered transport normally keeps this queue near the
+      // network RTT; a very large queue indicates a stalled simulation.
+      const maxQueue = Math.max(256, NETWORK_CONFIG.INPUT_HISTORY_SIZE * 4);
+      if (queue.length > maxQueue) queue.splice(0, queue.length - maxQueue);
     });
   }
 
@@ -57,22 +60,23 @@ export class HostNetworkSystem {
       const input = entity.input;
       if (!player || !input || player.isLocal) continue;
 
-      const latest = this.incomingInputs.get(player.peerId);
-      if (!latest) continue;
+      const queue = this.incomingInputs.get(player.peerId);
+      const next = queue?.shift();
+      if (!next) continue;
 
       Object.assign(input, {
-        inputMask: latest.inputMask,
-        yaw: latest.yaw,
-        pitch: latest.pitch,
-        sequence: latest.sequence,
-        weaponSlot: latest.weaponSlot,
-        stance: (latest.inputMask & INPUT_FLAGS.PRONE)
+        inputMask: next.inputMask,
+        yaw: next.yaw,
+        pitch: next.pitch,
+        sequence: next.sequence,
+        weaponSlot: next.weaponSlot,
+        stance: (next.inputMask & INPUT_FLAGS.PRONE)
           ? STANCE.PRONE
-          : (latest.inputMask & INPUT_FLAGS.CROUCH)
+          : (next.inputMask & INPUT_FLAGS.CROUCH)
             ? STANCE.CROUCH
             : STANCE.STAND,
       });
-      this.incomingInputs.delete(player.peerId);
+      this.lastProcessedSequence.set(player.peerId, next.sequence);
     }
   }
 
@@ -113,7 +117,7 @@ export class HostNetworkSystem {
       const peerEntity = players.find(
         (entity) => entity.player?.peerId === peerId
       );
-      const ackSequence = peerEntity?.input?.sequence ?? 0;
+      const ackSequence = this.lastProcessedSequence.get(peerId) ?? 0;
 
       this.peerManager.sendTo(
         peerId,
@@ -135,5 +139,6 @@ export class HostNetworkSystem {
   removePeer(peerId) {
     this.incomingInputs.delete(peerId);
     this.lastReceivedSequence.delete(peerId);
+    this.lastProcessedSequence.delete(peerId);
   }
 }
