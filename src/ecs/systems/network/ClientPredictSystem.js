@@ -1,6 +1,7 @@
 // src/ecs/systems/network/ClientPredictSystem.js
 
 import { applyFpsMovement } from '../../../utils/Movement.js';
+import { STANCE } from '../../../config/index.js';
 
 /**
  * ClientPredictSystem (Client-Only)
@@ -35,6 +36,7 @@ export class ClientPredictSystem {
     const yaw = inputComp.yaw || 0;
     const pitch = inputComp.pitch || 0;
     const inputMask = inputComp.inputMask || 0;
+    const stance = inputComp.stance ?? STANCE.STAND;
     const sequence = inputComp.sequence || 0;
     const dt = deltaTime || 1 / 60;
 
@@ -45,7 +47,8 @@ export class ClientPredictSystem {
       yaw,
       physComp.velocity,
       physComp.isGrounded,
-      dt
+      dt,
+      stance
     );
 
     const movementDelta = {
