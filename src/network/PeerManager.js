@@ -1,15 +1,16 @@
-import { NETWORK_CONFIG } from '../config/index.js';
 import { Peer } from 'peerjs';
+import { NETWORK_CONFIG } from '../config/index.js';
+import { resolveIceServers } from './IceServers.js';
 
-/**
- * Owns the PeerJS/WebRTC lifecycle.
- *
- * Invariants:
- * - a peer connection is registered once;
- * - close/error handling is idempotent;
- * - destroy closes transports and clears callbacks;
- * - supported typed-array payloads are normalized to ArrayBuffer.
- */
+const STATE = Object.freeze({
+  IDLE: 'idle',
+  SIGNALING: 'signaling',
+  READY: 'ready',
+  CONNECTING: 'connecting',
+  CONNECTED: 'connected',
+  CLOSED: 'closed',
+});
+
 export class PeerManager {
   constructor() {
     this.peer = null;
@@ -17,68 +18,129 @@ export class PeerManager {
     this.isHost = false;
     this.hostPeerId = null;
     this.invitationCode = null;
-
+    this.state = STATE.IDLE;
+    this.iceInfo = null;
     this.onDataCallback = null;
     this.onConnectCallback = null;
     this.onDisconnectCallback = null;
-
+    this.onStateCallback = null;
     this.destroyed = false;
   }
 
-  initHost(customRoomId = null) {
+  async initHost(customRoomId = null) {
     this._resetForInitialization();
     this.isHost = true;
+    this._setState(STATE.SIGNALING);
 
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      let attempt = 0;
-      const requestedRoomId = String(customRoomId || '').trim();
+    const requestedRoomId = String(customRoomId || '').trim();
+    this.iceInfo = await resolveIceServers();
 
-      const fail = (error) => {
-        if (!settled) {
-          settled = true;
-          reject(this._toConnectionError(error));
-        }
-      };
+    for (let attempt = 1; attempt <= NETWORK_CONFIG.INVITATION_CODE.MAX_RETRIES; attempt++) {
+      if (this.destroyed) throw new Error('Peer manager was destroyed');
 
-      const createPeer = () => {
-        if (settled || this.destroyed) {
-          fail(new Error('Peer manager was destroyed'));
-          return;
-        }
+      const invitationCode = requestedRoomId || PeerManager.createInvitationCode();
 
-        attempt += 1;
-        const invitationCode =
-          requestedRoomId || PeerManager.createInvitationCode();
-        this.invitationCode = invitationCode;
-
-        const peer = new Peer(invitationCode, this._getPeerOptions());
+      try {
+        const peer = await this._openPeer(invitationCode);
         this.peer = peer;
+        this.invitationCode = invitationCode;
+        this._setupHostListeners();
+        this._setState(STATE.READY);
+        return peer.id;
+      } catch (error) {
+        if (
+          requestedRoomId ||
+          error?.type !== 'unavailable-id' ||
+          attempt >= NETWORK_CONFIG.INVITATION_CODE.MAX_RETRIES
+        ) {
+          this.destroy();
+          throw this._toConnectionError(error);
+        }
+      }
+    }
 
-        peer.on('open', (id) => {
-          if (this.destroyed || this.peer !== peer) return;
-          this._setupHostListeners();
+    throw new Error('Unable to allocate a unique invitation code');
+  }
+
+  initializeHost(customRoomId = null) {
+    return this.initHost(customRoomId);
+  }
+
+  async initClient(hostPeerId) {
+    this._resetForInitialization();
+    this.isHost = false;
+    this.hostPeerId = PeerManager.normalizePeerId(hostPeerId);
+
+    if (!this.hostPeerId) throw new Error('Host invitation code is required');
+
+    this._setState(STATE.SIGNALING);
+    this.iceInfo = await resolveIceServers();
+
+    let peer = null;
+    let connection = null;
+    let timer = null;
+
+    try {
+      peer = await this._openPeer(null);
+      this.peer = peer;
+      this._setState(STATE.READY);
+      this._setState(STATE.CONNECTING);
+
+      connection = peer.connect(this.hostPeerId, {
+        label: NETWORK_CONFIG.TRANSPORT.LABEL,
+        reliable: NETWORK_CONFIG.TRANSPORT.RELIABLE,
+        serialization: NETWORK_CONFIG.TRANSPORT.SERIALIZATION,
+        metadata: {
+          protocolVersion: NETWORK_CONFIG.HANDSHAKE.PROTOCOL_VERSION,
+          client: 'browser-fps',
+        },
+      });
+
+      await new Promise((resolve, reject) => {
+        let settled = false;
+
+        const finish = (error = null) => {
+          if (settled) return;
           settled = true;
-          resolve(id);
+          if (timer) clearTimeout(timer);
+          error ? reject(error) : resolve();
+        };
+
+        timer = setTimeout(async () => {
+          const diagnostics = await this._collectConnectionDiagnostics(connection);
+          finish(new Error(
+            'Timed out after ' +
+            NETWORK_CONFIG.WEBRTC.DATA_CONNECTION_TIMEOUT_MS +
+            'ms while establishing WebRTC data connection to ' +
+            this.hostPeerId + '. ' + diagnostics
+          ));
+        }, NETWORK_CONFIG.WEBRTC.DATA_CONNECTION_TIMEOUT_MS);
+
+        connection.on('open', () => finish());
+        connection.on('error', (error) => finish(error));
+        connection.on('close', () => {
+          if (!settled) finish(new Error('WebRTC data channel closed before opening'));
         });
+      });
 
-        peer.on('error', (error) => {
-          if (this.destroyed || this.peer !== peer || settled) return;
-          const isCollision = error?.type === 'unavailable-id';
-          const canRetry = !requestedRoomId && isCollision && attempt < NETWORK_CONFIG.INVITATION_CODE.MAX_RETRIES;
-          if (!canRetry) {
-            fail(error);
-            return;
-          }
+      this._registerConnection(connection);
+      this._setState(STATE.CONNECTED);
+      return peer.id;
+    } catch (error) {
+      try { connection?.close(); } catch {}
+      try { peer?.destroy(); } catch {}
+      this.peer = null;
+      this._setState(STATE.CLOSED);
+      throw this._toConnectionError(error);
+    }
+  }
 
-          try { peer.destroy(); } catch {}
-          if (this.peer === peer) this.peer = null;
-          createPeer();
-        });
-      };
+  initializeClient(hostPeerId) {
+    return this.initClient(hostPeerId);
+  }
 
-      createPeer();
-    });
+  static normalizePeerId(value) {
+    return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
   }
 
   static createInvitationCode() {
@@ -88,143 +150,288 @@ export class PeerManager {
     return Array.from(values, (value) => ALPHABET[value % ALPHABET.length]).join('');
   }
 
-  _getPeerOptions() {
-    return {
-      secure: true,
-      debug: 1,
+  _getPeerOptions(iceServers) {
+    const options = {
+      secure: NETWORK_CONFIG.SIGNALING.SECURE,
+      debug: NETWORK_CONFIG.SIGNALING.DEBUG,
+      pingInterval: NETWORK_CONFIG.SIGNALING.PING_INTERVAL_MS,
       config: {
-        iceServers: NETWORK_CONFIG.WEBRTC.ICE_SERVERS,
+        iceServers,
+        iceTransportPolicy: NETWORK_CONFIG.WEBRTC.ICE_TRANSPORT_POLICY,
         sdpSemantics: NETWORK_CONFIG.WEBRTC.SDP_SEMANTICS,
       },
     };
+
+    const host = String(import.meta.env.VITE_PEER_SERVER_HOST || '').trim();
+    const port = Number(import.meta.env.VITE_PEER_SERVER_PORT || NETWORK_CONFIG.SIGNALING.PORT);
+    const path = String(import.meta.env.VITE_PEER_SERVER_PATH || NETWORK_CONFIG.SIGNALING.PATH).trim();
+
+    if (host) {
+      options.host = host;
+      options.port = Number.isFinite(port) ? port : 443;
+      options.path = path || '/';
+    }
+
+    return options;
+  }
+
+  async _openPeer(id) {
+    const options = this._getPeerOptions(
+      this.iceInfo?.iceServers || NETWORK_CONFIG.WEBRTC.STUN_SERVERS
+    );
+    const peer = id ? new Peer(id, options) : new Peer(options);
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+
+      const timer = setTimeout(() => {
+        finish(new Error(
+          'Signaling server did not become ready within ' +
+          NETWORK_CONFIG.WEBRTC.SIGNALING_TIMEOUT_MS + 'ms'
+        ));
+      }, NETWORK_CONFIG.WEBRTC.SIGNALING_TIMEOUT_MS);
+
+      const finish = (error = null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (error) {
+          try { peer.destroy(); } catch {}
+          reject(error);
+        } else {
+          resolve(peer);
+        }
+      };
+
+      peer.on('open', () => finish());
+      peer.on('error', (error) => finish(error));
+      peer.on('disconnected', () => {
+        if (!settled || this.destroyed) return;
+        this._setState(STATE.SIGNALING);
+      });
+    });
+  }
+
+  _setupHostListeners() {
+    this.peer?.on('connection', (connection) => this._registerConnection(connection));
+  }
+
+  _registerConnection(connection) {
+    if (!connection?.peer || this.destroyed) {
+      try { connection?.close(); } catch {}
+      return;
+    }
+
+    const peerId = String(connection.peer);
+    const previous = this.connections.get(peerId);
+    if (previous && previous !== connection) this._closeConnection(peerId, previous);
+
+    this.connections.set(peerId, connection);
+
+    const announceConnected = () => {
+      if (this.destroyed) return;
+      this._setState(this.isHost ? STATE.READY : STATE.CONNECTED);
+      this.onConnectCallback?.(peerId, connection);
+      this._attachConnectionDiagnostics(connection);
+    };
+
+    connection.on('open', announceConnected);
+    connection.on('data', (data) => {
+      const buffer = this._toArrayBuffer(data);
+      if (!buffer || buffer.byteLength === 0) return;
+
+      if (buffer.byteLength > NETWORK_CONFIG.TRANSPORT.MAX_PACKET_BYTES) {
+        console.warn('[Network] Dropping oversized packet', {
+          peerId,
+          bytes: buffer.byteLength,
+        });
+        return;
+      }
+
+      this.onDataCallback?.(peerId, new DataView(buffer));
+    });
+
+    const onEnd = () => this._removeConnection(peerId, connection);
+    connection.on('close', onEnd);
+    connection.on('error', (error) => {
+      console.warn('[Network] Data connection error', peerId, error);
+      onEnd();
+    });
+
+    if (connection.open) announceConnected();
+  }
+
+  _attachConnectionDiagnostics(connection) {
+    const pc = connection?.peerConnection;
+    if (!pc || pc.__fpsDiagnosticsAttached) return;
+
+    pc.__fpsDiagnosticsAttached = true;
+
+    const report = () => {
+      console.info('[WebRTC]', {
+        peer: connection.peer,
+        connectionState: pc.connectionState,
+        iceConnectionState: pc.iceConnectionState,
+        iceGatheringState: pc.iceGatheringState,
+        signalingState: pc.signalingState,
+      });
+    };
+
+    pc.addEventListener?.('connectionstatechange', report);
+    pc.addEventListener?.('iceconnectionstatechange', report);
+    pc.addEventListener?.('icegatheringstatechange', report);
+    pc.addEventListener?.('icecandidateerror', (event) => {
+      console.warn('[WebRTC] ICE candidate error', {
+        peer: connection.peer,
+        url: event.url,
+        errorCode: event.errorCode,
+        errorText: event.errorText,
+      });
+    });
+
+    setTimeout(
+      () => this._logSelectedCandidatePair(connection),
+      NETWORK_CONFIG.WEBRTC.STATS_SAMPLE_DELAY_MS
+    );
+  }
+
+  async _logSelectedCandidatePair(connection) {
+    const pc = connection?.peerConnection;
+    if (!pc?.getStats) return;
+
+    try {
+      const stats = await pc.getStats();
+      let selectedPair = null;
+
+      stats.forEach((report) => {
+        if (
+          report.type === 'transport' &&
+          report.selectedCandidatePairId
+        ) {
+          selectedPair = stats.get(report.selectedCandidatePairId);
+        }
+      });
+
+      if (!selectedPair) {
+        stats.forEach((report) => {
+          if (
+            report.type === 'candidate-pair' &&
+            (report.selected || report.nominated)
+          ) {
+            selectedPair = report;
+          }
+        });
+      }
+
+      const localCandidate = selectedPair
+        ? stats.get(selectedPair.localCandidateId)
+        : null;
+      const remoteCandidate = selectedPair
+        ? stats.get(selectedPair.remoteCandidateId)
+        : null;
+
+      console.info('[WebRTC] Candidate path', {
+        peer: connection.peer,
+        state: pc.connectionState,
+        localType: localCandidate?.candidateType || 'unknown',
+        remoteType: remoteCandidate?.candidateType || 'unknown',
+        protocol: selectedPair?.protocol || 'unknown',
+        rttMs: selectedPair?.currentRoundTripTime
+          ? Math.round(selectedPair.currentRoundTripTime * 1000)
+          : null,
+      });
+    } catch (error) {
+      console.debug('[WebRTC] Stats unavailable', error);
+    }
+  }
+
+  async _collectConnectionDiagnostics(connection) {
+    const pc = connection?.peerConnection;
+    if (!pc) return 'No RTCPeerConnection diagnostics were exposed.';
+
+    const parts = [
+      'ice=' + (pc.iceConnectionState || 'unknown'),
+      'connection=' + (pc.connectionState || 'unknown'),
+      'gathering=' + (pc.iceGatheringState || 'unknown'),
+      'TURN=' + (this.iceInfo?.hasTurn ? 'available' : 'unavailable'),
+    ];
+
+    return '(' + parts.join(', ') + ')';
   }
 
   _toConnectionError(error) {
     if (error instanceof Error && error.message) return error;
+
     const type = String(error?.type || error?.name || 'network');
-    const detail = String(error?.message || error?.description || '').trim();
-    return new Error('Peer connection failed: ' + type + (detail ? ' (' + detail + ')' : ''));
+    const detail = String(
+      error?.message ||
+      error?.description ||
+      error?.error?.message ||
+      ''
+    ).trim();
+
+    const messages = {
+      'peer-unavailable': 'The host invitation code is not currently online.',
+      network: 'The signaling server could not be reached.',
+      'server-error': 'The signaling server rejected the request.',
+      'socket-error': 'The signaling WebSocket failed.',
+      'ssl-unavailable': 'Secure signaling is unavailable on the configured PeerServer.',
+      webrtc: 'WebRTC ICE negotiation failed. A working TURN relay is required for some Internet/NAT combinations.',
+      'browser-incompatible': 'This browser does not support the required WebRTC data channel features.',
+      'unavailable-id': 'The invitation code is already in use.',
+    };
+
+    const base = messages[type] || 'Peer connection failed.';
+    return new Error(
+      base + ' [' + type + ']' + (detail ? ' ' + detail : '')
+    );
   }
 
-  initializeHost(customRoomId = null) {
-    return this.initHost(customRoomId);
+  _setState(state) {
+    if (this.state === state) return;
+    this.state = state;
+    this.onStateCallback?.(state);
   }
 
-  initClient(hostPeerId) {
-    this._resetForInitialization();
-    this.isHost = false;
-    this.hostPeerId = String(hostPeerId || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  _removeConnection(peerId, connection) {
+    if (this.connections.get(peerId) !== connection) return;
 
-    if (!this.hostPeerId) {
-      return Promise.reject(new Error('Host room ID is required'));
+    this.connections.delete(peerId);
+    try { connection.close(); } catch {}
+    this.onDisconnectCallback?.(peerId);
+
+    if (!this.connections.size && !this.isHost) {
+      this._setState(STATE.READY);
     }
-
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      const peer = new Peer(this._getPeerOptions());
-      this.peer = peer;
-
-      const fail = (error) => {
-        if (!settled) {
-          settled = true;
-          reject(this._toConnectionError(error));
-        }
-      };
-
-      peer.on('open', (localId) => {
-        if (this.destroyed) return fail(new Error('Peer manager was destroyed'));
-
-        const conn = peer.connect(this.hostPeerId, {
-          // Use an ordered/reliable channel for simulation inputs and world initialization.
-          // The game uses sequence numbers, so dropping input frames would make
-          // client prediction impossible to reconcile with the authoritative host.
-          // ArrayBuffer payloads use PeerJS's supported binary serializer.
-          reliable: true,
-          serialization: 'binary',
-        });
-
-        const timeoutId = setTimeout(() => {
-          if (!settled) {
-            try { conn.close(); } catch {}
-            fail(new Error('Timed out while establishing the WebRTC connection'));
-          }
-        }, NETWORK_CONFIG.WEBRTC.CONNECTION_TIMEOUT_MS);
-
-        conn.on('open', () => {
-          clearTimeout(timeoutId);
-          this._registerConnection(conn);
-          if (!settled) {
-            settled = true;
-            resolve(localId);
-          }
-        });
-        conn.on('error', (error) => {
-          clearTimeout(timeoutId);
-          fail(error);
-        });
-      });
-
-      peer.on('error', fail);
-    });
   }
 
-  initializeClient(hostPeerId) {
-    return this.initClient(hostPeerId);
+  _closeConnection(peerId, connection) {
+    try { connection.close(); } catch {}
+    if (this.connections.get(peerId) === connection) {
+      this.connections.delete(peerId);
+    }
   }
 
   _resetForInitialization() {
     this.destroyed = false;
     this._closeConnections();
+
     if (this.peer && !this.peer.destroyed) {
       try { this.peer.destroy(); } catch {}
     }
+
     this.peer = null;
+    this.hostPeerId = null;
+    this.invitationCode = null;
+    this.iceInfo = null;
+    this._setState(STATE.IDLE);
   }
 
-  _setupHostListeners() {
-    this.peer?.on('connection', (conn) => this._registerConnection(conn));
-  }
-
-  _registerConnection(conn) {
-    if (!conn?.peer || this.destroyed) {
-      try { conn?.close(); } catch {}
-      return;
+  _closeConnections() {
+    for (const connection of this.connections.values()) {
+      try { connection.close(); } catch {}
     }
-
-    const peerId = String(conn.peer);
-    const previous = this.connections.get(peerId);
-    if (previous && previous !== conn) {
-      try { previous.close(); } catch {}
-    }
-
-    this.connections.set(peerId, conn);
-    let announced = false;
-    const announceConnected = () => {
-      if (announced || this.destroyed) return;
-      announced = true;
-      this.onConnectCallback?.(peerId);
-    };
-
-    conn.on('open', announceConnected);
-    if (conn.open) announceConnected();
-
-    conn.on('data', (data) => {
-      const buffer = this._toArrayBuffer(data);
-      if (!buffer || buffer.byteLength === 0) return;
-      this.onDataCallback?.(peerId, new DataView(buffer));
-    });
-
-    const onEnd = () => this._removeConnection(peerId, conn);
-    conn.on('close', onEnd);
-    conn.on('error', onEnd);
-  }
-
-  _removeConnection(peerId, conn) {
-    if (this.connections.get(peerId) !== conn) return;
-
-    this.connections.delete(peerId);
-    try { conn.close(); } catch {}
-    this.onDisconnectCallback?.(peerId);
+    this.connections.clear();
   }
 
   _toArrayBuffer(data) {
@@ -240,14 +447,24 @@ export class PeerManager {
 
   sendTo(peerId, buffer) {
     const id = String(peerId);
-    const conn = this.connections.get(id);
-    if (!conn?.open || !buffer) return false;
+    const connection = this.connections.get(id);
+
+    if (!connection?.open || !buffer) return false;
+
+    if (buffer.byteLength > NETWORK_CONFIG.TRANSPORT.MAX_PACKET_BYTES) {
+      console.warn('[Network] Refusing oversized outbound packet', {
+        peerId: id,
+        bytes: buffer.byteLength,
+      });
+      return false;
+    }
 
     try {
-      conn.send(buffer);
+      connection.send(buffer);
       return true;
-    } catch {
-      this._removeConnection(id, conn);
+    } catch (error) {
+      console.warn('[Network] Send failed', id, error);
+      this._removeConnection(id, connection);
       return false;
     }
   }
@@ -259,34 +476,23 @@ export class PeerManager {
 
   broadcast(buffer) {
     if (!buffer) return;
-    for (const [peerId, conn] of this.connections) {
-      if (!conn?.open) continue;
-      try {
-        conn.send(buffer);
-      } catch {
-        this._removeConnection(peerId, conn);
-      }
+    for (const [peerId, connection] of this.connections) {
+      if (connection?.open) this.sendTo(peerId, buffer);
     }
   }
 
-  onData(cb) { this.onDataCallback = cb; }
-  onConnect(cb) { this.onConnectCallback = cb; }
-  onPeerConnect(cb) { this.onConnect(cb); }
-  onDisconnect(cb) { this.onDisconnectCallback = cb; }
-  onPeerDisconnect(cb) { this.onDisconnect(cb); }
-
-  _closeConnections() {
-    for (const conn of this.connections.values()) {
-      try { conn.close(); } catch {}
-    }
-    this.connections.clear();
-  }
+  onData(callback) { this.onDataCallback = callback; }
+  onConnect(callback) { this.onConnectCallback = callback; }
+  onPeerConnect(callback) { this.onConnect(callback); }
+  onDisconnect(callback) { this.onDisconnectCallback = callback; }
+  onPeerDisconnect(callback) { this.onDisconnect(callback); }
+  onStateChange(callback) { this.onStateCallback = callback; }
 
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
-
     this._closeConnections();
+
     if (this.peer) {
       try { this.peer.destroy(); } catch {}
       this.peer = null;
@@ -294,8 +500,13 @@ export class PeerManager {
 
     this.hostPeerId = null;
     this.invitationCode = null;
+    this.iceInfo = null;
     this.onDataCallback = null;
     this.onConnectCallback = null;
     this.onDisconnectCallback = null;
+    this.onStateCallback = null;
+    this._setState(STATE.CLOSED);
   }
 }
+
+export { STATE as PEER_STATE };
