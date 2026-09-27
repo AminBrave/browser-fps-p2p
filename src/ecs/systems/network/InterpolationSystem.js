@@ -1,4 +1,4 @@
-import { GAME_CONFIG, NETWORK_CONFIG } from '../../../config/index.js';
+import { NETWORK_CONFIG } from '../../../config/index.js';
 
 /**
  * Client-only snapshot interpolation.
@@ -44,32 +44,16 @@ export class InterpolationSystem {
     }
   }
 
-  update(ecsWorld, playerEntities, localEntity, currentTime) {
-    if (this.snapshotBuffer.length < 2) return;
+  update(ecsWorld, playerEntities, localEntity, _currentTime) {
+    // Render the newest authoritative snapshot. This intentionally does not
+    // introduce an artificial 100 ms world-position offset: a remote player's
+    // displayed coordinates must correspond to the same server snapshot that
+    // the host used. Network latency still exists, but it is no longer hidden
+    // behind a second, client-only simulation timeline.
+    const snapshot = this.snapshotBuffer[this.snapshotBuffer.length - 1];
+    if (!snapshot) return;
 
-    const renderTime = currentTime - this.renderDelayMs;
-
-    while (
-      this.snapshotBuffer.length > 2 &&
-      this.snapshotBuffer[1].timestamp <= renderTime
-    ) {
-      this.snapshotBuffer.shift();
-    }
-
-    const from = this.snapshotBuffer[0];
-    const to = this.snapshotBuffer[1];
-    if (!from || !to || from.timestamp >= to.timestamp) return;
-
-    const alpha = Math.max(
-      0,
-      Math.min(
-        1,
-        (renderTime - from.timestamp) / (to.timestamp - from.timestamp)
-      )
-    );
-
-    const fromById = this._indexPlayers(from.players);
-    const toById = this._indexPlayers(to.players);
+    const playersById = this._indexPlayers(snapshot.players);
 
     for (const entity of playerEntities || []) {
       if (!entity || entity === localEntity) continue;
@@ -77,56 +61,41 @@ export class InterpolationSystem {
       const transform = entity.transform;
       if (!player || !transform || player.isLocal) continue;
 
-      const before = fromById.get(player.id);
-      const after = toById.get(player.id);
-      if (!before || !after) continue;
+      const state = playersById.get(player.id);
+      if (!state) continue;
 
-      const fx = before.x ?? before.position?.x ?? 0;
-      const fy = before.y ?? before.position?.y ?? 0;
-      const fz = before.z ?? before.position?.z ?? 0;
-      const tx = after.x ?? after.position?.x ?? 0;
-      const ty = after.y ?? after.position?.y ?? 0;
-      const tz = after.z ?? after.position?.z ?? 0;
-
-      const x = fx + (tx - fx) * alpha;
-      const y = fy + (ty - fy) * alpha;
-      const z = fz + (tz - fz) * alpha;
+      const x = state.x ?? state.position?.x ?? 0;
+      const y = state.y ?? state.position?.y ?? 0;
+      const z = state.z ?? state.position?.z ?? 0;
 
       transform.position.x = x;
       transform.position.y = y;
       transform.position.z = z;
 
-      // Keep the remote physics proxy aligned with the rendered transform.
-      // This prevents client-side raycasts from using the original spawn point.
+      // Remote hitboxes/raycast targets must occupy the exact same server
+      // coordinate as the visible remote player.
       entity.physics?.rigidBody?.setTranslation?.({ x, y, z }, true);
 
-      const yawFrom = before.yaw ?? before.rotation?.yaw ?? 0;
-      const yawTo = after.yaw ?? after.rotation?.yaw ?? 0;
-      const pitchFrom = before.pitch ?? before.rotation?.pitch ?? 0;
-      const pitchTo = after.pitch ?? after.rotation?.pitch ?? 0;
+      const yaw = state.yaw ?? state.rotation?.yaw ?? 0;
+      const pitch = state.pitch ?? state.rotation?.pitch ?? 0;
       if (transform.rotation) {
-        transform.rotation.yaw = this._lerpAngle(yawFrom, yawTo, alpha);
-        transform.rotation.pitch = pitchFrom + (pitchTo - pitchFrom) * alpha;
+        transform.rotation.yaw = yaw;
+        transform.rotation.pitch = pitch;
       }
 
-      const stance = alpha < 0.5
-        ? (before.stance ?? 0)
-        : (after.stance ?? 0);
-      const weaponId = alpha < 0.5
-        ? (before.weaponId ?? 1)
-        : (after.weaponId ?? 1);
-
+      const stance = state.stance ?? 0;
+      const weaponId = state.weaponId ?? 1;
       player.remoteStance = stance;
-      player.remotePitch = pitchFrom + (pitchTo - pitchFrom) * alpha;
+      player.remotePitch = pitch;
       player.remoteWeaponId = weaponId;
-      player.isDead = !!(alpha < 0.5 ? before.isDead : after.isDead);
-
-      if (after.health !== undefined) {
-        player.health = after.health;
+      player.isDead = !!state.isDead;
+      if (state.health !== undefined) {
+        player.health = state.health;
         player.isDead = player.health <= 0 || player.isDead;
       }
+
       entity.input.stance = stance;
-      entity.input.pitch = player.remotePitch;
+      entity.input.pitch = pitch;
       entity.character?.setWeaponType?.(weaponId);
     }
   }
