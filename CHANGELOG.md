@@ -22,6 +22,12 @@ All notable changes to **browser-fps-p2p** are documented here.
 - Remote kinematic physics proxies are synchronized with interpolated render transforms.
 - Input, interpolation buffers, game loops, and WebRTC transports are explicitly disposed during session shutdown.
 
+### Resource lifecycle & rendering
+- Scene shutdown now disposes unique Three.js geometries, materials, textures, renderer lists, and the canvas.
+- Rapier world state and collider/entity mappings are explicitly released on shutdown.
+- Impact decals are registered per ECS world instead of a module-global array, preventing old matches from retaining scene/entity references.
+- Horizon hill geometry/materials are shared across instances to reduce GPU allocations.
+
 ### Combat & weapons
 
 ### Combat & weapons
