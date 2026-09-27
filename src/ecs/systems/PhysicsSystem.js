@@ -14,6 +14,7 @@ export class PhysicsSystem {
     const dt = deltaTime || 1 / 60;
 
     for (const entity of ecsWorld.with('transform', 'physics')) {
+      if (entity.networkRole === 'remote') continue;
       const transform = entity.transform;
       const physics = entity.physics;
       const input = entity.input;
@@ -78,5 +79,23 @@ export class PhysicsSystem {
     }
 
     this.physicsWorld.step(dt);
+
+    // Read the committed Rapier state after step(); never publish the
+    // pre-step kinematic target as authoritative state.
+    for (const entity of ecsWorld.with('transform', 'physics')) {
+      if (entity.networkRole === 'remote') continue;
+      const body = entity.physics?.rigidBody;
+      if (!body) continue;
+      const position = body.translation();
+      entity.transform.position.x = position.x;
+      entity.transform.position.y = position.y;
+      entity.transform.position.z = position.z;
+      if (typeof body.linvel === 'function' && entity.physics.velocity) {
+        const velocity = body.linvel();
+        entity.physics.velocity.x = velocity.x;
+        entity.physics.velocity.y = velocity.y;
+        entity.physics.velocity.z = velocity.z;
+      }
+    }
   }
 }
