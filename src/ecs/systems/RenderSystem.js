@@ -39,7 +39,7 @@ export class RenderSystem {
     this._previousPosition = null;
     this._currentPosition = null;
     this._networkVisualCorrection = { x: 0, y: 0, z: 0 };
-    this._cameraShake = { phase: 0, intensity: 0, landing: 0, lastVerticalVelocity: 0 };
+    this._cameraShake = { phase: 0, intensity: 0, landing: 0, lastVerticalVelocity: 0, lastSpeed: 0 };
     this._aimFov = CAMERA_CONFIG.FOV;
   }
 
@@ -339,10 +339,14 @@ export class RenderSystem {
       );
 
       const speedRatio = Math.min(1, moveAmount);
+      const stanceMotion =
+        stance === STANCE.PRONE ? CAMERA_CONFIG.STANCE_MOTION.PRONE :
+        stance === STANCE.CROUCH ? CAMERA_CONFIG.STANCE_MOTION.CROUCH :
+        CAMERA_CONFIG.STANCE_MOTION.STAND;
       const frequency =
-        movementConfig.PHASE_SPEED_MIN_HZ +
-        (movementConfig.PHASE_SPEED_MAX_HZ - movementConfig.PHASE_SPEED_MIN_HZ) *
-          speedRatio;
+        (movementConfig.PHASE_SPEED_MIN_HZ +
+        (movementConfig.PHASE_SPEED_MAX_HZ - movementConfig.PHASE_SPEED_MIN_HZ) * speedRatio) *
+        stanceMotion.frequency;
       this._cameraShake.phase += Math.max(0, dt) * Math.PI * 2 * frequency;
       if (this._cameraShake.phase > Math.PI * 2) {
         this._cameraShake.phase %= Math.PI * 2;
@@ -351,13 +355,20 @@ export class RenderSystem {
       const gait = this._cameraShake.phase;
       const amount = this._cameraShake.intensity;
       const landing = this._cameraShake.landing;
-      const bobY = Math.sin(gait * 2) * bobConfig.VERTICAL_METERS * amount -
+      const acceleration = (horizontalSpeed - this._cameraShake.lastSpeed) / Math.max(0.001, dt);
+      this._cameraShake.lastSpeed = horizontalSpeed;
+      const accelerationImpulse = THREE.MathUtils.clamp(
+        acceleration * movementConfig.TRANSLATION_PER_ACCELERATION, -0.025, 0.025
+      );
+      const bobY = Math.sin(gait * 2) * bobConfig.VERTICAL_METERS * amount * stanceMotion.vertical -
         landing * landingConfig.VERTICAL_METERS;
-      const bobX = Math.cos(gait) * bobConfig.HORIZONTAL_METERS * amount;
-      const bobPitch = Math.sin(gait * 2) * bobConfig.PITCH_RADIANS * amount +
+      const bobX = Math.cos(gait) * bobConfig.HORIZONTAL_METERS * amount * stanceMotion.horizontal -
+        accelerationImpulse;
+      const bobPitch = Math.sin(gait * 2) * bobConfig.PITCH_RADIANS * amount * stanceMotion.pitch +
+        accelerationImpulse * movementConfig.ROTATION_PER_ACCELERATION +
         landing * landingConfig.PITCH_RADIANS;
-      const bobYaw = Math.cos(gait) * bobConfig.YAW_RADIANS * amount;
-      const bobRoll = Math.sin(gait) * bobConfig.ROLL_RADIANS * amount -
+      const bobYaw = Math.cos(gait) * bobConfig.YAW_RADIANS * amount * stanceMotion.yaw;
+      const bobRoll = Math.sin(gait) * bobConfig.ROLL_RADIANS * amount * stanceMotion.roll -
         landing * landingConfig.ROLL_RADIANS;
 
       this.camera.position.set(
