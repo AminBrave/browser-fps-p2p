@@ -67,20 +67,36 @@ export class ClientReconcileSystem {
       z: serverPlayerData.z ?? serverPlayerData.position?.z ?? 0,
     };
 
-    // Every snapshot is an authoritative server tick. Reconcile on every
-    // snapshot rather than allowing a permanent 15 cm positional error.
-    // Apply the authoritative state immediately, then replay only inputs the
-    // host has not acknowledged yet. This makes both sides use the same map
-    // coordinates while preserving responsive local prediction.
-    if (physComp.rigidBody?.setTranslation) {
-      physComp.rigidBody.setTranslation(serverPos, true);
-    } else if (physComp.rigidBody?.setNextKinematicTranslation) {
-      physComp.rigidBody.setNextKinematicTranslation(serverPos);
+    const dx = serverPos.x - transformComp.position.x;
+    const dy = serverPos.y - transformComp.position.y;
+    const dz = serverPos.z - transformComp.position.z;
+    const errorSq = dx * dx + dy * dy + dz * dz;
+    const correctionThreshold = 0.08;
+
+    // Small prediction errors are normal. Teleporting the local body on every
+    // snapshot is what makes walking/jumping visibly jitter. Correct only a
+    // material divergence, then replay inputs newer than the server ACK.
+    if (errorSq > correctionThreshold * correctionThreshold) {
+      if (physComp.rigidBody?.setTranslation) {
+        physComp.rigidBody.setTranslation(serverPos, true);
+      } else if (physComp.rigidBody?.setNextKinematicTranslation) {
+        physComp.rigidBody.setNextKinematicTranslation(serverPos);
+      }
+      transformComp.position.x = serverPos.x;
+      transformComp.position.y = serverPos.y;
+      transformComp.position.z = serverPos.z;
     }
 
-    transformComp.position.x = serverPos.x;
-    transformComp.position.y = serverPos.y;
-    transformComp.position.z = serverPos.z;
+    // Authoritative vertical velocity/grounded state prevents jump/fall
+    // divergence from accumulating until the client tunnels through a floor.
+    if (serverPlayerData.velocity && physComp.velocity) {
+      physComp.velocity.x = Number(serverPlayerData.velocity.x) || 0;
+      physComp.velocity.y = Number(serverPlayerData.velocity.y) || 0;
+      physComp.velocity.z = Number(serverPlayerData.velocity.z) || 0;
+    }
+    if (serverPlayerData.isGrounded !== undefined) {
+      physComp.isGrounded = !!serverPlayerData.isGrounded;
+    }
 
     if (this.inputBuffer?.toArray) {
       const frames = this.inputBuffer.toArray();
