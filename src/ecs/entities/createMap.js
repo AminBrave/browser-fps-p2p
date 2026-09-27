@@ -144,7 +144,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
 
   const compoundParts = [
     {
-      shape: new RAPIER.Cylinder(
+      desc: RAPIER.ColliderDesc.cylinder(
         config.TRUNK.HEIGHT / 2,
         config.TRUNK.RADIUS
       ),
@@ -178,7 +178,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
     group.add(cone);
 
     compoundParts.push({
-      shape: new RAPIER.Cone(config.CANOPY.HEIGHT / 2, radius),
+      desc: RAPIER.ColliderDesc.cone(config.CANOPY.HEIGHT / 2, radius),
       position: { x: 0, y: centerY, z: 0 },
     });
   }
@@ -290,7 +290,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
   // The child transforms use the same local coordinates as the meshes.
   const compoundParts = [
     {
-      shape: new RAPIER.Cuboid(
+      desc: RAPIER.ColliderDesc.cuboid(
         config.BODY.SIZE.x / 2,
         config.BODY.SIZE.y / 2,
         config.BODY.SIZE.z / 2
@@ -298,7 +298,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
       position: { x: 0, y: config.BODY.CENTER_Y, z: 0 },
     },
     {
-      shape: new RAPIER.Cuboid(
+      desc: RAPIER.ColliderDesc.cuboid(
         config.CABIN.SIZE.x / 2,
         config.CABIN.SIZE.y / 2,
         config.CABIN.SIZE.z / 2
@@ -310,7 +310,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
       },
     },
     ...wheelPositions.map(({ x, z }) => ({
-      shape: new RAPIER.Cylinder(
+      desc: RAPIER.ColliderDesc.cylinder(
         config.WHEELS.WIDTH / 2,
         config.WHEELS.RADIUS
       ),
