@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAME_CONFIG } from '../config/constants.js';
+import { GAME_CONFIG } from '../config/index.js';
 
 function disposeMaterial(material, disposedMaterials) {
   if (!material || disposedMaterials.has(material)) return;
