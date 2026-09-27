@@ -48,11 +48,18 @@ export class PhysicsWorld {
     return { body, collider, controller };
   }
 
-  createStaticBox(x, y, z, hx, hy, hz) {
+  createStaticBox(x, y, z, hx, hy, hz, rotationY = 0) {
     if (!this.world) throw new Error('Physics world is not initialized');
 
     const body = this.world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z)
+      RAPIER.RigidBodyDesc.fixed()
+        .setTranslation(x, y, z)
+        .setRotation({
+          x: 0,
+          y: Math.sin(rotationY / 2),
+          z: 0,
+          w: Math.cos(rotationY / 2),
+        })
     );
     const collider = this.world.createCollider(
       RAPIER.ColliderDesc.cuboid(hx, hy, hz),
