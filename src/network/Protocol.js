@@ -26,12 +26,15 @@ export class Protocol {
     return buffer;
   }
 
-  static encodeJoinAccept(playerId, entityId) {
-    const buffer = new ArrayBuffer(6);
+  static encodeJoinAccept(playerId, entityId, spawn = null) {
+    const buffer = new ArrayBuffer(18);
     const view = new DataView(buffer);
     view.setUint8(0, PACKET_TYPES.JOIN_ACCEPT);
     view.setUint8(1, playerId);
     view.setUint32(2, entityId >>> 0, true);
+    view.setFloat32(6, Number(spawn?.x ?? 0), true);
+    view.setFloat32(10, Number(spawn?.y ?? 0), true);
+    view.setFloat32(14, Number(spawn?.z ?? 0), true);
     return buffer;
   }
 
@@ -41,6 +44,11 @@ export class Protocol {
     return {
       playerId: view.getUint8(1),
       entityId: view.getUint32(2, true),
+      spawn: view.byteLength >= 18 ? {
+        x: view.getFloat32(6, true),
+        y: view.getFloat32(10, true),
+        z: view.getFloat32(14, true),
+      } : null,
     };
   }
 
@@ -50,6 +58,28 @@ export class Protocol {
    *
    * u16 is required because CROUCH/PRONE use bits above bit 7.
    */
+  static encodeWorldInit(manifest) {
+    const payload = new TextEncoder().encode(JSON.stringify(manifest));
+    const buffer = new ArrayBuffer(5 + payload.byteLength);
+    const view = new DataView(buffer);
+    view.setUint8(0, PACKET_TYPES.WORLD_INIT);
+    view.setUint32(1, payload.byteLength, true);
+    new Uint8Array(buffer, 5).set(payload);
+    return buffer;
+  }
+
+  static decodeWorldInit(data) {
+    const view = asDataView(data);
+    if (!view || view.byteLength < 5 || view.getUint8(0) !== PACKET_TYPES.WORLD_INIT) return null;
+    const length = view.getUint32(1, true);
+    if (length > view.byteLength - 5) return null;
+    try {
+      return JSON.parse(new TextDecoder().decode(new Uint8Array(view.buffer, view.byteOffset + 5, length)));
+    } catch {
+      return null;
+    }
+  }
+
   static encodeClientInput(sequence, inputMask, yaw, pitch, weaponSlot = -1) {
     const buffer = new ArrayBuffer(CLIENT_INPUT_SIZE);
     const view = new DataView(buffer);
