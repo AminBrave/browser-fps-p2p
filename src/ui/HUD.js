@@ -155,9 +155,7 @@ export class HUD {
       ? 0.92
       : 0.96 - spreadT * 0.08;
 
-    const response = 1 - Math.exp(
-      -cfg.RESPONSE * Math.max(1, 60 * (1 / 60))
-    );
+    const response = 1 - Math.exp(-cfg.RESPONSE / 60);
 
     if (!Number.isFinite(this._crosshairGap)) this._crosshairGap = targetGap;
     if (!Number.isFinite(this._crosshairLength)) this._crosshairLength = targetLength;
