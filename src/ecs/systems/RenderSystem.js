@@ -87,7 +87,7 @@ export class RenderSystem {
           ? _maybeTime
           : performance.now();
 
-    const dt = Math.min(0.05, (now - this._lastTime) / 1000);
+    const dt = Math.min(RENDER_CONFIG.MAX_RENDER_DELTA_SECONDS, (now - this._lastTime) / 1000);
     this._lastTime = now;
 
     let localEntity = localEntityArg?.transform ? localEntityArg : null;
@@ -163,7 +163,7 @@ export class RenderSystem {
           stance: entity.input?.stance ?? entity.player.remoteStance ?? STANCE.STAND,
           pitch: entity.input?.pitch ?? entity.player.remotePitch ?? 0,
           health: entity.player.health ?? GAME_CONFIG.MAX_HEALTH,
-          maxHealth: entity.player.maxHealth ?? 100,
+          maxHealth: entity.player.maxHealth ?? RENDER_CONFIG.HEALTH_BAR.MAX_HEALTH_FALLBACK,
           isDead: !!entity.player.isDead,
         });
         entity.character.setWeaponType?.(
