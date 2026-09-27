@@ -103,6 +103,7 @@ export class HUD {
     this._crosshairGap = 5;
     this._crosshairLength = 7;
     this._crosshairOpacity = 0.96;
+    this._crosshairStyle = {};
   }
 
   updateCrosshair({
@@ -116,7 +117,7 @@ export class HUD {
   } = {}) {
     if (!this.crosshair) return;
 
-    const cfg = RENDER_CONFIG.CROSSHAIR;
+    const cfg = { ...RENDER_CONFIG.CROSSHAIR, ...this._crosshairStyle };
     const safeSpread = Math.max(0, Number(spread) || 0);
     const safeMax = Math.max(0.001, Number(spreadMax) || 0.05);
     const spreadT = Math.max(0, Math.min(1, Math.sqrt(safeSpread / safeMax)));
@@ -214,17 +215,16 @@ export class HUD {
     dotEnabled,
     dotRadius,
   } = {}) {
-    const cfg = RENDER_CONFIG.CROSSHAIR;
-    if (color != null) cfg.COLOR = String(color);
-    if (outlineColor != null) cfg.OUTLINE_COLOR = String(outlineColor);
-    if (colorMode != null) cfg.COLOR_MODE = String(colorMode);
-    if (outlineWidth != null) cfg.OUTLINE_WIDTH = Math.max(0, Number(outlineWidth) || 0);
-    if (armsEnabled != null) cfg.ARMS_ENABLED = !!armsEnabled;
-    if (dotEnabled != null) cfg.DOT_ENABLED = !!dotEnabled;
+    if (color != null) this._crosshairStyle.COLOR = String(color);
+    if (outlineColor != null) this._crosshairStyle.OUTLINE_COLOR = String(outlineColor);
+    if (colorMode != null) this._crosshairStyle.COLOR_MODE = String(colorMode);
+    if (outlineWidth != null) this._crosshairStyle.OUTLINE_WIDTH = Math.max(0, Number(outlineWidth) || 0);
+    if (armsEnabled != null) this._crosshairStyle.ARMS_ENABLED = !!armsEnabled;
+    if (dotEnabled != null) this._crosshairStyle.DOT_ENABLED = !!dotEnabled;
     if (dotRadius != null) {
       const radius = Math.max(0, Number(dotRadius) || 0);
-      cfg.DOT_RADIUS_PX = radius;
-      cfg.DOT_RADIUS_ADS_PX = radius * 0.74;
+      this._crosshairStyle.DOT_RADIUS_PX = radius;
+      this._crosshairStyle.DOT_RADIUS_ADS_PX = radius * 0.74;
     }
     this.updateCrosshair();
   }
