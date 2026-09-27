@@ -149,6 +149,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
   );
   const trunkEntity = ecsWorld.add({
     isMap: true,
+    isSolid: true,
     transform: createTransform(
       safePosition.x,
       groundCenterY(TRUNK_HEIGHT),
@@ -170,6 +171,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
   );
   const canopyEntity = ecsWorld.add({
     isMap: true,
+    isSolid: true,
     transform: createTransform(
       safePosition.x,
       TRUNK_HEIGHT + 1,
@@ -255,6 +257,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, config, color
 
   const entity = ecsWorld.add({
     isMap: true,
+    isSolid: true,
     transform: createTransform(safePosition.x, bodyCenterY, safePosition.z),
     physics: createPhysics(physics.body, physics.collider),
     renderMesh: { mesh: group },
@@ -294,6 +297,7 @@ function addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities) {
     const entity = ecsWorld.add({
       isMap: true,
       isBoundary: true,
+      isSolid: true,
       transform: createTransform(wall.x, wall.y, wall.z),
       physics: createPhysics(physics.body, physics.collider),
       renderMesh: { mesh },
