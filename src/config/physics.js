@@ -1,0 +1,46 @@
+// src/config/physics.js
+// Physics geometry and controller tuning. Keep gameplay collision policy here
+// instead of scattering magic numbers through PhysicsWorld.
+
+export const PHYSICS_CONFIG = Object.freeze({
+  MOVEMENT_RADIUS_FACTOR: 0.25,
+  MIN_MOVEMENT_HALF_SEGMENT: 0.08,
+  COLLISION_GROUPS: Object.freeze({ WORLD: 0x0001, PLAYER_SOLID: 0x0002, HITBOX: 0x0004 }),
+  HITBOX: Object.freeze({
+    TORSO_HALF_HEIGHT_FACTOR: 0.20,
+    TORSO_MIN_HALF_HEIGHT: 0.12,
+    TORSO_RADIUS_FACTOR: 0.72,
+    TORSO_MAX_RADIUS: 0.24,
+    HEAD_RADIUS_FACTOR: 0.52,
+    HEAD_MAX_RADIUS: 0.20,
+    LIMB_RADIUS_FACTOR: 0.20,
+    LIMB_MIN_RADIUS: 0.055,
+    ARM_HALF_HEIGHT_FACTOR: 0.18,
+    ARM_MIN_HALF_HEIGHT: 0.08,
+    LEG_HALF_HEIGHT_FACTOR: 0.19,
+    LEG_MIN_HALF_HEIGHT: 0.10,
+    ARM_X_FACTOR: 0.86,
+    LEG_X_FACTOR: 0.34,
+    TORSO_Y_FACTOR: 0.08,
+    HEAD_Y_FACTOR: 0.36,
+    ARM_Y_FACTOR: 0.02,
+    LEG_Y_FACTOR: -0.38,
+    CROUCH_OFFSET_Y: -0.28,
+    PRONE_OFFSET_Y: -0.58,
+    CROUCH_SCALE_Y: 0.90,
+    PRONE_SCALE_Y: 0.72,
+    RADIAL_BASE: 0.82,
+    RADIAL_SCALE: 0.18,
+    CROUCH_HEAD_Y_BIAS: 0.02,
+  }),
+  CONTROLLER: Object.freeze({
+    OFFSET: 0.01,
+    AUTOSTEP_HEIGHT: 0.5,
+    AUTOSTEP_WIDTH: 0.2,
+    SNAP_TO_GROUND_DISTANCE: 0.5,
+  }),
+  DEFAULT_PLAYER_RADIUS: 0.4,
+  DEFAULT_PLAYER_HEIGHT: 1.8,
+  DEFAULT_RAY_DISTANCE: 100,
+  ZERO_VECTOR_EPSILON: 1e-8,
+});
