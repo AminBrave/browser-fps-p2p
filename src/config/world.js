@@ -36,6 +36,10 @@ export const WORLD_CONFIG = {
     ROAD_SPACING: 10,
     PADDING: 2.0,
     // Spawn-safe and gameplay-safe zones are never populated.
+    RESERVED_RECTANGLES: [
+      { x: 0, z: 0, halfWidth: 3.5, halfLength: 40 },
+      { x: 0, z: 0, halfWidth: 40, halfLength: 3.5 },
+    ],
     RESERVED_ZONES: [
       { x: -16, z: -24, radius: 5 },
       { x: 16, z: -24, radius: 5 },
