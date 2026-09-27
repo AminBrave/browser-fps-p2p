@@ -27,6 +27,10 @@ export function createWeapon(config = DEFAULT_WEAPON) {
     fireRateMs: config.FIRE_RATE_MS,
     damage: config.DAMAGE,
     range: config.RANGE,
+    muzzleVelocity: config.MUZZLE_VELOCITY ?? 500,
+    damageFalloffStart: config.DAMAGE_FALLOFF_START ?? 0,
+    damageFalloffEnd: config.DAMAGE_FALLOFF_END ?? config.RANGE ?? 100,
+    minDamageMultiplier: config.MIN_DAMAGE_MULTIPLIER ?? 0.5,
     fireMode: config.FIRE_MODE || FIRE_MODE.SEMI,
 
     isReloading: false,
@@ -67,7 +71,9 @@ export function copyWeaponState(target, source) {
   const keys = [
     'typeId', 'slot', 'name', 'sfx',
     'magazine', 'magazineSize', 'reserveAmmo', 'ammo', 'currentAmmo', 'maxAmmo',
-    'lastFiredTime', 'fireRateMs', 'damage', 'range', 'fireMode',
+    'lastFiredTime', 'fireRateMs', 'damage', 'range',
+    'muzzleVelocity', 'damageFalloffStart', 'damageFalloffEnd', 'minDamageMultiplier',
+    'fireMode',
     'isReloading', 'reloadStartTime', 'reloadTimeMs',
     'recoilPitch', 'recoilYawSpread',
     'spreadBase', 'steadySpread', 'spreadGrow', 'spreadMax', 'spreadDecay', 'pelletCount',
