@@ -129,7 +129,9 @@ export class HostGame {
       }
     }
 
-    const spawnIndex = Math.max(0, this.clientEntities.size);
+    // Slot 0 belongs to the host. Clients start at slot 1 and wrap only
+    // after all configured spawn points have been used.
+    const spawnIndex = this.clientEntities.size + 1;
     const spawn = WORLD_CONFIG.PLAYER.SPAWN_POINTS[
       spawnIndex % WORLD_CONFIG.PLAYER.SPAWN_POINTS.length
     ];
