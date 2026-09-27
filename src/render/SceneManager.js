@@ -1,10 +1,37 @@
-// src/render/SceneManager.js
-
 import * as THREE from 'three';
 import { GAME_CONFIG } from '../config/constants.js';
 
+function disposeMaterial(material, disposedMaterials) {
+  if (!material || disposedMaterials.has(material)) return;
+  disposedMaterials.add(material);
+
+  for (const key of Object.keys(material)) {
+    const value = material[key];
+    if (value?.isTexture) value.dispose();
+  }
+  material.dispose();
+}
+
+function disposeSceneResources(scene) {
+  const geometries = new Set();
+  const materials = new Set();
+
+  scene.traverse((object) => {
+    if (object.geometry) geometries.add(object.geometry);
+
+    if (Array.isArray(object.material)) {
+      object.material.forEach((material) => materials.add(material));
+    } else if (object.material) {
+      materials.add(object.material);
+    }
+  });
+
+  for (const geometry of geometries) geometry.dispose();
+  for (const material of materials) disposeMaterial(material, new Set());
+}
+
 /**
- * Sunny outdoor scene: blue sky, warm sun, soft shadows.
+ * Owns the Three.js scene, camera, renderer and window lifecycle.
  */
 export class SceneManager {
   constructor(containerElement) {
@@ -14,7 +41,7 @@ export class SceneManager {
     this.scene.background = new THREE.Color(0x87ceeb);
     this.scene.fog = new THREE.Fog(0xb8d4e8, 40, 120);
 
-    const aspect = window.innerWidth / window.innerHeight;
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
     this.camera = new THREE.PerspectiveCamera(
       GAME_CONFIG.FOV || 75,
       aspect,
@@ -41,17 +68,14 @@ export class SceneManager {
     this._setupLighting();
     this._setupSky();
 
+    this.disposed = false;
     this._onWindowResize = this._onWindowResize.bind(this);
     window.addEventListener('resize', this._onWindowResize);
   }
 
   _setupLighting() {
     const hemi = new THREE.HemisphereLight(0x9ecbff, 0x6b8e4e, 0.55);
-    this.scene.add(hemi);
-
     const ambient = new THREE.AmbientLight(0xfff5e6, 0.35);
-    this.scene.add(ambient);
-
     const sun = new THREE.DirectionalLight(0xfff4d6, 1.35);
     sun.position.set(30, 50, 20);
     sun.castShadow = true;
@@ -64,17 +88,15 @@ export class SceneManager {
     sun.shadow.camera.top = d;
     sun.shadow.camera.bottom = -d;
     sun.shadow.bias = -0.0003;
-    this.scene.add(sun);
-    this.sun = sun;
 
-    // Soft fill from opposite side
     const fill = new THREE.DirectionalLight(0xa0c4ff, 0.25);
     fill.position.set(-20, 15, -10);
-    this.scene.add(fill);
+
+    this.scene.add(hemi, ambient, sun, fill);
+    this.sun = sun;
   }
 
   _setupSky() {
-    // Simple sun disc in sky (visual only)
     const sunMesh = new THREE.Mesh(
       new THREE.SphereGeometry(4, 16, 16),
       new THREE.MeshBasicMaterial({ color: 0xfff5c0 })
@@ -82,26 +104,26 @@ export class SceneManager {
     sunMesh.position.set(60, 80, 40);
     this.scene.add(sunMesh);
 
-    // Distant hills (billboard-ish low boxes for horizon color)
-    const hillMat = new THREE.MeshStandardMaterial({
+    // Shared geometry/material reduces GPU allocations for the horizon.
+    const hillGeometry = new THREE.ConeGeometry(16, 8, 5);
+    const hillMaterial = new THREE.MeshStandardMaterial({
       color: 0x5a8f4a,
       roughness: 1,
       flatShading: true,
     });
+
     for (let i = 0; i < 12; i++) {
       const a = (i / 12) * Math.PI * 2;
-      const hill = new THREE.Mesh(
-        new THREE.ConeGeometry(12 + Math.random() * 8, 6 + Math.random() * 5, 5),
-        hillMat
-      );
+      const hill = new THREE.Mesh(hillGeometry, hillMaterial);
       hill.position.set(Math.cos(a) * 55, 1, Math.sin(a) * 55);
       this.scene.add(hill);
     }
   }
 
   _onWindowResize() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    if (this.disposed) return;
+    const width = Math.max(1, window.innerWidth);
+    const height = Math.max(1, window.innerHeight);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
@@ -109,14 +131,22 @@ export class SceneManager {
   }
 
   render() {
-    this.renderer.render(this.scene, this.camera);
+    if (!this.disposed) this.renderer.render(this.scene, this.camera);
   }
 
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+
     window.removeEventListener('resize', this._onWindowResize);
+    disposeSceneResources(this.scene);
+
     this.renderer.dispose();
-    if (this.renderer.domElement?.parentNode) {
-      this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
-    }
+    this.renderer.renderLists?.dispose?.();
+
+    const canvas = this.renderer.domElement;
+    canvas?.parentNode?.removeChild(canvas);
+
+    this.scene.clear();
   }
 }
