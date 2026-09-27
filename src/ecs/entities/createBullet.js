@@ -174,7 +174,7 @@ export function createImpactDecal(
   // A few large square pixels stay near the impact center for the first
   // frames, making the hit read clearly even at high frame rates.
   for (let i = 0; i < 3; i++) {
-    const blockSize = 0.035 + Math.random() * 0.025;
+    const blockSize = 0.06 + Math.random() * 0.04;
     const block = new THREE.Mesh(
       new THREE.BoxGeometry(blockSize, blockSize, blockSize),
       sparkMaterials[0].clone()
