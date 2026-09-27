@@ -6,19 +6,13 @@ import {
   FIRE_MODE,
 } from '../../config/constants.js';
 import { hasFlag } from '../../utils/BitFlags.js';
-import { createBullet, createImpactDecal } from '../entities/createBullet.js';
+import { createBullet, createImpactDecal, createBloodImpact } from '../entities/createBullet.js';
 import { copyWeaponState } from '../components/Weapon.js';
 import { moveIntensity } from '../../utils/Movement.js';
 import { audio } from '../../audio/AudioManager.js';
 
 export class WeaponSystem {
-  constructor(
-    physicsWorld,
-    sceneManager,
-    healthSystem = null,
-    isAuthoritative = false,
-    renderSystem = null
-  ) {
+  constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null) {
     this.physicsWorld = physicsWorld;
     this.sceneManager = sceneManager;
     this.healthSystem = healthSystem;
@@ -38,15 +32,12 @@ export class WeaponSystem {
       const transform = entity.transform;
       const input = entity.input;
       const weapon = entity.weapon;
-
       if (!player || !transform || !input || !weapon) continue;
 
       weapon.justFired = false;
       weapon.justReloaded = false;
       weapon.justStartedReload = false;
 
-      // Weapon selection is authoritative on the host, but the same input
-      // path is used locally for prediction/visual response.
       if (input.weaponSlot != null && input.weaponSlot >= 0) {
         this._trySwitchWeapon(entity, input.weaponSlot);
         input.weaponSlot = -1;
@@ -83,8 +74,7 @@ export class WeaponSystem {
 
       if (!weapon.isReloading) {
         const mag = weapon.magazine ?? 0;
-        const canReload =
-          mag < (weapon.magazineSize || 12) && (weapon.reserveAmmo || 0) > 0;
+        const canReload = mag < (weapon.magazineSize || 12) && (weapon.reserveAmmo || 0) > 0;
         if ((wantReload || (wantShoot && mag <= 0)) && canReload) {
           weapon.isReloading = true;
           weapon.reloadStartTime = now;
@@ -99,11 +89,8 @@ export class WeaponSystem {
       if (!weapon.isReloading) {
         const mag = weapon.magazine ?? 0;
         const mode = weapon.fireMode || FIRE_MODE.SEMI;
-        const cooled =
-          now - (weapon.lastFiredTime || 0) >= (weapon.fireRateMs || 200);
-
-        const shouldFire =
-          mode === FIRE_MODE.AUTO ? wantShoot && cooled : shootPressed && cooled;
+        const cooled = now - (weapon.lastFiredTime || 0) >= (weapon.fireRateMs || 200);
+        const shouldFire = mode === FIRE_MODE.AUTO ? wantShoot && cooled : shootPressed && cooled;
 
         if (shouldFire) {
           if (mag > 0) this._fireShot(ecsWorld, entity, now);
@@ -121,7 +108,6 @@ export class WeaponSystem {
 
     const cur = entity.loadout.active;
     if (slots[cur]) copyWeaponState(slots[cur], entity.weapon);
-
     entity.loadout.active = slotIndex;
     copyWeaponState(entity.weapon, slots[slotIndex]);
     entity.weapon.isReloading = false;
@@ -170,9 +156,7 @@ export class WeaponSystem {
 
     if (player.isLocal) {
       audio.playShoot(weapon.sfx || 'pistol');
-      this.renderSystem?.weaponViewModel?.onFired?.(
-        0.1 + (weapon.recoilPitch || 0) * 2
-      );
+      this.renderSystem?.weaponViewModel?.onFired?.(0.1 + (weapon.recoilPitch || 0) * 2);
     }
 
     const pelletCount = Math.max(1, weapon.pelletCount || 1);
@@ -226,6 +210,7 @@ export class WeaponSystem {
       let hitNormal = { x: -dir.x, y: -dir.y, z: -dir.z };
       let hitEntity = null;
       let hitRenderTarget = null;
+      let hitZone = null;
       let didHit = false;
 
       if (this.physicsWorld?.castRay) {
@@ -233,14 +218,17 @@ export class WeaponSystem {
         if (hit) {
           didHit = true;
           endPos = hit.point;
-          if (hit.normal) hitNormal = hit.normal;
+          hitNormal = hit.normal || hitNormal;
           hitEntity = hit.entity === entity ? null : hit.entity;
           hitRenderTarget = hit.renderTarget || null;
+          hitZone = hit.hitZone || null;
         }
       }
 
       createBullet(ecsWorld, this.sceneManager, origin, endPos);
+
       if (didHit) {
+        const isPlayerHit = !!hitEntity?.player;
         createImpactDecal(
           ecsWorld,
           this.sceneManager,
@@ -248,16 +236,27 @@ export class WeaponSystem {
           hitNormal,
           hitRenderTarget
         );
+        if (isPlayerHit) {
+          createBloodImpact(
+            ecsWorld,
+            this.sceneManager,
+            endPos,
+            hitNormal,
+            hitRenderTarget
+          );
+        }
         if (player.isLocal && p === 0) audio.playImpact();
       }
 
-      if (
-        this.isAuthoritative &&
-        this.healthSystem &&
-        hitEntity?.player &&
-        !hitEntity.player.isDead
-      ) {
-        const dmg = weapon.damage || 20;
+      if (this.isAuthoritative && this.healthSystem && hitEntity?.player && !hitEntity.player.isDead) {
+        const baseDamage = weapon.damage || 20;
+        const multiplier = hitZone === 'head'
+          ? 2.0
+          : (hitZone === 'leftArm' || hitZone === 'rightArm' || hitZone === 'leftLeg' || hitZone === 'rightLeg')
+            ? 0.65
+            : 1.0;
+        const dmg = baseDamage * multiplier;
+
         if ((hitEntity.player.health || 0) - dmg <= 0) {
           player.kills = (player.kills || 0) + 1;
         }
@@ -266,8 +265,7 @@ export class WeaponSystem {
       }
     }
 
-    const yawKick =
-      (Math.random() * 2 - 1) * (weapon.recoilYawSpread || 0.01);
+    const yawKick = (Math.random() * 2 - 1) * (weapon.recoilYawSpread || 0.01);
     const pitchKick = weapon.recoilPitch || 0.04;
     weapon.cameraRecoilPitch = (weapon.cameraRecoilPitch || 0) + pitchKick;
     weapon.cameraRecoilYaw = (weapon.cameraRecoilYaw || 0) + yawKick;
