@@ -167,30 +167,50 @@ export class PhysicsWorld {
     if (!this.world) return null;
     const len = Math.hypot(direction.x, direction.y, direction.z) || 1;
     const dir = { x: direction.x / len, y: direction.y / len, z: direction.z / len };
-    const ray = new RAPIER.Ray(origin, dir);
-    const excludeHandle = excludeCollider ? excludeCollider.handle ?? excludeCollider : null;
 
-    let hit = typeof this.world.castRayAndGetNormal === 'function'
-      ? this.world.castRayAndGetNormal(ray, maxDistance, true)
-      : this.world.castRay(ray, maxDistance, true);
+    const excluded = new Set();
+    const addExcluded = (value) => {
+      if (!value) return;
+      if (Array.isArray(value) || value instanceof Set) {
+        for (const item of value) addExcluded(item);
+        return;
+      }
+      if (value.colliders) {
+        addExcluded(value.colliders);
+        return;
+      }
+      excluded.add(value.handle ?? value);
+    };
+    addExcluded(excludeCollider);
 
-    let normalFromApi = hit?.normal ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z } : null;
-    let collider = hit?.collider || null;
-    let handle = collider ? collider.handle ?? collider : null;
-
-    if (excludeHandle != null && handle === excludeHandle) {
-      const nudged = { x: origin.x + dir.x * 0.55, y: origin.y + dir.y * 0.55, z: origin.z + dir.z * 0.55 };
-      const ray2 = new RAPIER.Ray(nudged, dir);
-      hit = typeof this.world.castRayAndGetNormal === 'function'
-        ? this.world.castRayAndGetNormal(ray2, Math.max(0.1, maxDistance - 0.55), true)
-        : this.world.castRay(ray2, Math.max(0.1, maxDistance - 0.55), true);
-      normalFromApi = hit?.normal ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z } : null;
+    let currentOrigin = { x: origin.x, y: origin.y, z: origin.z };
+    let remaining = maxDistance;
+    for (let attempt = 0; attempt < 16 && remaining > 0.001; attempt++) {
+      const ray = new RAPIER.Ray(currentOrigin, dir);
+      const hit = typeof this.world.castRayAndGetNormal === 'function'
+        ? this.world.castRayAndGetNormal(ray, remaining, true)
+        : this.world.castRay(ray, remaining, true);
       if (!hit) return null;
-      return this._formatHit(nudged, dir, hit, normalFromApi);
-    }
 
-    if (!hit) return null;
-    return this._formatHit(origin, dir, hit, normalFromApi);
+      const collider = hit.collider || null;
+      const handle = collider ? collider.handle ?? collider : null;
+      const toi = hit.timeOfImpact ?? hit.toi ?? 0;
+      if (!excluded.has(handle)) {
+        const normal = hit.normal
+          ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
+          : null;
+        return this._formatHit(currentOrigin, dir, hit, normal);
+      }
+
+      const advance = Math.max(0.002, toi + 0.002);
+      currentOrigin = {
+        x: currentOrigin.x + dir.x * advance,
+        y: currentOrigin.y + dir.y * advance,
+        z: currentOrigin.z + dir.z * advance,
+      };
+      remaining -= advance;
+    }
+    return null;
   }
 
   _formatHit(origin, dir, hit, normalFromApi) {
