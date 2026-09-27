@@ -154,6 +154,20 @@ export class RenderSystem {
 
       const stance = input.stance ?? STANCE.STAND;
 
+      // The Rapier body is the authoritative local placement. ECS transform
+      // is a cached/render value and can briefly differ after controller
+      // correction, reconciliation, or a kinematic step. The first-person
+      // camera must never be driven from that stale cache: anchor it directly
+      // to the actual body translation, then mirror that position back into
+      // ECS so camera, visible remote representation, raycasts and gameplay
+      // all share one coordinate.
+      const bodyPosition = physics?.rigidBody?.translation?.();
+      if (bodyPosition) {
+        transform.position.x = bodyPosition.x;
+        transform.position.y = bodyPosition.y;
+        transform.position.z = bodyPosition.z;
+      }
+
       // Keep the first-person eye anchored to the exact same head/pose
       // geometry used by the local player's character model. The physics
       // transform is the capsule centre, not the player's feet or head.
