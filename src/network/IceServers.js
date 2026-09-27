@@ -55,11 +55,21 @@ export async function resolveIceServers() {
     };
   } catch (error) {
     console.warn('[Network] TURN configuration unavailable; using STUN only.', error);
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (NETWORK_CONFIG.WEBRTC.REQUIRE_TURN_IN_PRODUCTION) {
+      throw new Error(
+        'Production TURN configuration is unavailable. ' +
+        'Configure METERED_TURN_CREDENTIAL_URL and METERED_TURN_API_KEY on Vercel. ' +
+        message
+      );
+    }
+
     return {
       iceServers: servers,
       hasTurn: false,
       source: 'stun-fallback',
-      error: error instanceof Error ? error.message : String(error),
+      error: message,
     };
   }
 }
