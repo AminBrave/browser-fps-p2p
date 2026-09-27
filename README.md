@@ -89,7 +89,7 @@ See **CHANGELOG.md** for a full history of gameplay and systems work on this bra
 
 - **Host** simulates physics, weapons, and damage; broadcasts world snapshots.
 - **Clients** predict movement, play local weapon FX, and reconcile against host state.
-- Hitscan uses Rapier `castRayAndGetNormal` when available so decals lie on the correct face.
+- Hitscan uses Rapier `castRayAndGetNormal` when available so decals lie on the correct face, and compound world colliders retain a mapping to the exact visible mesh part hit by the ray.
 
 ## Limitations
 
