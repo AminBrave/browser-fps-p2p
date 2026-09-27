@@ -102,7 +102,8 @@ function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
     size.x / 2,
     size.y / 2,
     size.z / 2,
-    rotationY
+    rotationY,
+    mesh
   );
 
   addToScene(sceneManager, root);
@@ -431,7 +432,9 @@ function addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position
     groundY() + config.HEIGHT / 2,
     safePosition.z,
     config.RADIUS,
-    config.HEIGHT
+    config.HEIGHT,
+    0,
+    mesh
   );
 
   return addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
@@ -486,7 +489,9 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
     0,
     WIDTH / 2,
     FLOOR_THICKNESS / 2,
-    LENGTH / 2
+    LENGTH / 2,
+    0,
+    floorMesh
   );
   const floorMesh = new THREE.Mesh(
     new THREE.BoxGeometry(WIDTH, FLOOR_THICKNESS, LENGTH),
