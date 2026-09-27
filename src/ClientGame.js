@@ -74,7 +74,10 @@ export class ClientGame {
       this.physicsWorld,
       this.sceneManager,
       this.localPlayerId,
-      { ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[0], y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2 },
+      {
+        ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[1 % WORLD_CONFIG.PLAYER.SPAWN_POINTS.length],
+        y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2 + 0.04,
+      },
       true,
       false
     );
