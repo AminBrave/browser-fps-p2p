@@ -255,7 +255,7 @@ export function disposeImpactDecals(ecsWorld) {
   decalRegistry.delete(ecsWorld);
 }
 
-export function createBloodImpact(ecsWorld, sceneOrManager, position, normal, targetMesh = null) {
+export function createBloodImpact(ecsWorld, sceneOrManager, position, normal, targetMesh = null, targetEntity = null) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
   const n = new THREE.Vector3(normal.x, normal.y, normal.z);
   if (n.lengthSq() < 1e-8) n.set(0, 1, 0);
