@@ -43,6 +43,7 @@ export class WeaponViewModel {
     this._swayY = 0;
     this.visible = true;
     this._muzzleWorld = new THREE.Vector3();
+    this._muzzleEffects = new Map();
   }
 
   _mat(color, metal = 0.6, rough = 0.4) {
@@ -287,6 +288,79 @@ export class WeaponViewModel {
     return g;
   }
 
+  _addMuzzleEffect(weaponRoot, muzzle, color, scale = 1) {
+    const effect = new THREE.Group();
+    effect.name = 'muzzleFlash';
+    effect.position.copy(muzzle.position);
+    effect.scale.setScalar(scale);
+    effect.visible = false;
+
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.045, 8, 8),
+      new THREE.MeshBasicMaterial({
+        color: 0xfff4c2,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    core.name = 'muzzleCore';
+    effect.add(core);
+
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.095, 12, 8),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    halo.name = 'muzzleHalo';
+    effect.add(halo);
+
+    const rays = new THREE.Group();
+    rays.name = 'muzzleRays';
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2;
+      const length = 0.11 + (i % 2) * 0.055;
+      const ray = new THREE.Mesh(
+        new THREE.ConeGeometry(0.018, length, 5),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      ray.position.set(Math.cos(angle) * 0.035, Math.sin(angle) * 0.035, -length * 0.5);
+      ray.rotation.z = -angle;
+      ray.rotation.x = Math.PI / 2;
+      rays.add(ray);
+    }
+    effect.add(rays);
+
+    const light = new THREE.PointLight(color, 0, 1.8);
+    light.name = 'muzzleFlashLight';
+    light.position.set(0, 0, 0);
+    effect.add(light);
+
+    effect.userData.life = 0;
+    effect.userData.maxLife = 0.075;
+    effect.userData.scale = scale;
+    effect.userData.core = core;
+    effect.userData.halo = halo;
+    effect.userData.rays = rays;
+    effect.userData.light = light;
+
+    weaponRoot.add(effect);
+    weaponRoot.userData.muzzleEffect = effect;
+    return effect;
+  }
+
   /** @param {number} typeId 1..4 */
   setWeaponType(typeId) {
     if (this._activeId === typeId) return;
@@ -360,11 +434,24 @@ export class WeaponViewModel {
 
     this._recoilKick = Math.max(0, this._recoilKick - dt * 2.4);
     const active = this._models[this._activeId];
-    if (active?.userData?.flash?.material) {
-      active.userData.flash.material.opacity = Math.max(
-        0,
-        active.userData.flash.material.opacity - dt * 14
-      );
+    const effect = active?.userData?.muzzleEffect;
+    if (effect) {
+      const life = Math.max(0, Number(effect.userData.life) || 0);
+      if (life > 0) {
+        effect.userData.life = Math.max(0, life - dt);
+        const t = effect.userData.life / effect.userData.maxLife;
+        effect.visible = t > 0;
+        effect.userData.core.material.opacity = Math.min(1, t * 1.35);
+        effect.userData.halo.material.opacity = t * 0.55;
+        effect.userData.rays.children.forEach((ray, i) => {
+          ray.material.opacity = t * (0.7 - i * 0.06);
+          ray.scale.z = 0.65 + t * (0.5 + (i % 2) * 0.35);
+        });
+        effect.userData.light.intensity = t * 7.5 * effect.userData.scale;
+      } else {
+        effect.visible = false;
+        effect.userData.light.intensity = 0;
+      }
     }
 
     let reloadY = 0;
