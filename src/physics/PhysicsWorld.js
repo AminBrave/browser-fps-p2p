@@ -1,4 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
+import { GAME_CONFIG } from '../config/constants.js';
+import { WORLD_CONFIG } from '../config/world.js';
 
 export class PhysicsWorld {
   constructor() {
@@ -10,7 +12,7 @@ export class PhysicsWorld {
   async init() {
     if (this.initialized) return;
     await RAPIER.init();
-    this.world = new RAPIER.World({ x: 0.0, y: -19.62, z: 0.0 });
+    this.world = new RAPIER.World({ x: 0.0, y: GAME_CONFIG.GRAVITY, z: 0.0 });
     this.initialized = true;
   }
 
@@ -57,6 +59,32 @@ export class PhysicsWorld {
       body
     );
     return { body, collider };
+  }
+
+  createStaticCone(x, y, z, radius, height) {
+    if (!this.world) throw new Error('Physics world is not initialized');
+
+    const body = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z)
+    );
+    const collider = this.world.createCollider(
+      RAPIER.ColliderDesc.cone(height / 2, radius),
+      body
+    );
+    return { body, collider };
+  }
+
+  createWorldSafetyFloor() {
+    const { WIDTH, LENGTH } = WORLD_CONFIG.MAP;
+    const { Y, THICKNESS } = WORLD_CONFIG.MAP.SAFETY_FLOOR;
+    return this.createStaticBox(
+      0,
+      Y - THICKNESS / 2,
+      0,
+      WIDTH / 2,
+      THICKNESS / 2,
+      LENGTH / 2
+    );
   }
 
   castRay(origin, direction, maxDistance = 100, excludeCollider = null) {
