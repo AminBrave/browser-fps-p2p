@@ -1,0 +1,69 @@
+/**
+ * Fixed-step simulation loop with a separate render phase.
+ */
+export class GameLoop {
+  constructor({
+    fixedDeltaTime = 1 / 60,
+    maxFrameDelta = 0.25,
+    onFixedUpdate = () => {},
+    onRender = () => {},
+  } = {}) {
+    this.fixedDeltaTime = fixedDeltaTime;
+    this.maxFrameDelta = maxFrameDelta;
+    this.onFixedUpdate = onFixedUpdate;
+    this.onRender = onRender;
+
+    this.running = false;
+    this.animationFrameId = null;
+    this.lastTime = 0;
+    this.accumulator = 0;
+    this.tick = 0;
+
+    this._frame = this._frame.bind(this);
+  }
+
+  start() {
+    if (this.running) return;
+    this.running = true;
+    this.lastTime = performance.now();
+    this.accumulator = 0;
+    this.animationFrameId = requestAnimationFrame(this._frame);
+  }
+
+  stop() {
+    if (!this.running) return;
+    this.running = false;
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+  }
+
+  _frame(now) {
+    if (!this.running) return;
+
+    const frameDelta = Math.min(
+      Math.max(0, (now - this.lastTime) / 1000),
+      this.maxFrameDelta
+    );
+    this.lastTime = now;
+    this.accumulator += frameDelta;
+
+    // Avoid an unbounded catch-up after a background-tab suspension.
+    const maxSteps = 8;
+    let steps = 0;
+    while (this.accumulator >= this.fixedDeltaTime && steps < maxSteps) {
+      this.tick++;
+      this.onFixedUpdate(this.fixedDeltaTime, this.tick, now);
+      this.accumulator -= this.fixedDeltaTime;
+      steps++;
+    }
+
+    if (steps === maxSteps && this.accumulator >= this.fixedDeltaTime) {
+      this.accumulator = 0;
+    }
+
+    this.onRender(Math.min(frameDelta, 0.05), now, this.accumulator / this.fixedDeltaTime);
+    this.animationFrameId = requestAnimationFrame(this._frame);
+  }
+}
