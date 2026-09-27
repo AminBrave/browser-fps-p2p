@@ -80,21 +80,26 @@ export class PhysicsSystem {
 
     this.physicsWorld.step(dt);
 
-    // Read the committed Rapier state after step(); never publish the
-    // pre-step kinematic target as authoritative state.
+    // Only player/controller bodies own their ECS transform. Static map
+    // bodies deliberately use a different origin (for example a crate's
+    // Rapier body is at its center while its Three.js root is on the ground).
+    // Copying static-body coordinates back into the render transform makes
+    // those objects appear elevated or otherwise offset every tick.
     for (const entity of ecsWorld.with('transform', 'physics')) {
       if (entity.networkRole === 'remote') continue;
-      const body = entity.physics?.rigidBody;
-      if (!body) continue;
+      const physics = entity.physics;
+      const body = physics?.rigidBody;
+      if (!body || !physics?.controller) continue;
+
       const position = body.translation();
       entity.transform.position.x = position.x;
       entity.transform.position.y = position.y;
       entity.transform.position.z = position.z;
-      if (typeof body.linvel === 'function' && entity.physics.velocity) {
+      if (typeof body.linvel === 'function' && physics.velocity) {
         const velocity = body.linvel();
-        entity.physics.velocity.x = velocity.x;
-        entity.physics.velocity.y = velocity.y;
-        entity.physics.velocity.z = velocity.z;
+        physics.velocity.x = velocity.x;
+        physics.velocity.y = velocity.y;
+        physics.velocity.z = velocity.z;
       }
     }
   }
