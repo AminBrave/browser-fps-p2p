@@ -274,7 +274,7 @@ export function clearPlayerImpactMarks(ecsWorld, playerEntity, fraction) {
   const playerId = playerEntity?.player?.id ?? playerEntity;
   if (!decals || playerId == null) return 0;
   const amount = THREE.MathUtils.clamp(Number(fraction) || 0, 0, 1);
-  const marks = decals.filter((e) => e?.isPlayerImpactMark && e?.impactMarkOwner === playerEntity && e?.renderMesh?.mesh);
+  const marks = decals.filter((e) => e?.isPlayerImpactMark && e?.impactMarkOwnerId === playerId && e?.renderMesh?.mesh);
   const removeCount = Math.min(marks.length, Math.floor(marks.length * amount + 1e-6));
   for (let i = 0; i < removeCount; i++) {
     const e = marks[i]; const mesh = e.renderMesh.mesh;
