@@ -127,7 +127,7 @@ export class PeerManager {
       const fail = (error) => {
         if (!settled) {
           settled = true;
-          reject(error);
+          reject(this._toConnectionError(error));
         }
       };
 
