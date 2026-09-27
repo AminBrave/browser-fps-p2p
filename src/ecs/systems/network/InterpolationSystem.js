@@ -1,4 +1,4 @@
-import { GAME_CONFIG, NETWORK_CONFIG } from '../../../config/constants.js';
+import { GAME_CONFIG, NETWORK_CONFIG } from '../../../config/index.js';
 
 /**
  * Client-only snapshot interpolation.
