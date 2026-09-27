@@ -15,6 +15,7 @@ export class PeerManager {
     this.connections = new Map();
     this.isHost = false;
     this.hostPeerId = null;
+    this.invitationCode = null;
 
     this.onDataCallback = null;
     this.onConnectCallback = null;
@@ -29,7 +30,9 @@ export class PeerManager {
 
     return new Promise((resolve, reject) => {
       let settled = false;
-      const peer = customRoomId ? new Peer(customRoomId) : new Peer();
+      const invitationCode = String(customRoomId || PeerManager.createInvitationCode());
+      this.invitationCode = invitationCode;
+      const peer = new Peer(invitationCode);
       this.peer = peer;
 
       const fail = (error) => {
@@ -49,6 +52,13 @@ export class PeerManager {
     });
   }
 
+  static createInvitationCode() {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const values = new Uint32Array(5);
+    crypto.getRandomValues(values);
+    return Array.from(values, (value) => alphabet[value % alphabet.length]).join('');
+  }
+
   initializeHost(customRoomId = null) {
     return this.initHost(customRoomId);
   }
@@ -56,7 +66,7 @@ export class PeerManager {
   initClient(hostPeerId) {
     this._resetForInitialization();
     this.isHost = false;
-    this.hostPeerId = String(hostPeerId || '').trim();
+    this.hostPeerId = String(hostPeerId || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 
     if (!this.hostPeerId) {
       return Promise.reject(new Error('Host room ID is required'));
@@ -226,6 +236,7 @@ export class PeerManager {
     }
 
     this.hostPeerId = null;
+    this.invitationCode = null;
     this.onDataCallback = null;
     this.onConnectCallback = null;
     this.onDisconnectCallback = null;
