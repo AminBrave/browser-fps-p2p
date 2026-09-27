@@ -41,32 +41,33 @@ export function createPlayer(
   const makeMat = (color, roughness = 0.65, metalness = 0.05) =>
     new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
-  // World units are meters. The complete character is 1.80 m tall and
-  // every visible part has a matching bullet collider.
+  // World units are metres. The mesh origin is the physics body centre;
+  // therefore the visible character spans -0.90..+0.90 m around that origin.
+  // Every visible anatomical part has a matching bullet hit collider.
   const torso = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.22, 0.55, 8, 12),
+    new THREE.CapsuleGeometry(0.23, 0.52, 8, 12),
     makeMat(teamColor)
   );
   torso.name = 'torso';
-  torso.position.y = -0.02;
+  torso.position.y = 0.08;
 
   const head = new THREE.Mesh(
     new THREE.SphereGeometry(0.17, 16, 12),
     makeMat(skinColor, 0.8)
   );
   head.name = 'head';
-  head.position.y = 0.58;
+  head.position.y = 0.64;
 
   const helmet = new THREE.Mesh(
     new THREE.SphereGeometry(0.185, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.62),
     makeMat(darkColor, 0.45, 0.2)
   );
   helmet.name = 'helmet';
-  helmet.position.y = 0.64;
+  helmet.position.y = 0.70;
 
   const limbMat = makeMat(teamColor);
-  const armGeo = new THREE.CapsuleGeometry(0.075, 0.36, 6, 8);
-  const legGeo = new THREE.CapsuleGeometry(0.08, 0.30, 6, 8);
+  const armGeo = new THREE.CapsuleGeometry(0.075, 0.42, 6, 8);
+  const legGeo = new THREE.CapsuleGeometry(0.085, 0.34, 6, 8);
   const leftArm = new THREE.Mesh(armGeo, limbMat);
   const rightArm = new THREE.Mesh(armGeo, limbMat);
   const leftLeg = new THREE.Mesh(legGeo, limbMat);
@@ -75,21 +76,21 @@ export function createPlayer(
   rightArm.name = 'rightArm';
   leftLeg.name = 'leftLeg';
   rightLeg.name = 'rightLeg';
-  leftArm.position.set(-0.30, 0.0, 0);
-  rightArm.position.set(0.30, 0.0, 0);
-  leftLeg.position.set(-0.11, -0.58, 0);
-  rightLeg.position.set(0.11, -0.58, 0);
+  leftArm.position.set(-0.30, 0.02, 0);
+  rightArm.position.set(0.30, 0.02, 0);
+  leftLeg.position.set(-0.12, -0.57, 0);
+  rightLeg.position.set(0.12, -0.57, 0);
 
   const backpack = new THREE.Mesh(
     new THREE.BoxGeometry(0.30, 0.42, 0.16),
     makeMat(darkColor, 0.8)
   );
   backpack.name = 'backpack';
-  backpack.position.set(0, 0.0, 0.22);
+  backpack.position.set(0, 0.06, 0.22);
 
   const remoteWeapon = new THREE.Group();
   remoteWeapon.name = 'remoteWeapon';
-  remoteWeapon.position.set(0.25, 0.0, -0.24);
+  remoteWeapon.position.set(0.25, 0.06, -0.24);
   const gunMat = makeMat(weaponColor, 0.3, 0.65);
   const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.11, 0.40), gunMat);
   const gunStock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.22), gunMat);
@@ -119,7 +120,7 @@ export function createPlayer(
   healthFill.renderOrder = 101;
   const healthBar = new THREE.Group();
   healthBar.name = 'healthBar';
-  healthBar.position.set(0, 1.02, 0);
+  healthBar.position.set(0, 1.00, 0);
   healthBar.add(healthBack, healthFill);
 
   const teamRing = new THREE.Mesh(
@@ -128,7 +129,7 @@ export function createPlayer(
   );
   teamRing.name = 'teamRing';
   teamRing.rotation.x = Math.PI / 2;
-  teamRing.position.y = -0.88;
+  teamRing.position.y = -0.90;
 
   const pose = new THREE.Group();
   pose.name = 'characterPose';
