@@ -3,7 +3,6 @@
 import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
 import { createPhysics } from '../components/Physics.js';
-import { GAME_CONFIG } from '../../config/constants.js';
 import { WORLD_CONFIG } from '../../config/world.js';
 
 function addToScene(sceneManager, object) {
@@ -23,36 +22,6 @@ function clampToIsland(x, z, halfExtentX = 0, halfExtentZ = 0) {
 
 function groundCenterY(height) {
   return WORLD_CONFIG.GROUND_Y + height / 2;
-}
-
-function addMapEntity(
-  ecsWorld,
-  physicsWorld,
-  mapEntities,
-  {
-    x,
-    y,
-    z,
-    physics,
-    mesh,
-    name,
-    boundary = false,
-  }
-) {
-  mesh.name = name || mesh.name || 'world-object';
-  addToScene(physicsWorld.sceneManager || null, mesh);
-
-  const entity = ecsWorld.add({
-    isMap: true,
-    isBoundary: boundary,
-    transform: createTransform(x, y, z),
-    physics: createPhysics(physics.body, physics.collider),
-    renderMesh: { mesh },
-  });
-
-  physicsWorld.registerColliderEntity?.(physics.collider, entity);
-  mapEntities.push(entity);
-  return entity;
 }
 
 function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
@@ -442,11 +411,6 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
       color: crateConfig.COLORS[i],
       name: 'crate',
     });
-  }
-
-  for (const position of crateConfig.POSITIONS) {
-    // Layout is already bounded by config, but all object placement is still
-    // normalized through clampToIsland before being instantiated.
   }
 
   for (const position of WORLD_CONFIG.OBJECTS.TREE.POSITIONS) {
