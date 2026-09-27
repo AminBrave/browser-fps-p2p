@@ -10,11 +10,9 @@ function isNewerSequence(next, previous) {
 }
 
 /**
- * Host-side transport adapter.
- *
- * Network callbacks only retain the newest input per peer. The simulation
- * consumes that value at a fixed tick, so a stalled client cannot grow an
- * unbounded input queue.
+ * Host-side network adapter.
+ * Incoming transport events retain only the newest frame per peer; simulation
+ * consumes those frames at the fixed server tick.
  */
 export class HostNetworkSystem {
   constructor(peerManager) {
@@ -25,31 +23,29 @@ export class HostNetworkSystem {
     this.lastBroadcastTime = 0;
     this.broadcastIntervalMs = 1000 / 30;
 
-    this._setupNetworkListeners();
-  }
-
-  _setupNetworkListeners() {
     this.peerManager.onData((peerId, dataView) => {
-      if (dataView.byteLength < 1 || dataView.getUint8(0) !== PACKET_TYPES.CLIENT_INPUT) {
+      if (
+        dataView.byteLength < 1 ||
+        dataView.getUint8(0) !== PACKET_TYPES.CLIENT_INPUT
+      ) {
         return;
       }
 
-      const inputData = Protocol.decodeClientInput(dataView);
-      if (!inputData) return;
+      const input = Protocol.decodeClientInput(dataView);
+      if (!input) return;
 
       const previous = this.lastReceivedSequence.get(peerId);
-      if (!isNewerSequence(inputData.sequence, previous)) return;
+      if (!isNewerSequence(input.sequence, previous)) return;
 
-      // One pending frame per peer: stale frames are never allowed to pile up.
-      this.lastReceivedSequence.set(peerId, inputData.sequence);
-      this.incomingInputs.set(peerId, inputData);
+      this.lastReceivedSequence.set(peerId, input.sequence);
+      this.incomingInputs.set(peerId, input);
 
-      if (this.incomingInputs.size > MAX_PENDING_PEERS) {
+      // Defensive bound in case a PeerJS connection survives while its ECS
+      // entity is being removed.
+      while (this.incomingInputs.size > MAX_PENDING_PEERS) {
         const oldestPeer = this.incomingInputs.keys().next().value;
-        if (oldestPeer != null) {
-          this.incomingInputs.delete(oldestPeer);
-          this.lastReceivedSequence.delete(oldestPeer);
-        }
+        this.incomingInputs.delete(oldestPeer);
+        this.lastReceivedSequence.delete(oldestPeer);
       }
     });
   }
@@ -99,36 +95,26 @@ export class HostNetworkSystem {
       });
     }
 
-    // The acknowledgement is connection-specific. Using one global maximum
-    // would incorrectly acknowledge another client's inputs.
     for (const [peerId, conn] of this.peerManager.connections) {
       if (!conn?.open) continue;
 
-      const peerEntity = snapshots.find((snapshot) =>
-        players.some(
-          (entity) =>
-            entity.player?.peerId === peerId &&
-            entity.player?.id === snapshot.entityId
-        )
+      const peerEntity = players.find(
+        (entity) => entity.player?.peerId === peerId
       );
-
-      const ackSequence =
-        peerEntity
-          ? players.find(
-              (entity) =>
-                entity.player?.peerId === peerId &&
-                entity.player?.id === peerEntity.entityId
-            )?.input?.sequence ?? 0
-          : 0;
+      const ackSequence = peerEntity?.input?.sequence ?? 0;
 
       this.peerManager.sendTo(
         peerId,
-        Protocol.encodeWorldSnapshot(this.serverTick, ackSequence, snapshots)
+        Protocol.encodeWorldSnapshot(
+          this.serverTick,
+          ackSequence,
+          snapshots
+        )
       );
     }
   }
 
-  // Backward-compatible entry point for external callers.
+  // Compatibility for callers that still use a single update method.
   update(ecsWorld, currentTime) {
     this.preUpdate(ecsWorld);
     this.postUpdate(ecsWorld, currentTime);
