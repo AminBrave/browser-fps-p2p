@@ -10,6 +10,14 @@ import { NETWORK_CONFIG } from '../config/index.js';
 export async function resolveIceServers() {
   const servers = [...NETWORK_CONFIG.WEBRTC.STUN_SERVERS];
 
+  if (import.meta.env.DEV) {
+    return {
+      iceServers: servers,
+      hasTurn: false,
+      source: 'development-stun-only',
+    };
+  }
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(
