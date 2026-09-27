@@ -39,7 +39,15 @@ export class RenderSystem {
     this._previousPosition = null;
     this._currentPosition = null;
     this._networkVisualCorrection = { x: 0, y: 0, z: 0 };
-    this._cameraShake = { phase: 0, intensity: 0, landing: 0, lastVerticalVelocity: 0, lastSpeed: 0 };
+    this._cameraShake = {
+      phase: 0,
+      intensity: 0,
+      landing: 0,
+      lastVerticalVelocity: 0,
+      lastSpeed: 0,
+      runX: 0,
+      runY: 0,
+    };
     this._aimFov = CAMERA_CONFIG.FOV;
   }
 
@@ -358,17 +366,68 @@ export class RenderSystem {
       const acceleration = (horizontalSpeed - this._cameraShake.lastSpeed) / Math.max(0.001, dt);
       this._cameraShake.lastSpeed = horizontalSpeed;
       const accelerationImpulse = THREE.MathUtils.clamp(
-        acceleration * movementConfig.TRANSLATION_PER_ACCELERATION, -0.025, 0.025
+        acceleration * movementConfig.TRANSLATION_PER_ACCELERATION,
+        -movementConfig.MAX_ACCELERATION_OFFSET,
+        movementConfig.MAX_ACCELERATION_OFFSET
       );
-      const bobY = Math.sin(gait * 2) * bobConfig.VERTICAL_METERS * amount * stanceMotion.vertical -
+
+      // Use a blended gait instead of a single sine wave. The fundamental
+      // step rhythm gives the player a readable running cadence, while the
+      // phase-shifted harmonics add natural asymmetry without introducing
+      // high-frequency camera noise that can cause discomfort.
+      const step = Math.sin(gait);
+      const doubleStep = Math.sin(gait * 2 + 0.35);
+      const sideStep = Math.sin(gait + Math.PI * 0.5);
+      const runScale = amount * speedRatio;
+      const smoothRun = 1 - Math.exp(-movementConfig.MOTION_SMOOTHING * Math.max(0, dt));
+
+      const targetRunX =
+        (sideStep * 0.72 + doubleStep * 0.28) *
+        movementConfig.RUNNING_SWAY_METERS *
+        runScale *
+        stanceMotion.horizontal;
+
+      const targetRunY =
+        (Math.abs(step) * 0.55 + (doubleStep * 0.5 + 0.5) * 0.45) *
+        movementConfig.RUNNING_LIFT_METERS *
+        runScale *
+        stanceMotion.vertical;
+
+      this._cameraShake.runX = THREE.MathUtils.lerp(this._cameraShake.runX || 0, targetRunX, smoothRun);
+      this._cameraShake.runY = THREE.MathUtils.lerp(this._cameraShake.runY || 0, targetRunY, smoothRun);
+
+      const bobY =
+        this._cameraShake.runY +
+        Math.sin(gait * 2) * bobConfig.VERTICAL_METERS * amount * stanceMotion.vertical -
         landing * landingConfig.VERTICAL_METERS;
-      const bobX = Math.cos(gait) * bobConfig.HORIZONTAL_METERS * amount * stanceMotion.horizontal -
+
+      const bobX =
+        this._cameraShake.runX +
+        Math.cos(gait) * bobConfig.HORIZONTAL_METERS * amount * stanceMotion.horizontal -
         accelerationImpulse;
-      const bobPitch = Math.sin(gait * 2) * bobConfig.PITCH_RADIANS * amount * stanceMotion.pitch +
+
+      const bobPitch =
+        (step * 0.62 + doubleStep * 0.38) *
+        movementConfig.RUNNING_PITCH_RADIANS *
+        runScale *
+        stanceMotion.pitch +
+        Math.sin(gait * 2) * bobConfig.PITCH_RADIANS * amount * stanceMotion.pitch +
         accelerationImpulse * movementConfig.ROTATION_PER_ACCELERATION +
         landing * landingConfig.PITCH_RADIANS;
-      const bobYaw = Math.cos(gait) * bobConfig.YAW_RADIANS * amount * stanceMotion.yaw;
-      const bobRoll = Math.sin(gait) * bobConfig.ROLL_RADIANS * amount * stanceMotion.roll -
+
+      const bobYaw =
+        (sideStep * 0.72 + doubleStep * 0.28) *
+        movementConfig.RUNNING_YAW_RADIANS *
+        runScale *
+        stanceMotion.yaw +
+        Math.cos(gait) * bobConfig.YAW_RADIANS * amount * stanceMotion.yaw;
+
+      const bobRoll =
+        (sideStep * 0.65 - step * 0.35) *
+        movementConfig.RUNNING_ROLL_RADIANS *
+        runScale *
+        stanceMotion.roll +
+        Math.sin(gait) * bobConfig.ROLL_RADIANS * amount * stanceMotion.roll -
         landing * landingConfig.ROLL_RADIANS;
 
       this.camera.position.set(
