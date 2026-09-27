@@ -31,6 +31,7 @@ export function createWeapon(config = DEFAULT_WEAPON) {
     damageFalloffStart: config.DAMAGE_FALLOFF_START ?? 0,
     damageFalloffEnd: config.DAMAGE_FALLOFF_END ?? config.RANGE ?? 100,
     minDamageMultiplier: config.MIN_DAMAGE_MULTIPLIER ?? 0.5,
+    damageFalloffCurve: config.DAMAGE_FALLOFF_CURVE ?? 1.0,
     fireMode: config.FIRE_MODE || FIRE_MODE.SEMI,
 
     isReloading: false,
@@ -72,7 +73,7 @@ export function copyWeaponState(target, source) {
     'typeId', 'slot', 'name', 'sfx',
     'magazine', 'magazineSize', 'reserveAmmo', 'ammo', 'currentAmmo', 'maxAmmo',
     'lastFiredTime', 'fireRateMs', 'damage', 'range',
-    'muzzleVelocity', 'damageFalloffStart', 'damageFalloffEnd', 'minDamageMultiplier',
+    'muzzleVelocity', 'damageFalloffStart', 'damageFalloffEnd', 'minDamageMultiplier', 'damageFalloffCurve',
     'fireMode',
     'isReloading', 'reloadStartTime', 'reloadTimeMs',
     'recoilPitch', 'recoilYawSpread',
