@@ -26,11 +26,12 @@ export class HUD {
       .join('');
 
     this.container.innerHTML = `
-      <div id="crosshair" style="position:absolute;top:50%;left:50%;width:0;height:0;transform:translate(-50%,-50%);">
-        <div data-crosshair-part="top" style="position:absolute;width:3px;height:6px;background:rgba(255,255,255,0.95);"></div>
-        <div data-crosshair-part="right" style="position:absolute;width:6px;height:3px;background:rgba(255,255,255,0.95);"></div>
-        <div data-crosshair-part="bottom" style="position:absolute;width:3px;height:6px;background:rgba(255,255,255,0.95);"></div>
-        <div data-crosshair-part="left" style="position:absolute;width:6px;height:3px;background:rgba(255,255,255,0.95);"></div>
+      <div id="crosshair" style="position:absolute;top:50%;left:50%;width:1px;height:1px;transform:translate(-50%,-50%);">
+        <div data-crosshair-part="top" style="position:absolute;display:block;width:3px;height:5px;background:rgba(255,255,255,0.95);border-radius:1px;box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
+        <div data-crosshair-part="right" style="position:absolute;display:block;width:5px;height:3px;background:rgba(255,255,255,0.95);border-radius:1px;box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
+        <div data-crosshair-part="bottom" style="position:absolute;display:block;width:3px;height:5px;background:rgba(255,255,255,0.95);border-radius:1px;box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
+        <div data-crosshair-part="left" style="position:absolute;display:block;width:5px;height:3px;background:rgba(255,255,255,0.95);border-radius:1px;box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
+        <div data-crosshair-center style="position:absolute;display:block;width:2px;height:2px;left:-1px;top:-1px;background:rgba(255,255,255,0.9);border-radius:50%;box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
       </div>
 
       <div id="hud-scoreboard" style="position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;background:rgba(0,0,0,0.42);padding:7px 14px;border-radius:8px;backdrop-filter:blur(6px);font-weight:700;letter-spacing:1px;">
@@ -89,7 +90,12 @@ export class HUD {
     this.deathsEl = this.container.querySelector('#hud-deaths');
     this.kdEl = this.container.querySelector('#hud-kd');
     this.crosshair = this.container.querySelector('#crosshair');
-    this.crosshairParts = Array.from(this.crosshair?.children || []);
+    this.crosshairParts = [
+      this.crosshair?.querySelector('[data-crosshair-part="top"]'),
+      this.crosshair?.querySelector('[data-crosshair-part="right"]'),
+      this.crosshair?.querySelector('[data-crosshair-part="bottom"]'),
+      this.crosshair?.querySelector('[data-crosshair-part="left"]'),
+    ];
   }
 
   updateCrosshair(speed = 0, isAiming = false) {
@@ -116,8 +122,8 @@ export class HUD {
     this._crosshairGap += (targetGap - this._crosshairGap) * response;
     this._crosshairLength += (targetLength - this._crosshairLength) * response;
 
-    const gap = isAiming ? RENDER_CONFIG.CROSSHAIR.AIM_GAP_PX : this._crosshairGap;
-    const length = this._crosshairLength;
+    const gap = isAiming ? cfg.AIM_GAP_PX : this._crosshairGap;
+    const length = Math.max(2, this._crosshairLength);
     const top = this.crosshairParts[0];
     const right = this.crosshairParts[1];
     const bottom = this.crosshairParts[2];
@@ -127,25 +133,29 @@ export class HUD {
       top.style.width = '3px';
       top.style.height = length + 'px';
       top.style.left = '-1.5px';
-      top.style.top = -(gap + length) + 'px';
+      top.style.top = '0px';
+      top.style.transform = `translateY(-${gap + length}px)`;
     }
     if (right) {
       right.style.width = length + 'px';
       right.style.height = '3px';
-      right.style.left = gap + 'px';
+      right.style.left = '0px';
       right.style.top = '-1.5px';
+      right.style.transform = `translateX(${gap}px)`;
     }
     if (bottom) {
       bottom.style.width = '3px';
       bottom.style.height = length + 'px';
       bottom.style.left = '-1.5px';
-      bottom.style.top = gap + 'px';
+      bottom.style.top = '0px';
+      bottom.style.transform = `translateY(${gap}px)`;
     }
     if (left) {
       left.style.width = length + 'px';
       left.style.height = '3px';
-      left.style.left = -(gap + length) + 'px';
+      left.style.left = '0px';
       left.style.top = '-1.5px';
+      left.style.transform = `translateX(-${gap + length}px)`;
     }
   }
 
