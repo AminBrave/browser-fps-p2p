@@ -1,40 +1,51 @@
-// src/network/PeerManager.js
-
 import { Peer } from 'peerjs';
 
 /**
- * PeerManager wraps PeerJS to handle WebRTC DataChannel connections,
- * room creation, signaling, and raw binary network I/O between Host and Clients.
+ * Owns the PeerJS/WebRTC lifecycle.
+ *
+ * Invariants:
+ * - a peer connection is registered once;
+ * - close/error handling is idempotent;
+ * - destroy closes transports and clears callbacks;
+ * - supported typed-array payloads are normalized to ArrayBuffer.
  */
 export class PeerManager {
   constructor() {
     this.peer = null;
-    this.connections = new Map(); // Map<peerId, DataConnection>
+    this.connections = new Map();
     this.isHost = false;
-    this.hostPeerId = null; // set on client so sendToHost works
+    this.hostPeerId = null;
+
     this.onDataCallback = null;
     this.onConnectCallback = null;
     this.onDisconnectCallback = null;
+
+    this.destroyed = false;
   }
 
-  /**
-   * Initializes the Host peer instance and sets up connection listeners.
-   * @param {string} [customRoomId]
-   * @returns {Promise<string>} Generated or assigned Room Peer ID.
-   */
   initHost(customRoomId = null) {
+    this._resetForInitialization();
     this.isHost = true;
-    return new Promise((resolve, reject) => {
-      this.peer = customRoomId ? new Peer(customRoomId) : new Peer();
 
-      this.peer.on('open', (id) => {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const peer = customRoomId ? new Peer(customRoomId) : new Peer();
+      this.peer = peer;
+
+      const fail = (error) => {
+        if (!settled) {
+          settled = true;
+          reject(error);
+        }
+      };
+
+      peer.on('open', (id) => {
+        if (this.destroyed) return fail(new Error('Peer manager was destroyed'));
         this._setupHostListeners();
+        settled = true;
         resolve(id);
       });
-
-      this.peer.on('error', (err) => {
-        reject(err);
-      });
+      peer.on('error', fail);
     });
   }
 
@@ -42,39 +53,47 @@ export class PeerManager {
     return this.initHost(customRoomId);
   }
 
-  /**
-   * Initializes a Client peer and connects to a Host room ID.
-   * Resolves with the local PeerJS id (used as localPlayerId).
-   * @param {string} hostPeerId
-   * @returns {Promise<string>} Local peer id
-   */
   initClient(hostPeerId) {
+    this._resetForInitialization();
     this.isHost = false;
-    this.hostPeerId = hostPeerId;
-    return new Promise((resolve, reject) => {
-      this.peer = new Peer();
+    this.hostPeerId = String(hostPeerId || '').trim();
 
-      this.peer.on('open', (localId) => {
-        const conn = this.peer.connect(hostPeerId, {
+    if (!this.hostPeerId) {
+      return Promise.reject(new Error('Host room ID is required'));
+    }
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const peer = new Peer();
+      this.peer = peer;
+
+      const fail = (error) => {
+        if (!settled) {
+          settled = true;
+          reject(error);
+        }
+      };
+
+      peer.on('open', (localId) => {
+        if (this.destroyed) return fail(new Error('Peer manager was destroyed'));
+
+        const conn = peer.connect(this.hostPeerId, {
           reliable: false,
           serialization: 'none',
         });
 
         conn.on('open', () => {
-          this.connections.set(hostPeerId, conn);
-          this._setupConnectionListeners(conn, hostPeerId);
-          if (this.onConnectCallback) this.onConnectCallback(hostPeerId);
-          resolve(localId);
+          this._registerConnection(conn);
+          this.onConnectCallback?.(this.hostPeerId);
+          if (!settled) {
+            settled = true;
+            resolve(localId);
+          }
         });
-
-        conn.on('error', (err) => {
-          reject(err);
-        });
+        conn.on('error', fail);
       });
 
-      this.peer.on('error', (err) => {
-        reject(err);
-      });
+      peer.on('error', fail);
     });
   }
 
@@ -82,96 +101,120 @@ export class PeerManager {
     return this.initClient(hostPeerId);
   }
 
-  _setupHostListeners() {
-    this.peer.on('connection', (conn) => {
-      conn.on('open', () => {
-        this.connections.set(conn.peer, conn);
-        this._setupConnectionListeners(conn, conn.peer);
-        if (this.onConnectCallback) this.onConnectCallback(conn.peer);
-      });
-    });
+  _resetForInitialization() {
+    this.destroyed = false;
+    this._closeConnections();
+    if (this.peer && !this.peer.destroyed) {
+      try { this.peer.destroy(); } catch {}
+    }
+    this.peer = null;
   }
 
-  _setupConnectionListeners(conn, peerId) {
+  _setupHostListeners() {
+    this.peer?.on('connection', (conn) => this._registerConnection(conn));
+  }
+
+  _registerConnection(conn) {
+    if (!conn?.peer || this.destroyed) {
+      try { conn?.close(); } catch {}
+      return;
+    }
+
+    const peerId = String(conn.peer);
+    const previous = this.connections.get(peerId);
+    if (previous && previous !== conn) {
+      try { previous.close(); } catch {}
+    }
+
+    this.connections.set(peerId, conn);
+
     conn.on('data', (data) => {
-      if (this.onDataCallback && data instanceof ArrayBuffer) {
-        this.onDataCallback(peerId, new DataView(data));
-      }
+      const buffer = this._toArrayBuffer(data);
+      if (!buffer || buffer.byteLength === 0) return;
+      this.onDataCallback?.(peerId, new DataView(buffer));
     });
 
-    conn.on('close', () => {
-      this.connections.delete(peerId);
-      if (this.onDisconnectCallback) this.onDisconnectCallback(peerId);
-    });
+    const onEnd = () => this._removeConnection(peerId, conn);
+    conn.on('close', onEnd);
+    conn.on('error', onEnd);
+  }
 
-    conn.on('error', () => {
-      this.connections.delete(peerId);
-      if (this.onDisconnectCallback) this.onDisconnectCallback(peerId);
-    });
+  _removeConnection(peerId, conn) {
+    if (this.connections.get(peerId) !== conn) return;
+
+    this.connections.delete(peerId);
+    try { conn.close(); } catch {}
+    this.onDisconnectCallback?.(peerId);
+  }
+
+  _toArrayBuffer(data) {
+    if (data instanceof ArrayBuffer) return data;
+    if (ArrayBuffer.isView(data)) {
+      return data.buffer.slice(
+        data.byteOffset,
+        data.byteOffset + data.byteLength
+      );
+    }
+    return null;
   }
 
   sendTo(peerId, buffer) {
-    const conn = this.connections.get(peerId);
-    if (conn && conn.open) {
+    const id = String(peerId);
+    const conn = this.connections.get(id);
+    if (!conn?.open || !buffer) return false;
+
+    try {
       conn.send(buffer);
+      return true;
+    } catch {
+      this._removeConnection(id, conn);
+      return false;
     }
   }
 
-  /**
-   * Client → Host: send binary payload to the connected host peer.
-   * @param {ArrayBuffer} buffer
-   */
   sendToHost(buffer) {
-    if (this.isHost) return;
-    if (this.hostPeerId) {
-      this.sendTo(this.hostPeerId, buffer);
-      return;
-    }
-    // Fallback: first (and usually only) connection
-    for (const [, conn] of this.connections) {
-      if (conn.open) {
-        conn.send(buffer);
-        break;
-      }
-    }
+    if (this.isHost || !this.hostPeerId) return false;
+    return this.sendTo(this.hostPeerId, buffer);
   }
 
   broadcast(buffer) {
-    this.connections.forEach((conn) => {
-      if (conn.open) {
+    if (!buffer) return;
+    for (const [peerId, conn] of this.connections) {
+      if (!conn?.open) continue;
+      try {
         conn.send(buffer);
+      } catch {
+        this._removeConnection(peerId, conn);
       }
-    });
+    }
   }
 
-  /**
-   * @param {function(peerId: string, view: DataView): void} cb
-   */
-  onData(cb) {
-    this.onDataCallback = cb;
-  }
+  onData(cb) { this.onDataCallback = cb; }
+  onConnect(cb) { this.onConnectCallback = cb; }
+  onPeerConnect(cb) { this.onConnect(cb); }
+  onDisconnect(cb) { this.onDisconnectCallback = cb; }
+  onPeerDisconnect(cb) { this.onDisconnect(cb); }
 
-  onConnect(cb) {
-    this.onConnectCallback = cb;
-  }
-
-  onPeerConnect(cb) {
-    this.onConnect(cb);
-  }
-
-  onDisconnect(cb) {
-    this.onDisconnectCallback = cb;
-  }
-
-  onPeerDisconnect(cb) {
-    this.onDisconnect(cb);
+  _closeConnections() {
+    for (const conn of this.connections.values()) {
+      try { conn.close(); } catch {}
+    }
+    this.connections.clear();
   }
 
   destroy() {
-    this.connections.forEach((conn) => conn.close());
-    this.connections.clear();
+    if (this.destroyed) return;
+    this.destroyed = true;
+
+    this._closeConnections();
     if (this.peer) {
-      this.peer.destroy();
+      try { this.peer.destroy(); } catch {}
+      this.peer = null;
     }
+
+    this.hostPeerId = null;
+    this.onDataCallback = null;
+    this.onConnectCallback = null;
+    this.onDisconnectCallback = null;
   }
 }
