@@ -1,4 +1,4 @@
-import { PACKET_TYPES } from '../../../network/PacketTypes.js';
+import { PACKET_TYPES, EVENT_TYPES } from '../../../network/PacketTypes.js';
 import { Protocol } from '../../../network/Protocol.js';
 import { GAME_CONFIG, INPUT_FLAGS, NETWORK_CONFIG, STANCE } from '../../../config/index.js';
 
@@ -19,17 +19,26 @@ export class HostNetworkSystem {
     this.incomingInputs = new Map();
     this.lastReceivedSequence = new Map();
     this.lastProcessedSequence = new Map();
+    this.incomingGameEvents = new Map();
     this.serverTick = 0;
     this.lastBroadcastTime = 0;
     this.broadcastIntervalMs = 1000 / Math.max(1, NETWORK_CONFIG.SNAPSHOT_BROADCAST_RATE);
 
     this.peerManager.onData((peerId, dataView) => {
-      if (
-        dataView.byteLength < 1 ||
-        dataView.getUint8(0) !== PACKET_TYPES.CLIENT_INPUT
-      ) {
+      if (dataView.byteLength < 1) return;
+
+      const packetType = dataView.getUint8(0);
+      if (packetType === PACKET_TYPES.GAME_EVENT) {
+        const event = Protocol.decodeGameEvent(dataView);
+        if (event?.type === EVENT_TYPES.SFX) {
+          const queue = this.incomingGameEvents.get(peerId) || [];
+          queue.push(event);
+          this.incomingGameEvents.set(peerId, queue);
+        }
         return;
       }
+
+      if (packetType !== PACKET_TYPES.CLIENT_INPUT) return;
 
       const input = Protocol.decodeClientInput(dataView);
       if (!input) return;
@@ -52,6 +61,22 @@ export class HostNetworkSystem {
 
   preUpdate(ecsWorld) {
     this.serverTick++;
+
+    for (const [peerId, queue] of this.incomingGameEvents) {
+      if (!queue?.length) continue;
+      const entity = Array.from(ecsWorld.with('player')).find(
+        (candidate) => candidate.player?.peerId === peerId
+      );
+      while (queue.length) {
+        const event = queue.shift();
+        if (!entity?.player || entity.player.isDead) continue;
+        this.emitGameEvent({
+          ...event,
+          sourceId: entity.player.id,
+          position: event.position || { ...entity.transform.position },
+        });
+      }
+    }
 
     for (const entity of ecsWorld.with('player', 'transform', 'input')) {
       const player = entity.player;
@@ -141,6 +166,7 @@ export class HostNetworkSystem {
 
   removePeer(peerId) {
     this.incomingInputs.delete(peerId);
+    this.incomingGameEvents.delete(peerId);
     this.lastReceivedSequence.delete(peerId);
     this.lastProcessedSequence.delete(peerId);
   }
