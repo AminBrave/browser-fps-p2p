@@ -215,8 +215,18 @@ export class ClientGame {
     if (!snapshot) return;
 
     if (this.interpolationSystem) this.interpolationSystem.addSnapshot(snapshot);
-    this._pendingSnapshot = snapshot;
-    this._latestSnapshot = snapshot;
+
+    // Ordered delivery is expected, but discard stale packets defensively.
+    const previousTick = this._latestSnapshot?.serverTick;
+    const nextTick = Number(snapshot.serverTick) >>> 0;
+    const newer =
+      previousTick == null ||
+      (((nextTick - (Number(previousTick) >>> 0)) >>> 0) !== 0 &&
+        (((nextTick - (Number(previousTick) >>> 0)) >>> 0) < 0x80000000));
+    if (newer) {
+      this._pendingSnapshot = snapshot;
+      this._latestSnapshot = snapshot;
+    }
   }
 
   _handleGameEvent(event) {
