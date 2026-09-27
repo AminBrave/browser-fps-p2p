@@ -1,6 +1,6 @@
 // src/ecs/systems/network/ClientReconcileSystem.js
 
-import { GAME_CONFIG } from '../../../config/index.js';
+import { GAME_CONFIG, STANCE } from '../../../config/index.js';
 import { applyFpsMovement } from '../../../utils/Movement.js';
 
 /**
@@ -94,7 +94,7 @@ export class ClientReconcileSystem {
 
   _reSimulateInputFrame(physComp, transformComp, inputFrame) {
     if (!inputFrame) return;
-    const { yaw, pitch, inputMask, deltaTime } = inputFrame;
+    const { yaw, pitch, inputMask, deltaTime, stance = STANCE.STAND } = inputFrame;
     const dt = deltaTime || 1 / 60;
 
     if (!physComp.velocity) physComp.velocity = { x: 0, y: 0, z: 0 };
@@ -104,7 +104,8 @@ export class ClientReconcileSystem {
       yaw || 0,
       physComp.velocity,
       physComp.isGrounded,
-      dt
+      dt,
+      stance
     );
 
     const movementDelta = {
