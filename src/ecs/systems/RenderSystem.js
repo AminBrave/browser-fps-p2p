@@ -422,13 +422,23 @@ export class RenderSystem {
         stanceMotion.yaw +
         Math.cos(gait) * bobConfig.YAW_RADIANS * amount * stanceMotion.yaw;
 
+      const microSway = Math.sin(gait * 3 + 0.7) * 0.55 + Math.sin(gait * 5 - 0.4) * 0.45;
+      const microPitch = Math.sin(gait * 3 - 0.25);
+      const microYaw = Math.cos(gait * 4 + 0.55);
+      const microRoll = Math.sin(gait * 2 + 1.1);
+
       const bobRoll =
         (sideStep * 0.65 - step * 0.35) *
         movementConfig.RUNNING_ROLL_RADIANS *
         runScale *
         stanceMotion.roll +
         Math.sin(gait) * bobConfig.ROLL_RADIANS * amount * stanceMotion.roll -
-        landing * landingConfig.ROLL_RADIANS;
+        landing * landingConfig.ROLL_RADIANS +
+        microRoll * movementConfig.RUNNING_MICRO_ROLL_RADIANS * runScale * stanceMotion.roll;
+
+      const totalPitch = THREE.MathUtils.clamp(bobPitch + microPitch * movementConfig.RUNNING_MICRO_PITCH_RADIANS * runScale * stanceMotion.pitch, -movementConfig.MAX_TOTAL_ROTATION_RADIANS, movementConfig.MAX_TOTAL_ROTATION_RADIANS);
+      const totalYaw = THREE.MathUtils.clamp(bobYaw + microYaw * movementConfig.RUNNING_MICRO_YAW_RADIANS * runScale * stanceMotion.yaw, -movementConfig.MAX_TOTAL_ROTATION_RADIANS, movementConfig.MAX_TOTAL_ROTATION_RADIANS);
+      const totalRoll = THREE.MathUtils.clamp(bobRoll + microSway * movementConfig.RUNNING_MICRO_ROLL_RADIANS * runScale * stanceMotion.roll, -movementConfig.MAX_TOTAL_ROTATION_RADIANS, movementConfig.MAX_TOTAL_ROTATION_RADIANS);
 
       this.camera.position.set(
         cameraBase.x + bobX,
@@ -456,7 +466,7 @@ export class RenderSystem {
       }
 
       const pitch =
-        (input.pitch || 0) + (weapon?.cameraRecoilPitch || 0) * CAMERA_CONFIG.RECOIL_SENSITIVITY + bobPitch;
+        (input.pitch || 0) + (weapon?.cameraRecoilPitch || 0) * CAMERA_CONFIG.RECOIL_SENSITIVITY + totalPitch * movementConfig.HEAD_STABILIZATION;
 
       const aiming = !!input.isAiming && !localEntity.player?.isDead;
       const fovBlend = 1 - Math.exp(-Math.max(0, dt) / Math.max(0.01, RENDER_CONFIG.AIM.TRANSITION_SECONDS));
@@ -472,9 +482,9 @@ export class RenderSystem {
         }
       }
       const yaw =
-        (input.yaw || 0) + (weapon?.cameraRecoilYaw || 0) * CAMERA_CONFIG.RECOIL_SENSITIVITY + bobYaw;
+        (input.yaw || 0) + (weapon?.cameraRecoilYaw || 0) * CAMERA_CONFIG.RECOIL_SENSITIVITY + totalYaw * movementConfig.HEAD_STABILIZATION;
 
-      this._euler.set(pitch, yaw, bobRoll, 'YXZ');
+      this._euler.set(pitch, yaw, totalRoll * movementConfig.HEAD_STABILIZATION, 'YXZ');
       this.camera.quaternion.setFromEuler(this._euler);
       audio.setListener?.(this.camera.position, new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion));
 
