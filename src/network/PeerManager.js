@@ -37,7 +37,7 @@ export class PeerManager {
       const fail = (error) => {
         if (!settled) {
           settled = true;
-          reject(error);
+          reject(this._toConnectionError(error));
         }
       };
 
@@ -90,15 +90,20 @@ export class PeerManager {
 
   _getPeerOptions() {
     return {
-      // Vercel serves the game over HTTPS, so PeerJS uses its secure cloud
-      // signaling transport. ICE then attempts direct P2P first and falls
-      // back to TURN when direct connectivity is impossible.
       secure: true,
+      debug: 1,
       config: {
         iceServers: NETWORK_CONFIG.WEBRTC.ICE_SERVERS,
         sdpSemantics: NETWORK_CONFIG.WEBRTC.SDP_SEMANTICS,
       },
     };
+  }
+
+  _toConnectionError(error) {
+    if (error instanceof Error && error.message) return error;
+    const type = String(error?.type || error?.name || 'network');
+    const detail = String(error?.message || error?.description || '').trim();
+    return new Error('Peer connection failed: ' + type + (detail ? ' (' + detail + ')' : ''));
   }
 
   initializeHost(customRoomId = null) {
@@ -133,20 +138,30 @@ export class PeerManager {
           // Use an ordered/reliable channel for simulation inputs and world initialization.
           // The game uses sequence numbers, so dropping input frames would make
           // client prediction impossible to reconcile with the authoritative host.
-          // "raw" preserves the ArrayBuffer payload without object
-          // serialization in the deployed PeerJS 1.5.x stack.
+          // ArrayBuffer payloads use PeerJS's supported binary serializer.
           reliable: true,
-          serialization: 'raw',
+          serialization: 'binary',
         });
 
+        const timeoutId = setTimeout(() => {
+          if (!settled) {
+            try { conn.close(); } catch {}
+            fail(new Error('Timed out while establishing the WebRTC connection'));
+          }
+        }, NETWORK_CONFIG.WEBRTC.CONNECTION_TIMEOUT_MS);
+
         conn.on('open', () => {
+          clearTimeout(timeoutId);
           this._registerConnection(conn);
           if (!settled) {
             settled = true;
             resolve(localId);
           }
         });
-        conn.on('error', fail);
+        conn.on('error', (error) => {
+          clearTimeout(timeoutId);
+          fail(error);
+        });
       });
 
       peer.on('error', fail);
