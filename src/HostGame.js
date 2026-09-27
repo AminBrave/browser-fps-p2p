@@ -123,11 +123,15 @@ export class HostGame {
   _ensureClientEntity(peerId) {
     const id = String(peerId);
     const existing = this.clientEntities.get(id);
-    if (existing) return existing;
+    if (existing) {
+      this._announceClientEntity(id, existing);
+      return existing;
+    }
 
     for (const entity of this.ecsWorld.with('player')) {
       if (entity.player?.peerId === id) {
         this.clientEntities.set(id, entity);
+        this._announceClientEntity(id, entity);
         return entity;
       }
     }
@@ -167,26 +171,27 @@ export class HostGame {
 
     this.clientEntities.set(id, entity);
 
-    if (!this.announcedClients.has(id)) {
-      const connection = this.peerManager.connections.get(id);
-      if (connection?.open) {
-        // The world definition and spawn are sent once, before gameplay state.
-        // This path also handles a connection that existed before onConnect
-        // was installed.
-        this.peerManager.sendTo(id, Protocol.encodeWorldInit(createWorldManifest()));
-        this.peerManager.sendTo(
-          id,
-          Protocol.encodeJoinAccept(
-            entity.player?.id ?? 0,
-            entity.player?.id ?? 0,
-            entity.transform?.position
-          )
-        );
-        this.announcedClients.add(id);
-      }
-    }
-
+    this._announceClientEntity(id, entity);
     return entity;
+  }
+
+  _announceClientEntity(id, entity) {
+    if (!entity || this.announcedClients.has(id)) return;
+
+    const connection = this.peerManager.connections.get(id);
+    if (!connection?.open) return;
+
+    // The world definition and spawn are sent once, before gameplay state.
+    this.peerManager.sendTo(id, Protocol.encodeWorldInit(createWorldManifest()));
+    this.peerManager.sendTo(
+      id,
+      Protocol.encodeJoinAccept(
+        entity.player?.id ?? 0,
+        entity.player?.id ?? 0,
+        entity.transform?.position
+      )
+    );
+    this.announcedClients.add(id);
   }
 
   _handleClientDisconnect(peerId) {
