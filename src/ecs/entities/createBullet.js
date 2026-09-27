@@ -238,7 +238,7 @@ export function createBloodImpact(ecsWorld, sceneOrManager, position, normal, ta
   if (targetMesh) targetMesh.add(group);
   else scene?.add?.(group);
 
-  return ecsWorld.add({
+  const entity = ecsWorld.add({
     isImpact: true,
     isBloodImpact: true,
     isPermanentDecal: true,
@@ -246,4 +246,22 @@ export function createBloodImpact(ecsWorld, sceneOrManager, position, normal, ta
     renderMesh: { mesh: group },
     impactFlashUntil: performance.now() + 70,
   });
+
+  let decals = decalRegistry.get(ecsWorld);
+  if (!decals) {
+    decals = [];
+    decalRegistry.set(ecsWorld, decals);
+  }
+  decals.push(entity);
+
+  const max = GAME_CONFIG.MAX_DECALS || 100;
+  while (decals.length > max) {
+    const oldEntity = decals.shift();
+    const oldMesh = oldEntity?.renderMesh?.mesh;
+    oldMesh?.parent?.remove?.(oldMesh);
+    disposeObject3D(oldMesh);
+    if (oldEntity) ecsWorld.remove(oldEntity);
+  }
+
+  return entity;
 }
