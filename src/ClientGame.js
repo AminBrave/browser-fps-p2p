@@ -105,6 +105,10 @@ export class ClientGame {
       dt
     );
 
+    // Prediction writes a kinematic target; advance Rapier exactly once per
+    // fixed tick so the next prediction starts from the current body state.
+    this.physicsWorld.step(dt);
+
     this.peerManager.sendToHost(Protocol.encodeInput(inputPayload));
     this.weaponSystem.update(this.ecsWorld, performance.now(), dt);
   }
