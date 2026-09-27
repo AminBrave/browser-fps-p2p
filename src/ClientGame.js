@@ -144,6 +144,8 @@ export class ClientGame {
       if (me && this.localEntity.player) {
         const wasAlive = !this.localEntity.player.isDead;
         this.localEntity.player.health = me.health;
+        this.localEntity.player.kills = me.kills ?? this.localEntity.player.kills ?? 0;
+        this.localEntity.player.deaths = me.deaths ?? this.localEntity.player.deaths ?? 0;
         this.localEntity.player.isDead = me.health <= 0;
         if (wasAlive && this.localEntity.player.isDead) audio.playDeath();
       }
@@ -342,8 +344,12 @@ export class ClientGame {
 
       if (remote.health !== undefined) {
         entity.player.health = remote.health;
+        entity.player.kills = remote.kills ?? entity.player.kills ?? 0;
+        entity.player.deaths = remote.deaths ?? entity.player.deaths ?? 0;
         entity.player.isDead = remote.health <= 0 || !!remote.isDead;
       }
+
+      this.physicsWorld.updatePlayerHitZones(entity.physics, remote.stance ?? 0);
 
       entity.player.remoteStance = remote.stance ?? 0;
       entity.player.remotePitch = remote.pitch ?? remote.rotation?.pitch ?? 0;
