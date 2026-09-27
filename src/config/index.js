@@ -16,6 +16,11 @@ import {
 
 import { WORLD_CONFIG } from './world.js';
 
+import {
+  generateObjectPlacements,
+  OBJECT_PLACEMENT_ALGORITHMS,
+} from './objectPlacement.js';
+
 export {
   NETWORK_CONFIG,
   GAME_CONFIG,
@@ -27,13 +32,9 @@ export {
   DEFAULT_WEAPON,
   peerIdToNumeric,
   WORLD_CONFIG,
-};
-
-export {
   generateObjectPlacements,
   OBJECT_PLACEMENT_ALGORITHMS,
-} from './objectPlacement.js';
-
+};
 
 export function validateConfig() {
   const errors = [];
