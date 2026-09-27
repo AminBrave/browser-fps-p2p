@@ -32,12 +32,12 @@ export class InterpolationSystem {
     // Map the host's simulation clock onto this client's monotonic clock once,
     // then keep using server ticks. Packet arrival jitter therefore does not
     // change the spacing between snapshots.
+    // Establish the server->client clock mapping once. Re-estimating the
+    // offset for every packet moves the interpolation timeline underneath
+    // already-buffered snapshots and can create tiny visible changes in alpha.
+    // Server ticks already provide a stable simulation timeline.
     if (this.serverClockOffsetMs == null) {
       this.serverClockOffsetMs = arrivalTime - serverTime;
-    } else {
-      const observedOffset = arrivalTime - serverTime;
-      this.serverClockOffsetMs +=
-        (observedOffset - this.serverClockOffsetMs) * 0.02;
     }
 
     const timestamp = serverTime + this.serverClockOffsetMs;
