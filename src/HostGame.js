@@ -57,6 +57,7 @@ export class HostGame {
     );
     this.hostNetworkSystem = new HostNetworkSystem(this.peerManager);
     this.weaponSystem.setEventSink((event) => this.hostNetworkSystem.emitGameEvent(event));
+    this.renderSystem.setEventSink((event) => this.hostNetworkSystem.emitGameEvent(event));
 
     createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
 
