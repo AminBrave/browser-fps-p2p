@@ -11,6 +11,7 @@ export { CAMERA_CONFIG } from './camera.js';
 export { COMBAT_CONFIG } from './combat.js';
 export { PHYSICS_CONFIG } from './physics.js';
 export { RENDER_CONFIG } from './render.js';
+export { UI_CONFIG } from './ui.js';
 export { WORLD_CONFIG } from './world.js';
 export { generateObjectPlacements, OBJECT_PLACEMENT_ALGORITHMS } from './objectPlacement.js';
 
