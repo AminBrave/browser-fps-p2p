@@ -98,6 +98,29 @@ export class RenderSystem {
       const lifespan = entity.lifespan;
 
       if (entity.isPermanentDecal && renderMesh?.mesh) {
+        if (entity.impactSparkUntil) {
+          const started = Number(entity.impactSparkStartedAt) || now;
+          const duration = Math.max(1, Number(RENDER_CONFIG.IMPACT_FLASH.SPARK_MS) || 180);
+          const t = THREE.MathUtils.clamp((now - started) / duration, 0, 1);
+          const sparkGroup = renderMesh.mesh.getObjectByName?.('impactSpark');
+          if (sparkGroup) {
+            sparkGroup.children.forEach((spark) => {
+              const velocity = spark.userData?.velocity;
+              if (velocity) {
+                spark.position.x += velocity.x * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
+                spark.position.y += velocity.y * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
+                spark.position.z += velocity.z * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
+              }
+              if (spark.material) spark.material.opacity = Math.max(0, 1 - t * t);
+              const scale = 1 + t * 0.35;
+              spark.scale.set(scale, scale, Math.max(0.05, 1 - t * 0.65));
+            });
+          }
+          if (t >= 1) {
+            entity.impactSparkUntil = 0;
+            if (sparkGroup) sparkGroup.visible = false;
+          }
+        }
         if (entity.impactFlashUntil && now < entity.impactFlashUntil) {
           const t = 1 - (entity.impactFlashUntil - now) / RENDER_CONFIG.IMPACT_FLASH.BULLET_MS;
           renderMesh.mesh.traverse((c) => {
@@ -371,6 +394,7 @@ export class RenderSystem {
           !!weapon?.isReloading,
           intensity
         );
+        this.sceneManager?.hud?.updateCrosshair?.(horizontalSpeed);
 
         const grounded = physics?.isGrounded !== false;
         const playedFootstep = audio.updateFootsteps(dt, isMoving, grounded, stance);
