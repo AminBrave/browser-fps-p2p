@@ -118,7 +118,7 @@ export class RenderSystem {
         entity.character.updateVisuals({
           stance: entity.input?.stance ?? entity.player.remoteStance ?? STANCE.STAND,
           pitch: entity.input?.pitch ?? entity.player.remotePitch ?? 0,
-          health: entity.player.health ?? 100,
+          health: entity.player.health ?? GAME_CONFIG.MAX_HEALTH,
           maxHealth: entity.player.maxHealth ?? 100,
           isDead: !!entity.player.isDead,
         });
