@@ -127,6 +127,52 @@ export class PhysicsWorld {
     return { body, collider: movementCollider, colliders, hitZones, controller };
   }
 
+  /**
+   * Keep anatomical hitboxes aligned with the rendered stance. Hitboxes are
+   * attached to the same kinematic body as the movement capsule, so their
+   * transforms must be changed relative to the parent body.
+   */
+  updatePlayerHitZones(physics, stance = 0) {
+    const colliders = physics?.colliders;
+    if (!colliders || colliders.length < 7) return;
+
+    const height = GAME_CONFIG.PLAYER_HEIGHT;
+    const radius = GAME_CONFIG.PLAYER_RADIUS;
+    const pose = stance === 2
+      ? { offsetY: -0.58, scaleY: 0.72 }
+      : stance === 1
+        ? { offsetY: -0.28, scaleY: 0.9 }
+        : { offsetY: 0, scaleY: 1 };
+    const scale = pose.scaleY;
+    const radialScale = 0.82 + 0.18 * scale;
+
+    const torsoHalf = Math.max(0.12, height * 0.20) * scale;
+    const torsoRadius = Math.min(radius * 0.72, 0.24) * radialScale;
+    const headRadius = Math.min(radius * 0.52, 0.20) * radialScale;
+    const limbRadius = Math.max(0.055, radius * 0.20) * radialScale;
+    const armHalf = Math.max(0.08, height * 0.18) * scale;
+    const legHalf = Math.max(0.10, height * 0.19) * scale;
+    const armX = radius * 0.86 * radialScale;
+    const legX = radius * 0.34 * radialScale;
+
+    const setCapsule = (collider, halfHeight, r, x, y, z = 0) => {
+      collider?.setHalfHeight?.(halfHeight);
+      collider?.setRadius?.(r);
+      collider?.setTranslationWrtParent?.({ x, y, z });
+    };
+    const setBall = (collider, r, x, y, z = 0) => {
+      collider?.setRadius?.(r);
+      collider?.setTranslationWrtParent?.({ x, y, z });
+    };
+
+    setCapsule(colliders[1], torsoHalf, torsoRadius, 0, height * 0.08 * scale + pose.offsetY);
+    setBall(colliders[2], headRadius, 0, height * 0.36 * scale + pose.offsetY + (scale < 1 ? 0.02 : 0));
+    setCapsule(colliders[3], armHalf, limbRadius, -armX, height * 0.02 * scale + pose.offsetY);
+    setCapsule(colliders[4], armHalf, limbRadius, armX, height * 0.02 * scale + pose.offsetY);
+    setCapsule(colliders[5], legHalf, limbRadius, -legX, -height * 0.38 * scale + pose.offsetY);
+    setCapsule(colliders[6], legHalf, limbRadius, legX, -height * 0.38 * scale + pose.offsetY);
+  }
+
   createStaticBox(x, y, z, hx, hy, hz, rotationY = 0, renderTarget = null) {
     return this.createStaticCompound(
       x, y, z,
