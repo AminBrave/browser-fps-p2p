@@ -204,6 +204,9 @@ export class ClientGame {
     );
     this.sceneManager.render();
     this._updateHUD();
+    const velocity = this.localEntity?.physics?.velocity;
+    const speed = Math.hypot(Number(velocity?.x) || 0, Number(velocity?.z) || 0);
+    this.hud.updateCrosshair(speed);
   }
 
   _handleServerPacket(dataView) {
