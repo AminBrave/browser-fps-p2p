@@ -116,12 +116,15 @@ export class RenderSystem {
 
       if (entity.player && !entity.player.isLocal && entity.character) {
         entity.character.updateVisuals({
-          stance: entity.player.remoteStance ?? entity.input?.stance ?? STANCE.STAND,
-          pitch: entity.player.remotePitch ?? entity.input?.pitch ?? 0,
+          stance: entity.input?.stance ?? entity.player.remoteStance ?? STANCE.STAND,
+          pitch: entity.input?.pitch ?? entity.player.remotePitch ?? 0,
           health: entity.player.health ?? 100,
           maxHealth: entity.player.maxHealth ?? 100,
           isDead: !!entity.player.isDead,
         });
+        entity.character.setWeaponType?.(
+          entity.player.remoteWeaponId ?? entity.weapon?.typeId ?? 1
+        );
         const billboardQuaternion = this.camera?.quaternion || renderMesh.mesh.quaternion;
         entity.character.parts.healthBack?.quaternion.copy(billboardQuaternion);
         entity.character.parts.healthFill?.quaternion.copy(billboardQuaternion);
