@@ -41,6 +41,7 @@ export class ClientGame {
   }
 
   async initialize(hostRoomId) {
+    validateConfig();
     await this.physicsWorld.init();
 
     this.inputSystem = new InputSystem(this.container);
