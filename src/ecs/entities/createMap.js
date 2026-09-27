@@ -4,301 +4,485 @@ import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
 import { createPhysics } from '../components/Physics.js';
 import { GAME_CONFIG } from '../../config/constants.js';
+import { WORLD_CONFIG } from '../../config/world.js';
 
-/** Floor top surface is y = 0 */
-const GROUND_Y = 0;
-
-function addToScene(sceneManager, mesh) {
-  if (sceneManager?.scene) sceneManager.scene.add(mesh);
-  else if (typeof sceneManager?.add === 'function') sceneManager.add(mesh);
+function addToScene(sceneManager, object) {
+  sceneManager?.scene?.add(object);
 }
 
-function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, opts) {
-  const { x, y, z, sx, sy, sz, color, roughness = 0.7, name = 'box' } = opts;
-  const phys = physicsWorld.createStaticBox(x, y, z, sx / 2, sy / 2, sz / 2);
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(sx, sy, sz),
-    new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.05 })
+function clampToIsland(x, z, halfExtentX = 0, halfExtentZ = 0) {
+  const { WIDTH, LENGTH, OBJECT_PADDING } = WORLD_CONFIG.MAP;
+  const maxX = Math.max(0, WIDTH / 2 - OBJECT_PADDING - halfExtentX);
+  const maxZ = Math.max(0, LENGTH / 2 - OBJECT_PADDING - halfExtentZ);
+
+  return {
+    x: Math.max(-maxX, Math.min(maxX, x)),
+    z: Math.max(-maxZ, Math.min(maxZ, z)),
+  };
+}
+
+function groundCenterY(height) {
+  return WORLD_CONFIG.GROUND_Y + height / 2;
+}
+
+function addMapEntity(
+  ecsWorld,
+  physicsWorld,
+  mapEntities,
+  {
+    x,
+    y,
+    z,
+    physics,
+    mesh,
+    name,
+    boundary = false,
+  }
+) {
+  mesh.name = name || mesh.name || 'world-object';
+  addToScene(physicsWorld.sceneManager || null, mesh);
+
+  const entity = ecsWorld.add({
+    isMap: true,
+    isBoundary: boundary,
+    transform: createTransform(x, y, z),
+    physics: createPhysics(physics.body, physics.collider),
+    renderMesh: { mesh },
+  });
+
+  physicsWorld.registerColliderEntity?.(physics.collider, entity);
+  mapEntities.push(entity);
+  return entity;
+}
+
+function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
+  position,
+  size,
+  color,
+  roughness = 0.7,
+  name = 'box',
+  rotationY = 0,
+  material = null,
+}) {
+  const safePosition = clampToIsland(
+    position.x,
+    position.z,
+    size.x / 2,
+    size.z / 2
   );
-  mesh.position.set(x, y, z);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  mesh.name = name;
-  addToScene(sceneManager, mesh);
-  mapEntities.push(
-    ecsWorld.add({
-      isMap: true,
-      transform: createTransform(x, y, z),
-      physics: createPhysics(phys.body, phys.collider),
-      renderMesh: { mesh },
+  const y = position.y ?? groundCenterY(size.y);
+
+  const physics = physicsWorld.createStaticBox(
+    safePosition.x,
+    y,
+    safePosition.z,
+    size.x / 2,
+    size.y / 2,
+    size.z / 2,
+    rotationY
+  );
+
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(size.x, size.y, size.z),
+    material || new THREE.MeshStandardMaterial({
+      color,
+      roughness,
+      metalness: 0.05,
     })
   );
+  mesh.position.set(safePosition.x, y, safePosition.z);
+  mesh.rotation.y = rotationY;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  return addMapEntity(ecsWorld, physicsWorld, mapEntities, {
+    x: safePosition.x,
+    y,
+    z: safePosition.z,
+    physics,
+    mesh,
+    name,
+  });
 }
 
-/** Tree: trunk bottom on GROUND_Y */
-function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, x, z) {
-  const trunkH = 2.6;
-  const trunkR = 0.28;
+function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
+  const config = WORLD_CONFIG.OBJECTS.TREE;
+  const safePosition = clampToIsland(
+    position.x,
+    position.z,
+    config.CANOPY_RADIUS,
+    config.CANOPY_RADIUS
+  );
+  const { TRUNK_HEIGHT, TRUNK_RADIUS, CANOPY_RADIUS, CANOPY_HEIGHT } = config;
 
   const group = new THREE.Group();
-  group.position.set(x, GROUND_Y, z);
+  group.position.set(safePosition.x, WORLD_CONFIG.GROUND_Y, safePosition.z);
 
   const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(trunkR * 0.75, trunkR, trunkH, 8),
-    new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.92 })
+    new THREE.CylinderGeometry(TRUNK_RADIUS * 0.75, TRUNK_RADIUS, TRUNK_HEIGHT, 8),
+    new THREE.MeshStandardMaterial({
+      color: WORLD_CONFIG.COLORS.TREE_TRUNK,
+      roughness: 0.92,
+    })
   );
-  // Cylinder centered at origin of mesh → lift so bottom is at y=0
-  trunk.position.y = trunkH / 2;
+  trunk.position.y = TRUNK_HEIGHT / 2;
   trunk.castShadow = true;
   trunk.receiveShadow = true;
   group.add(trunk);
 
   const leafMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color().setHSL(0.30, 0.5, 0.3),
+    color: WORLD_CONFIG.COLORS.TREE_CANOPY,
     roughness: 0.9,
   });
-  for (let i = 0; i < 3; i++) {
+
+  for (let i = 0; i < config.CANOPY_LAYERS; i++) {
+    const radius = CANOPY_RADIUS - i * 0.32;
     const cone = new THREE.Mesh(
-      new THREE.ConeGeometry(1.45 - i * 0.32, 1.6, 8),
+      new THREE.ConeGeometry(radius, 1.6, 8),
       leafMat
     );
-    cone.position.y = trunkH * 0.5 + 0.7 + i * 0.85;
+    cone.position.y = TRUNK_HEIGHT * 0.5 + 0.7 + i * 0.85;
     cone.castShadow = true;
+    cone.receiveShadow = true;
     group.add(cone);
   }
 
-  // Colliders centered correctly on trunk / canopy
-  const trunkPhys = physicsWorld.createStaticBox(
-    x, trunkH / 2, z, trunkR, trunkH / 2, trunkR
-  );
-  const canopyPhys = physicsWorld.createStaticBox(
-    x, trunkH + 1.0, z, 1.15, 1.3, 1.15
-  );
-
   addToScene(sceneManager, group);
-  mapEntities.push(
-    ecsWorld.add({
-      isMap: true,
-      transform: createTransform(x, trunkH / 2, z),
-      physics: createPhysics(trunkPhys.body, trunkPhys.collider),
-      renderMesh: { mesh: group },
-    })
+
+  const trunkPhysics = physicsWorld.createStaticBox(
+    safePosition.x,
+    groundCenterY(TRUNK_HEIGHT),
+    safePosition.z,
+    TRUNK_RADIUS,
+    TRUNK_HEIGHT / 2,
+    TRUNK_RADIUS
   );
-  mapEntities.push(
-    ecsWorld.add({
-      isMap: true,
-      transform: createTransform(x, trunkH + 1.0, z),
-      physics: createPhysics(canopyPhys.body, canopyPhys.collider),
-      renderMesh: { mesh: new THREE.Object3D() },
-    })
+  const trunkEntity = ecsWorld.add({
+    isMap: true,
+    transform: createTransform(
+      safePosition.x,
+      groundCenterY(TRUNK_HEIGHT),
+      safePosition.z
+    ),
+    physics: createPhysics(trunkPhysics.body, trunkPhysics.collider),
+    renderMesh: { mesh: group },
+  });
+  physicsWorld.registerColliderEntity(trunkPhysics.collider, trunkEntity);
+  mapEntities.push(trunkEntity);
+
+  const canopyPhysics = physicsWorld.createStaticBox(
+    safePosition.x,
+    TRUNK_HEIGHT + 1,
+    safePosition.z,
+    CANOPY_RADIUS,
+    CANOPY_HEIGHT,
+    CANOPY_RADIUS
   );
+  const canopyEntity = ecsWorld.add({
+    isMap: true,
+    transform: createTransform(
+      safePosition.x,
+      TRUNK_HEIGHT + 1,
+      safePosition.z
+    ),
+    physics: createPhysics(canopyPhysics.body, canopyPhysics.collider),
+    renderMesh: { mesh: new THREE.Object3D() },
+  });
+  physicsWorld.registerColliderEntity(canopyPhysics.collider, canopyEntity);
+  mapEntities.push(canopyEntity);
 }
 
-/** Car: wheels rest on GROUND_Y */
-function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, x, z, rotY = 0) {
-  const wheelR = 0.32;
+function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, config, color) {
+  const { BODY, CABIN, WHEEL_RADIUS, WHEEL_WIDTH, WHEEL_OFFSET_X, WHEEL_OFFSET_Z } =
+    WORLD_CONFIG.OBJECTS.CAR;
+  const safePosition = clampToIsland(
+    config.x,
+    config.z,
+    Math.max(BODY.x, CABIN.x) / 2,
+    BODY.z / 2
+  );
+
   const group = new THREE.Group();
-  group.position.set(x, GROUND_Y, z);
-  group.rotation.y = rotY;
+  group.position.set(safePosition.x, WORLD_CONFIG.GROUND_Y, safePosition.z);
+  group.rotation.y = config.rotationY;
 
   const bodyMat = new THREE.MeshStandardMaterial({
-    color: [0x2e86de, 0xee5a24, 0x10ac84, 0x8854d0][(Math.abs(Math.floor(x + z)) % 4)],
+    color,
     metalness: 0.5,
     roughness: 0.35,
   });
-
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.55, 3.8), bodyMat);
-  body.position.y = wheelR + 0.35;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(BODY.x, BODY.y, BODY.z), bodyMat);
+  body.position.y = WHEEL_RADIUS + 0.35;
   body.castShadow = true;
   body.receiveShadow = true;
   group.add(body);
 
   const cabin = new THREE.Mesh(
-    new THREE.BoxGeometry(1.7, 0.55, 1.8),
-    new THREE.MeshStandardMaterial({ color: 0x1e272e, metalness: 0.25, roughness: 0.4 })
-  );
-  cabin.position.set(0, wheelR + 0.85, -0.15);
-  cabin.castShadow = true;
-  group.add(cabin);
-
-  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95 });
-  const wheelGeo = new THREE.CylinderGeometry(wheelR, wheelR, 0.28, 14);
-  for (const [wx, wz] of [
-    [0.95, 1.2],
-    [-0.95, 1.2],
-    [0.95, -1.2],
-    [-0.95, -1.2],
-  ]) {
-    const w = new THREE.Mesh(wheelGeo, wheelMat);
-    w.rotation.z = Math.PI / 2;
-    // Wheel center at wheelR above ground
-    w.position.set(wx, wheelR, wz);
-    group.add(w);
-  }
-
-  const bodyCenterY = wheelR + 0.45;
-  const phys = physicsWorld.createStaticBox(x, bodyCenterY, z, 1.05, 0.55, 1.95);
-
-  addToScene(sceneManager, group);
-  mapEntities.push(
-    ecsWorld.add({
-      isMap: true,
-      transform: createTransform(x, bodyCenterY, z),
-      physics: createPhysics(phys.body, phys.collider),
-      renderMesh: { mesh: group },
+    new THREE.BoxGeometry(CABIN.x, CABIN.y, CABIN.z),
+    new THREE.MeshStandardMaterial({
+      color: WORLD_CONFIG.COLORS.CAR_CABIN,
+      metalness: 0.25,
+      roughness: 0.4,
     })
   );
+  cabin.position.set(0, WHEEL_RADIUS + 0.85, -0.15);
+  cabin.castShadow = true;
+  cabin.receiveShadow = true;
+  group.add(cabin);
+
+  const wheelMat = new THREE.MeshStandardMaterial({
+    color: 0x111111,
+    roughness: 0.95,
+  });
+  const wheelGeo = new THREE.CylinderGeometry(WHEEL_RADIUS, WHEEL_RADIUS, WHEEL_WIDTH, 14);
+  for (const [wx, wz] of [
+    [WHEEL_OFFSET_X, WHEEL_OFFSET_Z],
+    [-WHEEL_OFFSET_X, WHEEL_OFFSET_Z],
+    [WHEEL_OFFSET_X, -WHEEL_OFFSET_Z],
+    [-WHEEL_OFFSET_X, -WHEEL_OFFSET_Z],
+  ]) {
+    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(wx, WHEEL_RADIUS, wz);
+    wheel.castShadow = true;
+    wheel.receiveShadow = true;
+    group.add(wheel);
+  }
+
+  addToScene(sceneManager, group);
+
+  const colliderSize = WORLD_CONFIG.OBJECTS.CAR.BODY_COLLIDER;
+  const bodyCenterY = groundCenterY(colliderSize.y);
+  const physics = physicsWorld.createStaticBox(
+    safePosition.x,
+    bodyCenterY,
+    safePosition.z,
+    colliderSize.x / 2,
+    colliderSize.y / 2,
+    colliderSize.z / 2,
+    config.rotationY
+  );
+
+  const entity = ecsWorld.add({
+    isMap: true,
+    transform: createTransform(safePosition.x, bodyCenterY, safePosition.z),
+    physics: createPhysics(physics.body, physics.collider),
+    renderMesh: { mesh: group },
+  });
+  physicsWorld.registerColliderEntity(physics.collider, entity);
+  mapEntities.push(entity);
 }
 
 function addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities) {
-  const { WIDTH, LENGTH } = GAME_CONFIG.MAP_BOUNDS;
+  const { WIDTH, LENGTH, BOUNDARY } = WORLD_CONFIG.MAP;
   const halfW = WIDTH / 2;
   const halfL = LENGTH / 2;
-  const wallH = 12;
-  const thick = 2;
+  const { HEIGHT, THICKNESS } = BOUNDARY;
+
   const walls = [
-    { x: 0, y: wallH / 2, z: -halfL - thick / 2, sx: WIDTH + thick * 2, sy: wallH, sz: thick },
-    { x: 0, y: wallH / 2, z: halfL + thick / 2, sx: WIDTH + thick * 2, sy: wallH, sz: thick },
-    { x: -halfW - thick / 2, y: wallH / 2, z: 0, sx: thick, sy: wallH, sz: LENGTH },
-    { x: halfW + thick / 2, y: wallH / 2, z: 0, sx: thick, sy: wallH, sz: LENGTH },
+    { x: 0, y: groundCenterY(HEIGHT), z: -halfL - THICKNESS / 2, size: { x: WIDTH + THICKNESS * 2, y: HEIGHT, z: THICKNESS } },
+    { x: 0, y: groundCenterY(HEIGHT), z: halfL + THICKNESS / 2, size: { x: WIDTH + THICKNESS * 2, y: HEIGHT, z: THICKNESS } },
+    { x: -halfW - THICKNESS / 2, y: groundCenterY(HEIGHT), z: 0, size: { x: THICKNESS, y: HEIGHT, z: LENGTH } },
+    { x: halfW + THICKNESS / 2, y: groundCenterY(HEIGHT), z: 0, size: { x: THICKNESS, y: HEIGHT, z: LENGTH } },
   ];
-  for (const w of walls) {
-    const phys = physicsWorld.createStaticBox(w.x, w.y, w.z, w.sx / 2, w.sy / 2, w.sz / 2);
+
+  for (const wall of walls) {
+    const physics = physicsWorld.createStaticBox(
+      wall.x,
+      wall.y,
+      wall.z,
+      wall.size.x / 2,
+      wall.size.y / 2,
+      wall.size.z / 2
+    );
     const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(w.sx, w.sy, w.sz),
+      new THREE.BoxGeometry(wall.size.x, wall.size.y, wall.size.z),
       new THREE.MeshBasicMaterial({ visible: false })
     );
-    mesh.position.set(w.x, w.y, w.z);
+    mesh.position.set(wall.x, wall.y, wall.z);
+
+    const entity = ecsWorld.add({
+      isMap: true,
+      isBoundary: true,
+      transform: createTransform(wall.x, wall.y, wall.z),
+      physics: createPhysics(physics.body, physics.collider),
+      renderMesh: { mesh },
+    });
+    physicsWorld.registerColliderEntity(physics.collider, entity);
+    mapEntities.push(entity);
     addToScene(sceneManager, mesh);
-    mapEntities.push(
-      ecsWorld.add({
-        isMap: true,
-        isBoundary: true,
-        transform: createTransform(w.x, w.y, w.z),
-        physics: createPhysics(phys.body, phys.collider),
-        renderMesh: { mesh },
-      })
-    );
   }
 }
 
-function addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, x, z, radius, height) {
-  const mesh = new THREE.Mesh(
-    new THREE.ConeGeometry(radius, height, 6),
-    new THREE.MeshStandardMaterial({ color: 0x4e7a42, roughness: 1, flatShading: true })
+function addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
+  const config = WORLD_CONFIG.OBJECTS.MOUNTAIN;
+  const safePosition = clampToIsland(
+    position.x,
+    position.z,
+    config.RADIUS,
+    config.RADIUS
   );
-  // Cone default: base at -height/2 relative to center → place center so base on ground
-  mesh.position.set(x, GROUND_Y + height / 2, z);
+
+  const mesh = new THREE.Mesh(
+    new THREE.ConeGeometry(config.RADIUS, config.HEIGHT, config.SEGMENTS),
+    new THREE.MeshStandardMaterial({
+      color: WORLD_CONFIG.COLORS.MOUNTAIN,
+      roughness: 1,
+      flatShading: true,
+    })
+  );
+  mesh.position.set(
+    safePosition.x,
+    WORLD_CONFIG.GROUND_Y + config.HEIGHT / 2,
+    safePosition.z
+  );
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   addToScene(sceneManager, mesh);
 
-  const layers = 4;
-  for (let i = 0; i < layers; i++) {
-    const t = (i + 0.5) / layers;
-    const y = GROUND_Y + height * t;
-    const r = radius * (1 - t) * 0.9;
-    const phys = physicsWorld.createStaticBox(x, y, z, Math.max(0.5, r), height / layers / 2, Math.max(0.5, r));
-    mapEntities.push(
-      ecsWorld.add({
-        isMap: true,
-        transform: createTransform(x, y, z),
-        physics: createPhysics(phys.body, phys.collider),
-        renderMesh: { mesh: i === 0 ? mesh : new THREE.Object3D() },
-      })
+  // Rapier has a native solid cone collider, so bullets and players collide
+  // with the actual mountain volume rather than a loose stack of boxes.
+  const physics = physicsWorld.createStaticCone(
+    safePosition.x,
+    WORLD_CONFIG.GROUND_Y + config.HEIGHT / 2,
+    safePosition.z,
+    config.RADIUS,
+    config.HEIGHT
+  );
+
+  const entity = ecsWorld.add({
+    isMap: true,
+    isSolid: true,
+    isMountain: true,
+    transform: createTransform(
+      safePosition.x,
+      WORLD_CONFIG.GROUND_Y + config.HEIGHT / 2,
+      safePosition.z
+    ),
+    physics: createPhysics(physics.body, physics.collider),
+    renderMesh: { mesh },
+  });
+  physicsWorld.registerColliderEntity(physics.collider, entity);
+  mapEntities.push(entity);
+}
+
+function addPath(sceneManager) {
+  const { CENTER_WIDTH, ARM_LENGTH, THICKNESS, COLOR } = WORLD_CONFIG.OBJECTS.PATH;
+  const material = new THREE.MeshStandardMaterial({ color: COLOR, roughness: 1 });
+
+  for (const size of [
+    { x: CENTER_WIDTH, z: ARM_LENGTH },
+    { x: ARM_LENGTH, z: CENTER_WIDTH },
+  ]) {
+    const path = new THREE.Mesh(
+      new THREE.BoxGeometry(size.x, THICKNESS, size.z),
+      material
     );
+    path.position.set(
+      0,
+      WORLD_CONFIG.GROUND_Y + THICKNESS / 2,
+      0
+    );
+    path.receiveShadow = true;
+    addToScene(sceneManager, path);
   }
 }
 
 export function createMap(ecsWorld, physicsWorld, sceneManager) {
   const mapEntities = [];
-  const { WIDTH, LENGTH } = GAME_CONFIG.MAP_BOUNDS;
+  const { WIDTH, LENGTH, FLOOR_THICKNESS } = WORLD_CONFIG.MAP;
+  const floorY = WORLD_CONFIG.GROUND_Y - FLOOR_THICKNESS / 2;
 
-  // Floor: top face at y=0
-  const floorPhys = physicsWorld.createStaticBox(0, -0.1, 0, WIDTH / 2, 0.1, LENGTH / 2);
-  const floorMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(WIDTH, 0.2, LENGTH),
-    new THREE.MeshStandardMaterial({ color: 0x3d8b4f, roughness: 0.95 })
+  const floorPhysics = physicsWorld.createStaticBox(
+    0,
+    floorY,
+    0,
+    WIDTH / 2,
+    FLOOR_THICKNESS / 2,
+    LENGTH / 2
   );
-  floorMesh.position.set(0, -0.1, 0);
-  floorMesh.receiveShadow = true;
-  addToScene(sceneManager, floorMesh);
-  mapEntities.push(
-    ecsWorld.add({
-      isMap: true,
-      transform: createTransform(0, -0.1, 0),
-      physics: createPhysics(floorPhys.body, floorPhys.collider),
-      renderMesh: { mesh: floorMesh },
+  const floorMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(WIDTH, FLOOR_THICKNESS, LENGTH),
+    new THREE.MeshStandardMaterial({
+      color: WORLD_CONFIG.COLORS.GROUND,
+      roughness: 0.95,
     })
   );
+  floorMesh.position.set(0, floorY, 0);
+  floorMesh.receiveShadow = true;
+  addToScene(sceneManager, floorMesh);
 
-  for (const [px, pz, sx, sz] of [
-    [0, 0, 6, 40],
-    [0, 0, 40, 6],
-  ]) {
-    const path = new THREE.Mesh(
-      new THREE.BoxGeometry(sx, 0.03, sz),
-      new THREE.MeshStandardMaterial({ color: 0xc2a87c, roughness: 1 })
-    );
-    path.position.set(px, 0.015, pz);
-    path.receiveShadow = true;
-    addToScene(sceneManager, path);
-  }
+  const floorEntity = ecsWorld.add({
+    isMap: true,
+    isGround: true,
+    isSolid: true,
+    transform: createTransform(0, floorY, 0),
+    physics: createPhysics(floorPhysics.body, floorPhysics.collider),
+    renderMesh: { mesh: floorMesh },
+  });
+  physicsWorld.registerColliderEntity(floorPhysics.collider, floorEntity);
+  mapEntities.push(floorEntity);
+
+  // A shallow invisible catch floor is a last-resort containment layer if a
+  // player ever bypasses the visible island boundaries.
+  const safetyPhysics = physicsWorld.createWorldSafetyFloor();
+  physicsWorld.registerColliderEntity(safetyPhysics.collider, floorEntity);
+
+  addPath(sceneManager);
 
   addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities);
 
-  // Crates: bottom on ground → center y = sy/2
-  const crates = [
-    { x: -12, z: -8, sx: 3, sy: 2, sz: 3, color: 0xb8956c },
-    { x: 12, z: 8, sx: 3, sy: 2, sz: 3, color: 0xa67c52 },
-    { x: -8, z: 12, sx: 2.5, sy: 2.5, sz: 5, color: 0x7f8c8d },
-    { x: 10, z: -12, sx: 5, sy: 2.5, sz: 2.5, color: 0x7f8c8d },
-    { x: 0, z: 0, sx: 4, sy: 2, sz: 4, color: 0x95a5a6 },
-    { x: -18, z: 0, sx: 2, sy: 1.2, sz: 2, color: 0xd35400 },
-    { x: 18, z: 0, sx: 2, sy: 1.2, sz: 2, color: 0x2980b9 },
-  ];
-  for (const c of crates) {
+  const crateConfig = WORLD_CONFIG.OBJECTS.CRATE;
+  for (let i = 0; i < crateConfig.POSITIONS.length; i++) {
+    const size = crateConfig.SIZES[i];
+    const position = crateConfig.POSITIONS[i];
     addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
-      ...c,
-      y: c.sy / 2,
+      position,
+      size,
+      color: crateConfig.COLORS[i],
+      name: 'crate',
     });
   }
 
-  const treePositions = [];
-  for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
-    treePositions.push([Math.cos(a) * 30, Math.sin(a) * 30]);
-  }
-  treePositions.push([-6, -18], [8, 20], [-22, 10], [20, -15], [14, 14], [-15, -12]);
-  for (const [tx, tz] of treePositions) {
-    if (Math.abs(tx) > WIDTH / 2 - 4 || Math.abs(tz) > LENGTH / 2 - 4) continue;
-    addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, tx, tz);
+  for (const position of crateConfig.POSITIONS) {
+    // Layout is already bounded by config, but all object placement is still
+    // normalized through clampToIsland before being instantiated.
   }
 
-  addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, -5, 14, 0.4);
-  addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, 8, -16, -0.8);
-  addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, 16, 6, 1.2);
+  for (const position of WORLD_CONFIG.OBJECTS.TREE.POSITIONS) {
+    const { WIDTH, LENGTH, OBJECT_PADDING } = WORLD_CONFIG.MAP;
+    if (
+      Math.abs(position.x) <= WIDTH / 2 - OBJECT_PADDING &&
+      Math.abs(position.z) <= LENGTH / 2 - OBJECT_PADDING
+    ) {
+      addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position);
+    }
+  }
 
-  for (let i = -3; i <= 3; i++) {
-    if (i === 0) continue;
+  for (let i = 0; i < WORLD_CONFIG.OBJECTS.CAR.POSITIONS.length; i++) {
+    const color = [0x2e86de, 0xee5a24, 0x10ac84][i % 3];
+    addCar(
+      ecsWorld,
+      physicsWorld,
+      sceneManager,
+      mapEntities,
+      WORLD_CONFIG.OBJECTS.CAR.POSITIONS[i],
+      color
+    );
+  }
+
+  const barrier = WORLD_CONFIG.OBJECTS.BARRIER;
+  for (const x of barrier.POSITIONS_X) {
     addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
-      x: i * 3,
-      y: 0.4,
-      z: 6,
-      sx: 2.5,
-      sy: 0.8,
-      sz: 0.4,
-      color: 0xf1c40f,
+      position: { x, y: groundCenterY(barrier.SIZE.y), z: barrier.Z },
+      size: barrier.SIZE,
+      color: barrier.COLOR,
       name: 'barrier',
     });
   }
 
-  for (const [mx, mz, r, h] of [
-    [32, 28, 10, 8],
-    [-30, 30, 12, 9],
-    [28, -32, 11, 7],
-    [-32, -28, 9, 8],
-  ]) {
-    addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, mx, mz, r, h);
+  for (const position of WORLD_CONFIG.OBJECTS.MOUNTAIN.POSITIONS) {
+    addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position);
   }
 
   return mapEntities;
