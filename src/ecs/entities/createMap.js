@@ -442,7 +442,7 @@ function addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position
   });
 }
 
-function addPath(sceneManager) {
+function addPath(ecsWorld, physicsWorld, sceneManager, mapEntities) {
   const { CENTER_WIDTH, ARM_LENGTH, THICKNESS, COLOR } =
     WORLD_CONFIG.OBJECTS.PATH;
   const material = new THREE.MeshStandardMaterial({ color: COLOR, roughness: 1 });
@@ -458,6 +458,21 @@ function addPath(sceneManager) {
     path.position.set(0, groundY() + THICKNESS / 2, 0);
     path.receiveShadow = true;
     addToScene(sceneManager, path);
+
+    const physics = physicsWorld.createStaticBox(
+      0,
+      groundY() + THICKNESS / 2,
+      0,
+      size.x / 2,
+      THICKNESS / 2,
+      size.z / 2
+    );
+    addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
+      position: { x: 0, y: groundY(), z: 0 },
+      physics,
+      mesh: path,
+      name: 'path',
+    });
   }
 }
 
@@ -494,7 +509,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
   const safetyPhysics = physicsWorld.createWorldSafetyFloor();
   physicsWorld.registerColliderEntity(safetyPhysics.collider, mapEntities[0]);
 
-  addPath(sceneManager);
+  addPath(ecsWorld, physicsWorld, sceneManager, mapEntities);
   addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities);
 
   for (const placement of WORLD_CONFIG.OBJECTS.CRATE.PLACEMENTS) {
