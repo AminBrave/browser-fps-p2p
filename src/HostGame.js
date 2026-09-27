@@ -104,6 +104,7 @@ export class HostGame {
     this.physicsSystem.update(this.ecsWorld, dt);
     this.weaponSystem.update(this.ecsWorld, performance.now(), dt);
     this.healthSystem.update(this.ecsWorld);
+    this.renderSystem.captureFixedState(this.localEntity);
     // Network snapshots are emitted on the fixed tick, after Rapier commits
     // movement, so every snapshot describes an actual authoritative state.
     this.hostNetworkSystem.postUpdate(this.ecsWorld, performance.now());
