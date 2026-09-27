@@ -269,10 +269,8 @@ export class RenderSystem {
         );
 
         const grounded = physics?.isGrounded !== false;
-        const footstepBefore = audio._footstepTimer;
-        audio.updateFootsteps(dt, isMoving, grounded, stance);
-        if (audio._footstepTimer < footstepBefore) {
-          audio.playFootstep(stance);
+        const playedFootstep = audio.updateFootsteps(dt, isMoving, grounded, stance);
+        if (playedFootstep) {
           this.eventSink?.({
             type: EVENT_TYPES.SFX,
             sfx: 'footstep',
