@@ -77,6 +77,19 @@ export const WORLD_CONFIG = {
       ],
     },
     PATH: { CENTER_WIDTH: 6, ARM_LENGTH: 40, THICKNESS: 0.03, COLOR: 0xc2a87c },
+    STREETLIGHT: {
+      POSITIONS: [
+        { x: -20, z: -6 }, { x: 20, z: -6 },
+        { x: -20, z: 6 }, { x: 20, z: 6 },
+      ],
+      POLE: { HEIGHT: 4.2, RADIUS: 0.09 },
+      BASE: { SIZE: { x: 0.42, y: 0.18, z: 0.42 } },
+      ARM: { LENGTH: 1.0, RADIUS: 0.06 },
+    },
+    DUMPSTER: {
+      POSITIONS: [{ x: -21, z: -16 }, { x: 21, z: 16 }],
+      SIZE: { x: 1.5, y: 1.25, z: 0.9 },
+    },
   },
   COLORS: { GROUND: 0x3d8b4f, MOUNTAIN: 0x4e7a42 },
 };
