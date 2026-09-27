@@ -204,7 +204,11 @@ export class PhysicsWorld {
       const collider = hit.collider || null;
       const handle = collider ? collider.handle ?? collider : null;
       const toi = hit.timeOfImpact ?? hit.toi ?? 0;
-      if (!excluded.has(handle)) {
+      const hitEntity = handle != null ? this.colliderToEntity.get(handle) || null : null;
+      const hitZone = handle != null ? this.colliderToHitZone.get(handle) || null : null;
+      // The full-height player movement collider is for solidity only. Skip it
+      // so bullets continue to the anatomical collider and preserve hit zones.
+      if (!excluded.has(handle) && !(hitEntity?.player && !hitZone)) {
         const normal = hit.normal
           ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
           : null;
