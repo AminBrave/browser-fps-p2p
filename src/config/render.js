@@ -27,6 +27,12 @@ export const RENDER_CONFIG = Object.freeze({
     WEAPON_POSITION_Z: -0.58,
     WEAPON_SCALE: 0.92,
     SENSITIVITY_MULTIPLIER: 0.65,
+    WEAPON_POSES: Object.freeze({
+      1: Object.freeze({ x: 0.03, y: -0.18, z: -0.58, pitch: 0.02, yaw: 0.02, roll: 0 }),
+      2: Object.freeze({ x: 0.025, y: -0.17, z: -0.60, pitch: 0.015, yaw: 0.018, roll: 0 }),
+      3: Object.freeze({ x: 0.02, y: -0.16, z: -0.62, pitch: 0.01, yaw: 0.015, roll: 0 }),
+      4: Object.freeze({ x: 0.018, y: -0.17, z: -0.61, pitch: 0.012, yaw: 0.012, roll: 0 }),
+    }),
   }),
   CROSSHAIR: Object.freeze({
     RESTING_GAP_PX: 5,
