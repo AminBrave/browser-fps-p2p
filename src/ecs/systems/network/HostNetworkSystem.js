@@ -1,5 +1,6 @@
 import { PACKET_TYPES } from '../../../network/PacketTypes.js';
 import { Protocol } from '../../../network/Protocol.js';
+import { INPUT_FLAGS, STANCE } from '../../../config/constants.js';
 
 const MAX_PENDING_PEERS = 32;
 
@@ -67,6 +68,11 @@ export class HostNetworkSystem {
         pitch: latest.pitch,
         sequence: latest.sequence,
         weaponSlot: latest.weaponSlot,
+        stance: (latest.inputMask & INPUT_FLAGS.PRONE)
+          ? STANCE.PRONE
+          : (latest.inputMask & INPUT_FLAGS.CROUCH)
+            ? STANCE.CROUCH
+            : STANCE.STAND,
       });
       this.incomingInputs.delete(player.peerId);
     }
