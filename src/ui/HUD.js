@@ -26,9 +26,11 @@ export class HUD {
       .join('');
 
     this.container.innerHTML = `
-      <div id="crosshair" style="position:absolute;top:50%;left:50%;width:14px;height:14px;transform:translate(-50%,-50%);">
-        <div style="position:absolute;top:6px;left:0;width:14px;height:2px;background:rgba(255,255,255,0.9);"></div>
-        <div style="position:absolute;top:0;left:6px;width:2px;height:14px;background:rgba(255,255,255,0.9);"></div>
+      <div id="crosshair" style="position:absolute;top:50%;left:50%;width:0;height:0;transform:translate(-50%,-50%);">
+        <div data-crosshair-part="top" style="position:absolute;width:3px;height:6px;background:rgba(255,255,255,0.95);"></div>
+        <div data-crosshair-part="right" style="position:absolute;width:6px;height:3px;background:rgba(255,255,255,0.95);"></div>
+        <div data-crosshair-part="bottom" style="position:absolute;width:3px;height:6px;background:rgba(255,255,255,0.95);"></div>
+        <div data-crosshair-part="left" style="position:absolute;width:6px;height:3px;background:rgba(255,255,255,0.95);"></div>
       </div>
 
       <div id="hud-scoreboard" style="position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;background:rgba(0,0,0,0.42);padding:7px 14px;border-radius:8px;backdrop-filter:blur(6px);font-weight:700;letter-spacing:1px;">
@@ -94,41 +96,56 @@ export class HUD {
     if (!this.crosshair) return;
 
     const cfg = RENDER_CONFIG.CROSSHAIR;
+    const safeSpeed = Number.isFinite(Number(speed)) ? Math.max(0, Number(speed)) : 0;
     const normalized = Math.max(
       0,
-      Math.min(
-        1,
-        (Number(speed) - cfg.MIN_SPEED) /
-          (cfg.MAX_SPEED - cfg.MIN_SPEED)
-      )
+      Math.min(1, (safeSpeed - cfg.MIN_SPEED) / Math.max(0.001, cfg.MAX_SPEED - cfg.MIN_SPEED))
     );
 
-    const gap =
+    const targetGap =
       cfg.RESTING_GAP_PX +
       (cfg.MAX_MOVEMENT_GAP_PX - cfg.RESTING_GAP_PX) * normalized;
-
-    const length =
+    const targetLength =
       cfg.RESTING_LENGTH_PX +
       (cfg.MAX_MOVEMENT_LENGTH_PX - cfg.RESTING_LENGTH_PX) * normalized;
 
-    const size = (length + gap) * 2;
-    this.crosshair.style.width = `${size}px`;
-    this.crosshair.style.height = `${size}px`;
+    if (this._crosshairGap == null) this._crosshairGap = targetGap;
+    if (this._crosshairLength == null) this._crosshairLength = targetLength;
 
-    const half = size / 2;
-    const horizontal = this.crosshairParts[0];
-    const vertical = this.crosshairParts[1];
+    const response = 1 - Math.exp(-cfg.RESPONSE * (1 / 60));
+    this._crosshairGap += (targetGap - this._crosshairGap) * response;
+    this._crosshairLength += (targetLength - this._crosshairLength) * response;
 
-    if (horizontal) {
-      horizontal.style.width = `${length}px`;
-      horizontal.style.left = `${half + gap}px`;
-      horizontal.style.top = `${half - 1}px`;
+    const gap = this._crosshairGap;
+    const length = this._crosshairLength;
+    const top = this.crosshairParts[0];
+    const right = this.crosshairParts[1];
+    const bottom = this.crosshairParts[2];
+    const left = this.crosshairParts[3];
+
+    if (top) {
+      top.style.width = '3px';
+      top.style.height = length + 'px';
+      top.style.left = '-1.5px';
+      top.style.top = -(gap + length) + 'px';
     }
-
-    if (vertical) {
-      vertical.style.height = `${length}px`;
-      vertical.style.top = `${half + gap}px`;
-      vertical.style.left = `${half - 1}px`;
+    if (right) {
+      right.style.width = length + 'px';
+      right.style.height = '3px';
+      right.style.left = gap + 'px';
+      right.style.top = '-1.5px';
+    }
+    if (bottom) {
+      bottom.style.width = '3px';
+      bottom.style.height = length + 'px';
+      bottom.style.left = '-1.5px';
+      bottom.style.top = gap + 'px';
+    }
+    if (left) {
+      left.style.width = length + 'px';
+      left.style.height = '3px';
+      left.style.left = -(gap + length) + 'px';
+      left.style.top = '-1.5px';
     }
   }
 
