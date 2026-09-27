@@ -9,6 +9,7 @@ export const NETWORK_CONFIG = {
   RECONCILIATION_THRESHOLD: 0.15,
 };
 
+// World-space convention: 1.0 unit = 1 metre.
 export const GAME_CONFIG = {
   TICK_RATE: 60,
   MAX_PLAYERS: 4,
@@ -16,7 +17,8 @@ export const GAME_CONFIG = {
   PLAYER_JUMP_FORCE: 6.5,
   GRAVITY: -19.62,
   PLAYER_HEIGHT: 1.8,
-  PLAYER_RADIUS: 0.4,
+  // A human shoulder/hip envelope of ~0.68 m diameter.
+  PLAYER_RADIUS: 0.34,
   CAMERA_HEIGHT_OFFSET: 1.6,
   CAMERA_HEIGHT_CROUCH: 1.0,
   CAMERA_HEIGHT_PRONE: 0.35,
@@ -31,7 +33,6 @@ export const GAME_CONFIG = {
   RECONCILIATION_THRESHOLD: 0.15,
   RECOIL_RECOVERY: 10.0,
   MAX_DECALS: 100,
-  // Movement sway → accuracy (radians at full run)
   MOVE_SPREAD_MAX: 0.035,
   BOB_INTENSITY: 1.0,
 };
@@ -49,7 +50,6 @@ export const INPUT_FLAGS = {
 };
 
 export const FIRE_MODE = { SEMI: 'semi', AUTO: 'auto' };
-
 export const STANCE = { STAND: 0, CROUCH: 1, PRONE: 2 };
 
 /** Real-world-ish rates (ms between shots) */
@@ -63,24 +63,21 @@ export const WEAPON_CONFIG = {
     PELLETS: 1, FIRE_MODE: FIRE_MODE.SEMI, SFX: 'pistol',
   },
   SMG: {
-    ID: 2, SLOT: 1, NAME: 'SMG',
-    FIRE_RATE_MS: 75, DAMAGE: 13,
+    ID: 2, SLOT: 1, NAME: 'SMG', FIRE_RATE_MS: 75, DAMAGE: 13,
     MAGAZINE_SIZE: 30, RESERVE_AMMO: 90, RELOAD_TIME_MS: 2000, RANGE: 75,
     RECOIL_PITCH: 0.02, RECOIL_YAW_SPREAD: 0.022,
     SPREAD_BASE: 0, SPREAD_GROW: 0.014, SPREAD_MAX: 0.08, SPREAD_DECAY: 0.16,
     PELLETS: 1, FIRE_MODE: FIRE_MODE.AUTO, SFX: 'smg',
   },
   SHOTGUN: {
-    ID: 3, SLOT: 2, NAME: 'Shotgun',
-    FIRE_RATE_MS: 850, DAMAGE: 11,
+    ID: 3, SLOT: 2, NAME: 'Shotgun', FIRE_RATE_MS: 850, DAMAGE: 11,
     MAGAZINE_SIZE: 6, RESERVE_AMMO: 24, RELOAD_TIME_MS: 2600, RANGE: 30,
     RECOIL_PITCH: 0.1, RECOIL_YAW_SPREAD: 0.035,
     SPREAD_BASE: 0.045, SPREAD_GROW: 0.012, SPREAD_MAX: 0.11, SPREAD_DECAY: 0.22,
     PELLETS: 8, FIRE_MODE: FIRE_MODE.SEMI, SFX: 'shotgun',
   },
   RIFLE: {
-    ID: 4, SLOT: 3, NAME: 'Rifle',
-    FIRE_RATE_MS: 95, DAMAGE: 24,
+    ID: 4, SLOT: 3, NAME: 'Rifle', FIRE_RATE_MS: 95, DAMAGE: 24,
     MAGAZINE_SIZE: 25, RESERVE_AMMO: 75, RELOAD_TIME_MS: 2200, RANGE: 160,
     RECOIL_PITCH: 0.03, RECOIL_YAW_SPREAD: 0.011,
     SPREAD_BASE: 0, SPREAD_GROW: 0.007, SPREAD_MAX: 0.05, SPREAD_DECAY: 0.11,
