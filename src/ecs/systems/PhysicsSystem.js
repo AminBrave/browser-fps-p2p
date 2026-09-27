@@ -27,6 +27,8 @@ export class PhysicsSystem {
       }
 
       if (input) {
+        this.physicsWorld.updatePlayerHitZones(physics, input.stance ?? STANCE.STAND);
+
         const yaw = input.yaw || 0;
         const stance = input.stance ?? STANCE.STAND;
 
