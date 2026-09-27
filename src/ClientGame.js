@@ -1,4 +1,4 @@
-import { GAME_CONFIG, NETWORK_CONFIG, STANCE, WORLD_CONFIG, validateConfig } from './config/index.js';
+import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, WORLD_CONFIG, validateConfig } from './config/index.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
@@ -34,7 +34,7 @@ export class ClientGame {
     this.playerEntities = [];
     this.playerById = new Map();
     this.pendingInputBuffer = new CircularBuffer(NETWORK_CONFIG.INPUT_HISTORY_SIZE);
-    this.fixedDeltaTime = 1 / (NETWORK_CONFIG.CLIENT_TICK_RATE || GAME_CONFIG.TICK_RATE || 60);
+    this.fixedDeltaTime = 1 / (NETWORK_CONFIG.CLIENT_TICK_RATE || PLAYER_CONFIG.TICK_RATE || 60);
     this.isRunning = false;
     this._spawnPosition = null;
     this._worldHash = null;
@@ -79,7 +79,7 @@ export class ClientGame {
     // Rebuild simulation timing/buffers from the host's authoritative
     // configuration before constructing any prediction/reconciliation system.
     this.fixedDeltaTime =
-      1 / (NETWORK_CONFIG.CLIENT_TICK_RATE || GAME_CONFIG.TICK_RATE || 60);
+      1 / (NETWORK_CONFIG.CLIENT_TICK_RATE || NETWORK_CONFIG.CLIENT_TICK_RATE || GAME_CONFIG.TICK_RATE || 60);
     this.pendingInputBuffer = new CircularBuffer(NETWORK_CONFIG.INPUT_HISTORY_SIZE);
     this.predictSystem = new ClientPredictSystem(
       this.physicsWorld,
@@ -95,7 +95,7 @@ export class ClientGame {
 
     const spawn = this._spawnPosition || {
       ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[1 % WORLD_CONFIG.PLAYER.SPAWN_POINTS.length],
-      y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2,
+      y: WORLD_CONFIG.GROUND_Y + PLAYER_CONFIG.HEIGHT / 2,
     };
 
     this.localEntity = createPlayer(
@@ -313,7 +313,7 @@ export class ClientGame {
           remoteId,
           {
             x: remote.x ?? remote.position?.x ?? 0,
-            y: remote.y ?? remote.position?.y ?? (WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2),
+            y: remote.y ?? remote.position?.y ?? (WORLD_CONFIG.GROUND_Y + PLAYER_CONFIG.HEIGHT / 2),
             z: remote.z ?? remote.position?.z ?? 0,
           },
           false,
