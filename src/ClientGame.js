@@ -253,6 +253,23 @@ export class ClientGame {
         this.playerById.set(remoteId, entity);
       }
 
+      const authoritativePosition = {
+        x: remote.x ?? remote.position?.x ?? 0,
+        y: remote.y ?? remote.position?.y ?? (WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2),
+        z: remote.z ?? remote.position?.z ?? 0,
+      };
+      entity.transform.position.x = authoritativePosition.x;
+      entity.transform.position.y = authoritativePosition.y;
+      entity.transform.position.z = authoritativePosition.z;
+      entity.physics?.rigidBody?.setTranslation?.(authoritativePosition, true);
+
+      const authoritativeYaw = remote.yaw ?? remote.rotation?.yaw ?? 0;
+      const authoritativePitch = remote.pitch ?? remote.rotation?.pitch ?? 0;
+      if (entity.transform.rotation) {
+        entity.transform.rotation.yaw = authoritativeYaw;
+        entity.transform.rotation.pitch = authoritativePitch;
+      }
+
       if (remote.health !== undefined) {
         entity.player.health = remote.health;
         entity.player.isDead = remote.health <= 0 || !!remote.isDead;
