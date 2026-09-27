@@ -6,8 +6,11 @@ import * as THREE from 'three';
  * Distinct procedural viewmodels for Pistol / SMG / Shotgun / Rifle.
  */
 export class WeaponViewModel {
-  constructor(camera) {
+  constructor(camera, viewModelScene = null) {
     this.camera = camera;
+    this.viewModelScene = viewModelScene;
+    this.anchor = new THREE.Group();
+    this.anchor.name = 'WeaponViewModelAnchor';
     this.root = new THREE.Group();
     this.root.name = 'WeaponViewModel';
 
@@ -23,7 +26,15 @@ export class WeaponViewModel {
 
     this.root.position.copy(this.restPosition);
     this.root.rotation.copy(this.restRotation);
-    camera.add(this.root);
+    // Keep the weapon in a dedicated scene. The anchor mirrors the camera's
+    // world transform every frame, while the weapon itself keeps its normal
+    // camera-local offset/recoil/bob transforms.
+    if (this.viewModelScene) {
+      this.viewModelScene.add(this.anchor);
+      this.anchor.add(this.root);
+    } else {
+      camera.add(this.root);
+    }
 
     this._bobTime = 0;
     this._recoilKick = 0;
@@ -328,6 +339,13 @@ export class WeaponViewModel {
     }
     this.root.visible = true;
 
+    if (this.viewModelScene) {
+      this.anchor.position.copy(this.camera.position);
+      this.anchor.quaternion.copy(this.camera.quaternion);
+      this.anchor.scale.set(1, 1, 1);
+      this.anchor.updateMatrixWorld(true);
+    }
+
     const bobSpeed = 8 + moveIntensity * 6;
     this._bobTime += dt * bobSpeed;
     const bobAmp = 0.004 + moveIntensity * 0.014;
@@ -377,7 +395,9 @@ export class WeaponViewModel {
   }
 
   dispose() {
-    if (this.camera && this.root.parent === this.camera) {
+    if (this.anchor.parent === this.viewModelScene) {
+      this.viewModelScene.remove(this.anchor);
+    } else if (this.camera && this.root.parent === this.camera) {
       this.camera.remove(this.root);
     }
     this.root.traverse((obj) => {
