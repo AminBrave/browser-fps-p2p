@@ -14,6 +14,8 @@ export const PACKET_TYPES = {
   GAME_EVENT: 5,
   JOIN_REJECT: 6,
   DISCONNECT: 7,
+  // Authoritative match definition sent before a client builds its world.
+  WORLD_INIT: 8,
 };
 
 export const EVENT_TYPES = {
