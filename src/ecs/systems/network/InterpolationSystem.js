@@ -45,15 +45,25 @@ export class InterpolationSystem {
   }
 
   update(ecsWorld, playerEntities, localEntity, _currentTime) {
-    // Render the newest authoritative snapshot. This intentionally does not
-    // introduce an artificial 100 ms world-position offset: a remote player's
-    // displayed coordinates must correspond to the same server snapshot that
-    // the host used. Network latency still exists, but it is no longer hidden
-    // behind a second, client-only simulation timeline.
-    const snapshot = this.snapshotBuffer[this.snapshotBuffer.length - 1];
-    if (!snapshot) return;
+    if (this.snapshotBuffer.length === 0) return;
 
-    const playersById = this._indexPlayers(snapshot.players);
+    // Remote players are rendered from a short server-history delay. Packet
+    // arrival jitter is absorbed by interpolation rather than shown as 30 Hz
+    // teleports. The local player remains client-predicted.
+    const targetTime = (typeof _currentTime === 'number' ? _currentTime : performance.now()) - this.renderDelayMs;
+    let older = this.snapshotBuffer[0];
+    let newer = this.snapshotBuffer[this.snapshotBuffer.length - 1];
+    for (let i = this.snapshotBuffer.length - 1; i >= 0; i--) {
+      if (this.snapshotBuffer[i].timestamp <= targetTime) {
+        older = this.snapshotBuffer[i];
+        newer = this.snapshotBuffer[Math.min(i + 1, this.snapshotBuffer.length - 1)];
+        break;
+      }
+    }
+    const span = Math.max(1, newer.timestamp - older.timestamp);
+    const alpha = Math.max(0, Math.min(1, (targetTime - older.timestamp) / span));
+    const olderById = this._indexPlayers(older.players);
+    const newerById = this._indexPlayers(newer.players);
 
     for (const entity of playerEntities || []) {
       if (!entity || entity === localEntity) continue;
@@ -61,12 +71,16 @@ export class InterpolationSystem {
       const transform = entity.transform;
       if (!player || !transform || player.isLocal) continue;
 
-      const state = playersById.get(player.id);
-      if (!state) continue;
-
-      const x = state.x ?? state.position?.x ?? 0;
-      const y = state.y ?? state.position?.y ?? 0;
-      const z = state.z ?? state.position?.z ?? 0;
+      const a = olderById.get(player.id) || newerById.get(player.id);
+      const b = newerById.get(player.id) || a;
+      if (!a || !b) continue;
+      const ax = a.x ?? a.position?.x ?? 0, bx = b.x ?? b.position?.x ?? ax;
+      const ay = a.y ?? a.position?.y ?? 0, by = b.y ?? b.position?.y ?? ay;
+      const az = a.z ?? a.position?.z ?? 0, bz = b.z ?? b.position?.z ?? az;
+      const x = ax + (bx - ax) * alpha;
+      const y = ay + (by - ay) * alpha;
+      const z = az + (bz - az) * alpha;
+      const state = b;
 
       transform.position.x = x;
       transform.position.y = y;
@@ -76,8 +90,8 @@ export class InterpolationSystem {
       // coordinate as the visible remote player.
       entity.physics?.rigidBody?.setTranslation?.({ x, y, z }, true);
 
-      const yaw = state.yaw ?? state.rotation?.yaw ?? 0;
-      const pitch = state.pitch ?? state.rotation?.pitch ?? 0;
+      const yaw = a.yaw != null && b.yaw != null ? this._lerpAngle(a.yaw, b.yaw, alpha) : (state.yaw ?? state.rotation?.yaw ?? 0);
+      const pitch = (a.pitch ?? 0) + ((b.pitch ?? 0) - (a.pitch ?? 0)) * alpha;
       if (transform.rotation) {
         transform.rotation.yaw = yaw;
         transform.rotation.pitch = pitch;
