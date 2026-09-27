@@ -27,7 +27,7 @@ export class HUD {
 
     this.container.innerHTML = `
       <svg id="crosshair" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet" aria-hidden="true"
-        style="position:absolute;top:50%;left:50%;width:140px;height:140px;transform:translate(-50%,-50%);overflow:visible;pointer-events:none;">
+        style="position:fixed;top:50%;left:50%;width:140px;height:140px;transform:translate3d(-50%,-50%,0);overflow:visible;pointer-events:none;z-index:1000;will-change:transform;">
         <g data-crosshair-arms fill="rgba(255,255,255,0.96)" stroke="rgba(0,0,0,0.65)" stroke-width="0.7">
           <rect data-crosshair-part="top" x="99" y="0" width="2" height="7" rx="1"></rect>
           <rect data-crosshair-part="right" x="193" y="99" width="7" height="2" rx="1"></rect>
@@ -104,63 +104,75 @@ export class HUD {
     this._crosshairLength = 7;
   }
 
-  updateCrosshair(speed = 0, isAiming = false, weaponSpread = 0, weaponSpreadMax = 0.12, isFiring = false, recoil = 0, isSprinting = false) {
+  updateCrosshair({
+    spread = 0,
+    spreadMax = 0.05,
+    isAiming = false,
+    isFiring = false,
+    recoil = 0,
+    speed01 = 0,
+    isSprinting = false,
+  } = {}) {
     if (!this.crosshair) return;
 
     const cfg = RENDER_CONFIG.CROSSHAIR;
-    const safeSpeed = Math.max(0, Number(speed) || 0);
-    const speedT = Math.max(
-      0,
-      Math.min(1, (safeSpeed - cfg.MIN_SPEED) / Math.max(0.001, cfg.MAX_SPEED - cfg.MIN_SPEED))
-    );
-    const spread = Math.max(0, Number(weaponSpread) || 0);
-    const spreadMax = Math.max(0.001, Number(weaponSpreadMax) || 0.12);
-    // Spread is expressed in radians, so a raw spread/max ratio hides the
-    // small but important standing-hip-fire penalty. Convert the actual cone
-    // into a perceptual 0..1 value: small spread changes remain visible.
+    const safeSpread = Math.max(0, Number(spread) || 0);
+    const safeMax = Math.max(0.001, Number(spreadMax) || 0.05);
+
+    // Perceptual mapping: tiny angular changes are amplified near the center,
+    // while large cones saturate instead of producing an unreadable reticle.
     const spreadT = Math.max(
       0,
-      Math.min(1, Math.sqrt(spread / Math.min(spreadMax, 0.075)))
+      Math.min(1, Math.sqrt(safeSpread / Math.max(0.001, safeMax)))
     );
+    const movementT = Math.max(0, Math.min(1, Number(speed01) || 0));
+    const recoilT = Math.max(0, Math.min(1, Math.abs(Number(recoil) || 0) * 4));
 
-    // Accuracy is the primary driver. Speed is only one contributor to the
-    // actual weapon cone, so the reticle never looks frozen while the weapon
-    // is changing between steady, moving, sprinting and firing states.
     const movementGap =
       cfg.RESTING_GAP_PX +
-      speedT * (isSprinting
-        ? cfg.MAX_SPRINT_GAP_PX - cfg.RESTING_GAP_PX
-        : cfg.MAX_MOVEMENT_GAP_PX - cfg.RESTING_GAP_PX);
+      movementT * (
+        (isSprinting ? cfg.MAX_SPRINT_GAP_PX : cfg.MAX_MOVEMENT_GAP_PX) -
+        cfg.RESTING_GAP_PX
+      );
+
     const accuracyGap = spreadT * cfg.MAX_BLOOM_GAP_PX;
+    const recoilGap = recoilT * cfg.RECOIL_BLOOM_PX;
     const firingGap = isFiring ? cfg.FIRE_BLOOM_PX : 0;
-    const recoilGap = Math.min(1, Math.abs(Number(recoil) || 0) * 4) * cfg.RECOIL_BLOOM_PX;
+
+    // Never hide the actual cone while ADS. ADS tightens it; firing/recoil
+    // still communicate the temporary loss of precision.
     const targetGap = isAiming && !isSprinting
-      ? cfg.AIM_GAP_PX + accuracyGap * 0.8 + firingGap * 0.35 + recoilGap * 0.35
+      ? cfg.AIM_GAP_PX + accuracyGap * 0.9 + firingGap * 0.3 + recoilGap * 0.35
       : movementGap + accuracyGap + firingGap + recoilGap;
 
     const targetLength = isAiming && !isSprinting
-      ? cfg.AIM_LENGTH_PX + spreadT * 1.5
-      : cfg.RESTING_LENGTH_PX + speedT * (cfg.MAX_LENGTH_PX - cfg.RESTING_LENGTH_PX) + spreadT * 2;
+      ? cfg.AIM_LENGTH_PX + spreadT * 2
+      : cfg.RESTING_LENGTH_PX +
+        movementT * (cfg.MAX_LENGTH_PX - cfg.RESTING_LENGTH_PX) +
+        spreadT * 2.5;
+
+    const targetOpacity = isAiming && !isSprinting
+      ? 0.92
+      : 0.96 - spreadT * 0.08;
+
+    const response = 1 - Math.exp(
+      -cfg.RESPONSE * Math.max(1, 60 * (1 / 60))
+    );
 
     if (!Number.isFinite(this._crosshairGap)) this._crosshairGap = targetGap;
     if (!Number.isFinite(this._crosshairLength)) this._crosshairLength = targetLength;
+    if (!Number.isFinite(this._crosshairOpacity)) this._crosshairOpacity = targetOpacity;
 
-    // Use frame-rate independent exponential smoothing so the transition is
-    // visibly responsive rather than looking like a fixed/static reticle.
-    const response = 1 - Math.exp(-cfg.RESPONSE / 60);
     this._crosshairGap += (targetGap - this._crosshairGap) * response;
     this._crosshairLength += (targetLength - this._crosshairLength) * response;
+    this._crosshairOpacity += (targetOpacity - this._crosshairOpacity) * response;
 
     const center = 100;
-    const gap = this._crosshairGap;
+    const gap = Math.max(0, this._crosshairGap);
     const length = Math.max(2, this._crosshairLength);
     const thickness = cfg.RESTING_THICKNESS_PX;
 
-    const top = this.crosshairParts[0];
-    const right = this.crosshairParts[1];
-    const bottom = this.crosshairParts[2];
-    const left = this.crosshairParts[3];
-
+    const [top, right, bottom, left] = this.crosshairParts;
     if (top) {
       top.setAttribute('x', center - thickness);
       top.setAttribute('y', center - gap - length);
@@ -190,7 +202,7 @@ export class HUD {
       this.crosshairDot.setAttribute('cx', String(center));
       this.crosshairDot.setAttribute('cy', String(center));
       this.crosshairDot.setAttribute('r', isAiming && !isSprinting ? '1.0' : '1.35');
-      this.crosshairDot.style.opacity = isAiming && !isSprinting ? '0.78' : '1';
+      this.crosshairDot.style.opacity = String(this._crosshairOpacity);
     }
   }
 
