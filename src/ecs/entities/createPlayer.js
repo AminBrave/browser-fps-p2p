@@ -6,7 +6,7 @@ import { createPhysics } from '../components/Physics.js';
 import { createPlayer as createPlayerComponent } from '../components/Player.js';
 import { createWeapon, createLoadout } from '../components/Weapon.js';
 import { createInput } from '../components/Input.js';
-import { GAME_CONFIG, PLAYER_CHARACTER_CONFIG, peerIdToNumeric } from '../../config/index.js';
+import { GAME_CONFIG, PLAYER_CONFIG, PLAYER_CHARACTER_CONFIG, peerIdToNumeric } from '../../config/index.js';
 import { WORLD_CONFIG } from '../../config/index.js';
 
 export function createPlayer(
@@ -19,14 +19,14 @@ export function createPlayer(
   isHost = false
 ) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
-  const groundedY = spawnPos.y ?? (WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2);
+  const groundedY = spawnPos.y ?? (WORLD_CONFIG.GROUND_Y + PLAYER_CONFIG.HEIGHT / 2);
 
   const phys = physicsWorld.createPlayerBody(
     spawnPos.x,
     groundedY,
     spawnPos.z,
-    GAME_CONFIG.PLAYER_RADIUS,
-    GAME_CONFIG.PLAYER_HEIGHT
+    PLAYER_CONFIG.RADIUS,
+    PLAYER_CONFIG.HEIGHT
   );
 
   const teamColor = isLocal ? 0x258cff : 0xe84b4b;
@@ -179,7 +179,7 @@ export function createPlayer(
       remoteWeapon.scale.setScalar(scale);
       remoteWeapon.userData.weaponTypeId = Number(typeId) || 1;
     },
-    updateVisuals({ stance = 0, pitch = 0, health = 100, maxHealth = 100, isDead = false }) {
+    updateVisuals({ stance = 0, pitch = 0, health = 100, maxHealth = PLAYER_CONFIG.MAX_HEALTH, isDead = false }) {
       const crouch = stance === 1;
       const prone = stance === 2;
       const poseConfig = PLAYER_CHARACTER_CONFIG.POSE[stance] || PLAYER_CHARACTER_CONFIG.POSE[0];
@@ -200,7 +200,7 @@ export function createPlayer(
       teamRing.visible = alive && !isLocal;
 
       const ratio = THREE.MathUtils.clamp(
-        Number(health) / Math.max(1, Number(maxHealth) || 100),
+        Number(health) / Math.max(1, Number(maxHealth) || PLAYER_CONFIG.MAX_HEALTH),
         0,
         1
       );
@@ -230,7 +230,7 @@ export function createPlayer(
       peerId,
       isLocal,
       isHost,
-      GAME_CONFIG.MAX_HEALTH
+      PLAYER_CONFIG.MAX_HEALTH
     ),
     transform: createTransform(spawnPos.x, groundedY, spawnPos.z),
     physics: {
