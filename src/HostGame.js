@@ -30,6 +30,7 @@ export class HostGame {
     this.localPlayerId = 'host-player';
     this.localEntity = null;
     this.clientEntities = new Map();
+    this.announcedClients = new Set();
     this.isRunning = false;
 
     this.fixedDeltaTime =
@@ -116,21 +117,7 @@ export class HostGame {
   }
 
   _handleClientConnect(peerId) {
-    const entity = this._ensureClientEntity(peerId);
-    if (!entity) return;
-
-    // A client cannot construct or simulate a match from its own assumptions.
-    // Send the authoritative world definition and the exact server-assigned
-    // spawn before normal state snapshots begin.
-    this.peerManager.sendTo(peerId, Protocol.encodeWorldInit(createWorldManifest()));
-    this.peerManager.sendTo(
-      peerId,
-      Protocol.encodeJoinAccept(
-        entity.player?.numericId ?? 0,
-        entity.player?.id ?? 0,
-        entity.transform?.position
-      )
-    );
+    this._ensureClientEntity(peerId);
   }
 
   _ensureClientEntity(peerId) {
@@ -179,6 +166,26 @@ export class HostGame {
     });
 
     this.clientEntities.set(id, entity);
+
+    if (!this.announcedClients.has(id)) {
+      const connection = this.peerManager.connections.get(id);
+      if (connection?.open) {
+        // The world definition and spawn are sent once, before gameplay state.
+        // This path also handles a connection that existed before onConnect
+        // was installed.
+        this.peerManager.sendTo(id, Protocol.encodeWorldInit(createWorldManifest()));
+        this.peerManager.sendTo(
+          id,
+          Protocol.encodeJoinAccept(
+            entity.player?.id ?? 0,
+            entity.player?.id ?? 0,
+            entity.transform?.position
+          )
+        );
+        this.announcedClients.add(id);
+      }
+    }
+
     return entity;
   }
 
@@ -217,7 +224,9 @@ export class HostGame {
     }
 
     this.ecsWorld.remove(entity);
-    this.clientEntities.delete(String(entity.player?.peerId ?? ''));
+    const peerId = String(entity.player?.peerId ?? '');
+    this.clientEntities.delete(peerId);
+    this.announcedClients.delete(peerId);
   }
 
   _updateHUD() {
@@ -258,6 +267,7 @@ export class HostGame {
     this.physicsWorld.dispose();
     this.peerManager.destroy();
     this.clientEntities.clear();
+    this.announcedClients.clear();
     window.removeEventListener('click', this._audioUnlockHandler);
     this.gameLoop = null;
   }
