@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMERA_CONFIG } from '../config/index.js';
+import { CAMERA_CONFIG, RENDER_CONFIG } from '../config/index.js';
 
 function disposeMaterial(material, disposedMaterials) {
   if (!material || disposedMaterials.has(material)) return;
@@ -65,7 +65,7 @@ export class SceneManager {
       powerPreference: 'high-performance',
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER_CONFIG.MAX_PIXEL_RATIO));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
