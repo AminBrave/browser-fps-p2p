@@ -6,7 +6,7 @@ import { createPhysics } from '../components/Physics.js';
 import { createPlayer as createPlayerComponent } from '../components/Player.js';
 import { createWeapon, createLoadout } from '../components/Weapon.js';
 import { createInput } from '../components/Input.js';
-import { GAME_CONFIG, peerIdToNumeric } from '../../config/index.js';
+import { GAME_CONFIG, PLAYER_CHARACTER_CONFIG, peerIdToNumeric } from '../../config/index.js';
 import { WORLD_CONFIG } from '../../config/index.js';
 
 export function createPlayer(
@@ -182,8 +182,9 @@ export function createPlayer(
     updateVisuals({ stance = 0, pitch = 0, health = 100, maxHealth = 100, isDead = false }) {
       const crouch = stance === 1;
       const prone = stance === 2;
-      pose.position.y = prone ? -0.58 : crouch ? -0.28 : 0;
-      pose.scale.y = prone ? 0.72 : crouch ? 0.9 : 1;
+      const poseConfig = PLAYER_CHARACTER_CONFIG.POSE[stance] || PLAYER_CHARACTER_CONFIG.POSE[0];
+      pose.position.y = poseConfig.offsetY;
+      pose.scale.y = poseConfig.scaleY;
 
       const aim = THREE.MathUtils.clamp(pitch * 0.45, -0.55, 0.55);
       head.rotation.x = aim;
