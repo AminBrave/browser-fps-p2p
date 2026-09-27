@@ -1,111 +1,141 @@
-// src/ecs/systems/network/HostNetworkSystem.js
-
 import { PACKET_TYPES } from '../../../network/PacketTypes.js';
 import { Protocol } from '../../../network/Protocol.js';
 
+const MAX_PENDING_PEERS = 32;
+
+function isNewerSequence(next, previous) {
+  if (previous == null) return true;
+  const delta = (next - previous) >>> 0;
+  return delta !== 0 && delta < 0x80000000;
+}
+
 /**
- * HostNetworkSystem (Host-Only)
- * Processes incoming client binary inputs, applies them to remote player entities,
- * and serializes/broadcasts full authoritative game state snapshots to all connected peers.
+ * Host-side transport adapter.
+ *
+ * Network callbacks only retain the newest input per peer. The simulation
+ * consumes that value at a fixed tick, so a stalled client cannot grow an
+ * unbounded input queue.
  */
 export class HostNetworkSystem {
-  /**
-   * @param {object} peerManager
-   * @param {object} [_unused] - kept for call-site compatibility (was physicsWorld)
-   */
-  constructor(peerManager, _unused) {
+  constructor(peerManager) {
     this.peerManager = peerManager;
-    this.protocol = Protocol;
     this.incomingInputs = new Map();
+    this.lastReceivedSequence = new Map();
     this.serverTick = 0;
     this.lastBroadcastTime = 0;
-    this.broadcastIntervalMs = 1000 / 30; // SNAPSHOT_BROADCAST_RATE
+    this.broadcastIntervalMs = 1000 / 30;
 
     this._setupNetworkListeners();
   }
 
   _setupNetworkListeners() {
     this.peerManager.onData((peerId, dataView) => {
-      const packetType = dataView.getUint8(0);
+      if (dataView.byteLength < 1 || dataView.getUint8(0) !== PACKET_TYPES.CLIENT_INPUT) {
+        return;
+      }
 
-      if (packetType === PACKET_TYPES.CLIENT_INPUT) {
-        const inputData = Protocol.decodeClientInput(dataView);
-        if (!this.incomingInputs.has(peerId)) {
-          this.incomingInputs.set(peerId, []);
+      const inputData = Protocol.decodeClientInput(dataView);
+      if (!inputData) return;
+
+      const previous = this.lastReceivedSequence.get(peerId);
+      if (!isNewerSequence(inputData.sequence, previous)) return;
+
+      // One pending frame per peer: stale frames are never allowed to pile up.
+      this.lastReceivedSequence.set(peerId, inputData.sequence);
+      this.incomingInputs.set(peerId, inputData);
+
+      if (this.incomingInputs.size > MAX_PENDING_PEERS) {
+        const oldestPeer = this.incomingInputs.keys().next().value;
+        if (oldestPeer != null) {
+          this.incomingInputs.delete(oldestPeer);
+          this.lastReceivedSequence.delete(oldestPeer);
         }
-        this.incomingInputs.get(peerId).push(inputData);
       }
     });
   }
 
-  /**
-   * @param {object} ecsWorld
-   * @param {number} [currentTime]
-   */
-  update(ecsWorld, currentTime) {
+  preUpdate(ecsWorld) {
     this.serverTick++;
 
+    for (const entity of ecsWorld.with('player', 'transform', 'input')) {
+      const player = entity.player;
+      const input = entity.input;
+      if (!player || !input || player.isLocal) continue;
+
+      const latest = this.incomingInputs.get(player.peerId);
+      if (!latest) continue;
+
+      Object.assign(input, {
+        inputMask: latest.inputMask,
+        yaw: latest.yaw,
+        pitch: latest.pitch,
+        sequence: latest.sequence,
+        weaponSlot: latest.weaponSlot,
+      });
+      this.incomingInputs.delete(player.peerId);
+    }
+  }
+
+  postUpdate(ecsWorld, currentTime = performance.now()) {
+    if (currentTime - this.lastBroadcastTime < this.broadcastIntervalMs) return;
+    this.lastBroadcastTime = currentTime;
+
     const players = ecsWorld.with('player', 'transform', 'input');
-
-    // 1. Apply latest queued inputs to remote players (match by peerId string)
-    for (const entity of players) {
-      const playerComp = entity.player;
-      const inputComp = entity.input;
-      if (!playerComp || !inputComp || playerComp.isLocal) continue;
-
-      const queue = this.incomingInputs.get(playerComp.peerId);
-      if (queue && queue.length > 0) {
-        const latestInput = queue[queue.length - 1];
-        queue.length = 0; // drop older frames; keep only latest for this tick
-        inputComp.inputMask = latestInput.inputMask;
-        inputComp.yaw = latestInput.yaw;
-        inputComp.pitch = latestInput.pitch;
-        inputComp.sequence = latestInput.sequence;
-      }
-    }
-
-    // 2. Rate-limit snapshot broadcast
-    const now = typeof currentTime === 'number' ? currentTime : performance.now();
-    if (now - this.lastBroadcastTime < this.broadcastIntervalMs) {
-      return;
-    }
-    this.lastBroadcastTime = now;
-
-    const playerSnapshots = [];
-    let maxAckedSeq = 0;
+    const snapshots = [];
 
     for (const entity of players) {
-      const playerComp = entity.player;
-      const transformComp = entity.transform;
-      const inputComp = entity.input;
+      const player = entity.player;
+      const transform = entity.transform;
+      if (!player || !transform) continue;
 
-      if (playerComp && transformComp) {
-        playerSnapshots.push({
-          entityId: playerComp.id,
-          id: playerComp.id,
-          x: transformComp.position.x,
-          y: transformComp.position.y,
-          z: transformComp.position.z,
-          position: transformComp.position,
-          yaw: transformComp.rotation
-            ? transformComp.rotation.yaw ?? transformComp.rotation.y ?? 0
-            : 0,
-          rotation: transformComp.rotation,
-          health: playerComp.health ?? 100,
-        });
-
-        if (inputComp && inputComp.sequence > maxAckedSeq) {
-          maxAckedSeq = inputComp.sequence;
-        }
-      }
+      snapshots.push({
+        entityId: player.id,
+        id: player.id,
+        x: transform.position.x,
+        y: transform.position.y,
+        z: transform.position.z,
+        yaw: transform.rotation?.yaw ?? transform.rotation?.y ?? 0,
+        health: player.health ?? 100,
+      });
     }
 
-    const snapshotBuffer = Protocol.encodeWorldSnapshot(
-      this.serverTick,
-      maxAckedSeq,
-      playerSnapshots
-    );
+    // The acknowledgement is connection-specific. Using one global maximum
+    // would incorrectly acknowledge another client's inputs.
+    for (const [peerId, conn] of this.peerManager.connections) {
+      if (!conn?.open) continue;
 
-    this.peerManager.broadcast(snapshotBuffer);
+      const peerEntity = snapshots.find((snapshot) =>
+        players.some(
+          (entity) =>
+            entity.player?.peerId === peerId &&
+            entity.player?.id === snapshot.entityId
+        )
+      );
+
+      const ackSequence =
+        peerEntity
+          ? players.find(
+              (entity) =>
+                entity.player?.peerId === peerId &&
+                entity.player?.id === peerEntity.entityId
+            )?.input?.sequence ?? 0
+          : 0;
+
+      this.peerManager.sendTo(
+        peerId,
+        Protocol.encodeWorldSnapshot(this.serverTick, ackSequence, snapshots)
+      );
+    }
+  }
+
+  // Backward-compatible entry point for external callers.
+  update(ecsWorld, currentTime) {
+    this.preUpdate(ecsWorld);
+    this.postUpdate(ecsWorld, currentTime);
+  }
+
+  removePeer(peerId) {
+    this.incomingInputs.delete(peerId);
+    this.lastReceivedSequence.delete(peerId);
   }
 }
