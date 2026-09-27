@@ -22,7 +22,10 @@ export class RenderSystem {
     this.weaponViewModel = null;
     if (this.camera) {
       if (this.scene && !this.camera.parent) this.scene.add(this.camera);
-      this.weaponViewModel = new WeaponViewModel(this.camera);
+      this.weaponViewModel = new WeaponViewModel(
+        this.camera,
+        this.sceneManager?.weaponScene || null
+      );
     }
 
     this._lastTime = performance.now();
