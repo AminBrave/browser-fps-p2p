@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
 import { createTransform } from '../components/Transform.js';
 import { GAME_CONFIG } from '../../config/constants.js';
 
@@ -46,7 +47,8 @@ export function createImpactDecal(
   ecsWorld,
   sceneOrManager,
   position,
-  normal = { x: 0, y: 1, z: 0 }
+  normal = { x: 0, y: 1, z: 0 },
+  targetMesh = null
 ) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
 
@@ -61,34 +63,64 @@ export function createImpactDecal(
     position.z + n.z * 0.012
   );
   group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+  group.renderOrder = 20;
 
-  const hole = new THREE.Mesh(
-    new THREE.CircleGeometry(0.07, 20),
-    new THREE.MeshBasicMaterial({
-      color: 0x120c08,
-      transparent: true,
-      opacity: 0.95,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -8,
-      polygonOffsetUnits: -8,
-    })
+  const orientation = new THREE.Euler().setFromQuaternion(group.quaternion);
+  const decalSize = new THREE.Vector3(0.18, 0.18, 0.08);
+  const surface = targetMesh?.isMesh ? targetMesh : null;
+
+  if (surface) {
+    surface.updateWorldMatrix(true, false);
+  }
+
+  const createSurfaceDecal = (size, color, opacity) => {
+    const geometry = surface
+      ? new DecalGeometry(
+          surface,
+          new THREE.Vector3(position.x, position.y, position.z),
+          orientation,
+          size
+        )
+      : new THREE.CircleGeometry(size.x * 0.39, 20);
+
+    const mesh = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity,
+        side: THREE.FrontSide,
+        depthTest: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
+      })
+    );
+
+    if (!surface) {
+      mesh.position.set(
+        position.x + n.x * 0.012,
+        position.y + n.y * 0.012,
+        position.z + n.z * 0.012
+      );
+      mesh.quaternion.copy(group.quaternion);
+    }
+
+    return mesh;
+  };
+
+  const hole = createSurfaceDecal(
+    new THREE.Vector3(0.14, 0.14, 0.06),
+    0x120c08,
+    0.95
   );
   group.add(hole);
 
-  const scorch = new THREE.Mesh(
-    new THREE.RingGeometry(0.06, 0.13, 24),
-    new THREE.MeshBasicMaterial({
-      color: 0x3a2814,
-      transparent: true,
-      opacity: 0.72,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -6,
-      polygonOffsetUnits: -6,
-    })
+  const scorch = createSurfaceDecal(
+    new THREE.Vector3(0.22, 0.22, 0.08),
+    0x3a2814,
+    0.72
   );
   group.add(scorch);
 
@@ -98,9 +130,16 @@ export function createImpactDecal(
       color: 0xffaa44,
       transparent: true,
       opacity: 0.9,
+      depthTest: true,
+      depthWrite: false,
     })
   );
   flash.name = 'impactFlash';
+  flash.position.set(
+    position.x - group.position.x,
+    position.y - group.position.y,
+    position.z - group.position.z
+  );
   group.add(flash);
 
   scene?.add?.(group);
@@ -134,8 +173,8 @@ export function createImpactDecal(
   return entity;
 }
 
-export function createImpact(ecsWorld, sceneOrManager, position, normal) {
-  return createImpactDecal(ecsWorld, sceneOrManager, position, normal);
+export function createImpact(ecsWorld, sceneOrManager, position, normal, targetMesh = null) {
+  return createImpactDecal(ecsWorld, sceneOrManager, position, normal, targetMesh);
 }
 
 export function disposeImpactDecals(ecsWorld) {
