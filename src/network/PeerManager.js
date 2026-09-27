@@ -84,7 +84,7 @@ export class PeerManager {
           // "none" preserves the ArrayBuffer payload without JSON/BinaryPack
           // object serialization.
           reliable: true,
-          serialization: 'none',
+          serialization: 'raw',
         });
 
         conn.on('open', () => {
