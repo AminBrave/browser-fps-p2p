@@ -181,7 +181,7 @@ export class ClientGame {
     }
 
     const snapshot = Protocol.decodeWorldSnapshot(dataView);
-    if (!snapshot) return;
+    if (!snapshot || !this.interpolationSystem) return;
 
     this.interpolationSystem.addSnapshot(snapshot);
 
