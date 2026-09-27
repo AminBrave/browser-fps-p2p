@@ -29,6 +29,20 @@ export class PhysicsWorld {
     if (hitZone) this.colliderToHitZone.set(handle, hitZone);
   }
 
+  getProjectileMaterial(hit = null) {
+    const entity = hit?.entity;
+    const renderTarget = hit?.renderTarget;
+    const name = String(renderTarget?.name || entity?.name || '').toLowerCase();
+    if (name.includes('glass') || name.includes('window')) return 'glass';
+    if (name.includes('tree') || name.includes('leaf') || name.includes('canopy')) return 'foliage';
+    if (name.includes('car') || name.includes('streetlight') || name.includes('dumpster') || name.includes('metal')) return 'metal';
+    if (name.includes('wood') || name.includes('crate') || name.includes('box')) return 'wood';
+    if (name.includes('mountain') || name.includes('rock') || name.includes('stone')) return 'stone';
+    if (name.includes('ground') || name.includes('dirt')) return 'dirt';
+    if (name.includes('boundary') || name.includes('wall') || name.includes('concrete')) return 'concrete';
+    return 'default';
+  }
+
   unregisterCollider(collider) {
     if (!collider) return;
     const handle = collider.handle ?? collider;
