@@ -453,6 +453,7 @@ export class RenderSystem {
 
   dispose() {
     this.weaponViewModel?.dispose();
+    audio.stopCombatAmbience?.();
     this.weaponViewModel = null;
   }
 }
