@@ -33,9 +33,24 @@ export class RenderSystem {
     this._wasGrounded = true;
     this._audioUnlocked = false;
     this._lastWeaponId = null;
+    this._renderPosition = null;
+    this._previousPosition = null;
+    this._currentPosition = null;
   }
 
-  update(ecsWorld, localEntityArg, _maybeTime, currentTimeArg) {
+  captureFixedState(localEntity) {
+    const position = localEntity?.physics?.rigidBody?.translation?.();
+    if (!position) return;
+    if (!this._currentPosition) {
+      this._previousPosition = { ...position };
+      this._currentPosition = { ...position };
+      return;
+    }
+    this._previousPosition = this._currentPosition;
+    this._currentPosition = { ...position };
+  }
+
+  update(ecsWorld, localEntityArg, _maybeTime, currentTimeArg, renderAlpha = 0) {
     const now =
       typeof currentTimeArg === 'number'
         ? currentTimeArg
@@ -163,9 +178,22 @@ export class RenderSystem {
       // all share one coordinate.
       const bodyPosition = physics?.rigidBody?.translation?.();
       if (bodyPosition) {
-        transform.position.x = bodyPosition.x;
-        transform.position.y = bodyPosition.y;
-        transform.position.z = bodyPosition.z;
+        // The simulation is fixed at 60 Hz while rendering can run at a
+        // different refresh rate. Interpolate the local visual/camera pose
+        // between the two most recent fixed states instead of displaying the
+        // discrete 60 Hz physics steps as screen jitter.
+        if (!this._currentPosition) this.captureFixedState(localEntity);
+        const previous = this._previousPosition || bodyPosition;
+        const current = this._currentPosition || bodyPosition;
+        const alpha = THREE.MathUtils.clamp(Number(renderAlpha) || 0, 0, 1);
+        this._renderPosition = {
+          x: THREE.MathUtils.lerp(previous.x, current.x, alpha),
+          y: THREE.MathUtils.lerp(previous.y, current.y, alpha),
+          z: THREE.MathUtils.lerp(previous.z, current.z, alpha),
+        };
+        transform.position.x = this._renderPosition.x;
+        transform.position.y = this._renderPosition.y;
+        transform.position.z = this._renderPosition.z;
       }
 
       // Keep the first-person eye anchored to the exact same head/pose
