@@ -78,8 +78,10 @@ export class PeerManager {
         if (this.destroyed) return fail(new Error('Peer manager was destroyed'));
 
         const conn = peer.connect(this.hostPeerId, {
+          // Raw ArrayBuffer transport is exactly what Protocol expects.
+          // PeerJS exposes the raw serializer as "raw" (not "none").
           reliable: false,
-          serialization: 'none',
+          serialization: 'raw',
         });
 
         conn.on('open', () => {
