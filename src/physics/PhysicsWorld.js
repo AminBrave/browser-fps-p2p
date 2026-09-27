@@ -52,9 +52,18 @@ export class PhysicsWorld {
     // separate so movement solidity and hit-zone precision cannot conflict.
     const movementRadius = Math.min(radius, height * 0.25);
     const movementHalfSegment = Math.max(0.08, height / 2 - movementRadius);
+    const WORLD_GROUP = 0x0001;
+    const PLAYER_SOLID_GROUP = 0x0002;
+    const HITBOX_GROUP = 0x0004;
+
     const movementCollider = this.world.createCollider(
       RAPIER.ColliderDesc.capsule(movementHalfSegment, movementRadius),
       body
+    );
+    // Locomotion colliders collide only with the static world. Remote players
+    // therefore cannot physically push/unstick/tunnel local players.
+    movementCollider.setCollisionGroups?.(
+      (PLAYER_SOLID_GROUP << 16) | WORLD_GROUP
     );
 
     const torsoHalfHeight = Math.max(0.12, height * 0.20);
@@ -100,6 +109,13 @@ export class PhysicsWorld {
 
     const colliders = [movementCollider, torso, head, leftArm, rightArm, leftLeg, rightLeg];
     const hitZones = [null, 'torso', 'head', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
+
+    // Hitboxes are query targets, not physical obstacles. Sensors still
+    // participate in ray-casts, but cannot disturb character locomotion.
+    for (const hitbox of [torso, head, leftArm, rightArm, leftLeg, rightLeg]) {
+      hitbox.setSensor?.(true);
+      hitbox.setCollisionGroups?.(HITBOX_GROUP << 16);
+    }
 
     // Character controller uses the full-height movement envelope; anatomical
     // colliders remain the authoritative bullet hit geometry.
