@@ -235,9 +235,9 @@ export class ClientGame {
     if (event.type === EVENT_TYPES.SFX) {
       if (event.sfx === 'reloadStart') audio.playReloadStartAt?.(event.position);
       else if (event.sfx === 'reloadEnd') audio.playReloadEndAt?.(event.position);
-      else if (event.sfx === 'footstep') audio.playFootstep(event.stance ?? 0);
-      else if (event.sfx === 'jump') audio.playJump();
-      else if (event.sfx === 'land') audio.playLand();
+      else if (event.sfx === 'footstep') audio.playFootstepAt?.(event.position, event.stance ?? 0);
+      else if (event.sfx === 'jump') audio.playJumpAt?.(event.position);
+      else if (event.sfx === 'land') audio.playLandAt?.(event.position);
     }
   }
 
