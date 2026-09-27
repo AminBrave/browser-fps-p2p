@@ -1,7 +1,7 @@
 // src/ecs/systems/RenderSystem.js
 
 import * as THREE from 'three';
-import { GAME_CONFIG, INPUT_FLAGS, STANCE, getPlayerEyeOffset } from '../../config/index.js';
+import { GAME_CONFIG, CAMERA_CONFIG, INPUT_FLAGS, STANCE, getPlayerEyeOffset } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { WeaponViewModel } from '../../render/WeaponViewModel.js';
 import { moveIntensity } from '../../utils/Movement.js';
@@ -212,7 +212,7 @@ export class RenderSystem {
         const alpha = THREE.MathUtils.clamp(Number(renderAlpha) || 0, 0, 1);
 
         const targetCorrection = localEntity.networkVisualCorrection || { x: 0, y: 0, z: 0 };
-        const smoothing = 1 - Math.exp(-Math.max(1, 14) * dt);
+        const smoothing = 1 - Math.exp(-CAMERA_CONFIG.NETWORK_CORRECTION_SMOOTHING * dt);
         this._networkVisualCorrection.x = THREE.MathUtils.lerp(
           this._networkVisualCorrection.x, targetCorrection.x, smoothing
         );
@@ -248,36 +248,75 @@ export class RenderSystem {
 
       const cameraBase = this._renderPosition || transform.position;
 
-      // Render-only camera bob. The amplitude is exponentially smoothed so
-      // fixed-step velocity changes never become visible as camera jitter.
+      // Comfort-first first-person movement: low-frequency sinusoidal bob,
+      // tiny amplitudes, and slow response. It is render-only, so physics
+      // corrections can never become high-frequency camera impulses.
       const velocity = physics?.velocity || { x: 0, y: 0, z: 0 };
       const horizontalSpeed = Math.hypot(Number(velocity.x) || 0, Number(velocity.z) || 0);
+      const movementConfig = CAMERA_CONFIG.MOVEMENT;
+      const bobConfig = CAMERA_CONFIG.BOB;
+      const landingConfig = CAMERA_CONFIG.LANDING;
       const maxRunSpeed = Math.max(1, GAME_CONFIG.PLAYER_SPEED || 8);
-      const moveAmount = THREE.MathUtils.clamp(horizontalSpeed / maxRunSpeed, 0, 1.25);
+      const moveAmount = THREE.MathUtils.clamp(
+        horizontalSpeed / maxRunSpeed,
+        0,
+        movementConfig.MAX_SPEED_FACTOR
+      );
       const grounded = physics?.isGrounded !== false;
-      const targetShake = grounded ? THREE.MathUtils.smoothstep(moveAmount, 0.05, 0.9) : 0;
-      const blend = 1 - Math.exp(-12 * Math.max(0, dt));
-      this._cameraShake.intensity = THREE.MathUtils.lerp(this._cameraShake.intensity, targetShake, blend);
+      const targetShake = grounded
+        ? THREE.MathUtils.smoothstep(
+            moveAmount,
+            movementConfig.ACTIVATION_START,
+            movementConfig.ACTIVATION_END
+          )
+        : 0;
+      const blend = 1 - Math.exp(-movementConfig.INTENSITY_SMOOTHING * Math.max(0, dt));
+      this._cameraShake.intensity = THREE.MathUtils.lerp(
+        this._cameraShake.intensity,
+        targetShake,
+        blend
+      );
 
       const previousY = this._cameraShake.lastVerticalVelocity;
       const verticalVelocity = Number(velocity.y) || 0;
-      if (!grounded && previousY < -1 && verticalVelocity >= -0.25) {
-        this._cameraShake.landing = Math.min(1, -previousY * 0.035);
+      if (
+        !grounded &&
+        previousY < landingConfig.DETECT_FALL_SPEED &&
+        verticalVelocity >= landingConfig.DETECT_LANDING_SPEED
+      ) {
+        this._cameraShake.landing = Math.min(
+          landingConfig.MAX_INTENSITY,
+          -previousY * 0.01
+        );
       }
       this._cameraShake.lastVerticalVelocity = verticalVelocity;
-      this._cameraShake.landing = Math.max(0, this._cameraShake.landing - Math.max(0, dt) * 6);
+      this._cameraShake.landing = Math.max(
+        0,
+        this._cameraShake.landing -
+          Math.max(0, dt) * landingConfig.DECAY_PER_SECOND
+      );
 
-      const frequency = 6 + 3 * Math.min(1, moveAmount);
+      const speedRatio = Math.min(1, moveAmount);
+      const frequency =
+        movementConfig.PHASE_SPEED_MIN_HZ +
+        (movementConfig.PHASE_SPEED_MAX_HZ - movementConfig.PHASE_SPEED_MIN_HZ) *
+          speedRatio;
       this._cameraShake.phase += Math.max(0, dt) * Math.PI * 2 * frequency;
-      if (this._cameraShake.phase > Math.PI * 2) this._cameraShake.phase %= Math.PI * 2;
+      if (this._cameraShake.phase > Math.PI * 2) {
+        this._cameraShake.phase %= Math.PI * 2;
+      }
+
       const gait = this._cameraShake.phase;
       const amount = this._cameraShake.intensity;
       const landing = this._cameraShake.landing;
-      const bobY = Math.sin(gait * 2) * 0.012 * amount - landing * 0.018;
-      const bobX = Math.cos(gait) * 0.007 * amount;
-      const bobPitch = Math.sin(gait * 2) * 0.0035 * amount + landing * 0.010;
-      const bobYaw = Math.cos(gait) * 0.0018 * amount;
-      const bobRoll = Math.sin(gait) * 0.006 * amount - landing * 0.004;
+      const bobY = Math.sin(gait * 2) * bobConfig.VERTICAL_METERS * amount -
+        landing * landingConfig.VERTICAL_METERS;
+      const bobX = Math.cos(gait) * bobConfig.HORIZONTAL_METERS * amount;
+      const bobPitch = Math.sin(gait * 2) * bobConfig.PITCH_RADIANS * amount +
+        landing * landingConfig.PITCH_RADIANS;
+      const bobYaw = Math.cos(gait) * bobConfig.YAW_RADIANS * amount;
+      const bobRoll = Math.sin(gait) * bobConfig.ROLL_RADIANS * amount -
+        landing * landingConfig.ROLL_RADIANS;
 
       this.camera.position.set(
         cameraBase.x + bobX,
@@ -286,7 +325,7 @@ export class RenderSystem {
       );
 
       if (weapon) {
-        const recovery = (GAME_CONFIG.RECOIL_RECOVERY || 10) * dt;
+        const recovery = (CAMERA_CONFIG.RECOIL_RECOVERY_MULTIPLIER * GAME_CONFIG.RECOIL_RECOVERY) * dt;
         if (weapon.cameraRecoilPitch) {
           const d = Math.min(Math.abs(weapon.cameraRecoilPitch), recovery);
           weapon.cameraRecoilPitch -=
@@ -305,9 +344,9 @@ export class RenderSystem {
       }
 
       const pitch =
-        (input.pitch || 0) + (weapon?.cameraRecoilPitch || 0) * 0.2 + bobPitch;
+        (input.pitch || 0) + (weapon?.cameraRecoilPitch || 0) * CAMERA_CONFIG.RECOIL_SENSITIVITY + bobPitch;
       const yaw =
-        (input.yaw || 0) + (weapon?.cameraRecoilYaw || 0) * 0.2 + bobYaw;
+        (input.yaw || 0) + (weapon?.cameraRecoilYaw || 0) * CAMERA_CONFIG.RECOIL_SENSITIVITY + bobYaw;
 
       this._euler.set(pitch, yaw, bobRoll, 'YXZ');
       this.camera.quaternion.setFromEuler(this._euler);
