@@ -41,68 +41,76 @@ export function createPlayer(
   const makeMat = (color, roughness = 0.65, metalness = 0.05) =>
     new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.46, 6, 10), makeMat(teamColor));
-  body.name = 'body';
-
-  // Hidden collision/decal proxy exactly matches the authoritative Rapier
-  // capsule, so bullet impacts on players can use the same world-space surface
-  // convention as every static world compound.
-  const hitProxy = new THREE.Mesh(
-    new THREE.CapsuleGeometry(
-      GAME_CONFIG.PLAYER_RADIUS,
-      Math.max(0.01, GAME_CONFIG.PLAYER_HEIGHT - GAME_CONFIG.PLAYER_RADIUS * 2),
-      8,
-      12
-    ),
-    new THREE.MeshBasicMaterial({ visible: false })
+  // World units are meters. The complete character is 1.80 m tall and
+  // every visible part has a matching bullet collider.
+  const torso = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.22, 0.55, 8, 12),
+    makeMat(teamColor)
   );
-  hitProxy.name = 'playerHitProxy';
-  body.position.y = 0.02;
-  body.scale.set(1, 1.15, 0.72);
+  torso.name = 'torso';
+  torso.position.y = -0.02;
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.205, 12, 8), makeMat(skinColor, 0.8));
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.17, 16, 12),
+    makeMat(skinColor, 0.8)
+  );
   head.name = 'head';
-  head.position.y = 0.62;
+  head.position.y = 0.58;
 
   const helmet = new THREE.Mesh(
-    new THREE.SphereGeometry(0.225, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62),
+    new THREE.SphereGeometry(0.185, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.62),
     makeMat(darkColor, 0.45, 0.2)
   );
   helmet.name = 'helmet';
-  helmet.position.y = 0.69;
+  helmet.position.y = 0.64;
 
   const limbMat = makeMat(teamColor);
-  const armGeo = new THREE.CapsuleGeometry(0.075, 0.38, 5, 8);
-  const legGeo = new THREE.CapsuleGeometry(0.09, 0.48, 5, 8);
+  const armGeo = new THREE.CapsuleGeometry(0.075, 0.36, 6, 8);
+  const legGeo = new THREE.CapsuleGeometry(0.08, 0.30, 6, 8);
   const leftArm = new THREE.Mesh(armGeo, limbMat);
   const rightArm = new THREE.Mesh(armGeo, limbMat);
   const leftLeg = new THREE.Mesh(legGeo, limbMat);
   const rightLeg = new THREE.Mesh(legGeo, limbMat);
-  leftArm.name = 'leftArm'; rightArm.name = 'rightArm';
-  leftLeg.name = 'leftLeg'; rightLeg.name = 'rightLeg';
-  leftArm.position.set(-0.34, 0.03, 0);
-  rightArm.position.set(0.34, 0.03, 0);
-  leftLeg.position.set(-0.14, -0.58, 0);
-  rightLeg.position.set(0.14, -0.58, 0);
+  leftArm.name = 'leftArm';
+  rightArm.name = 'rightArm';
+  leftLeg.name = 'leftLeg';
+  rightLeg.name = 'rightLeg';
+  leftArm.position.set(-0.30, 0.0, 0);
+  rightArm.position.set(0.30, 0.0, 0);
+  leftLeg.position.set(-0.11, -0.58, 0);
+  rightLeg.position.set(0.11, -0.58, 0);
 
-  const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.42, 0.14), makeMat(darkColor, 0.8));
-  backpack.position.set(0, 0.05, 0.25);
+  const backpack = new THREE.Mesh(
+    new THREE.BoxGeometry(0.30, 0.42, 0.16),
+    makeMat(darkColor, 0.8)
+  );
+  backpack.name = 'backpack';
+  backpack.position.set(0, 0.0, 0.22);
 
   const remoteWeapon = new THREE.Group();
   remoteWeapon.name = 'remoteWeapon';
-  remoteWeapon.position.set(0.26, 0.03, -0.24);
+  remoteWeapon.position.set(0.25, 0.0, -0.24);
   const gunMat = makeMat(weaponColor, 0.3, 0.65);
-  const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.12, 0.42), gunMat);
-  const gunStock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, 0.24), gunMat);
-  const gunBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.38, 8), makeMat(0x111317, 0.25, 0.8));
+  const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.11, 0.40), gunMat);
+  const gunStock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.22), gunMat);
+  const gunBarrel = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.023, 0.023, 0.36, 8),
+    makeMat(0x111317, 0.25, 0.8)
+  );
   gunBarrel.rotation.x = Math.PI / 2;
   gunBody.position.z = -0.03;
   gunStock.position.z = 0.16;
-  gunBarrel.position.z = -0.39;
+  gunBarrel.position.z = -0.38;
   remoteWeapon.add(gunStock, gunBody, gunBarrel);
 
-  const healthBack = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.055), makeMat(0x241010, 0.9));
-  const healthFill = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.035), makeMat(0x55d66f, 0.55));
+  const healthBack = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.62, 0.055),
+    makeMat(0x241010, 0.9)
+  );
+  const healthFill = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.58, 0.035),
+    makeMat(0x55d66f, 0.55)
+  );
   healthBack.name = 'healthBack';
   healthFill.name = 'healthFill';
   healthBack.position.set(0, 1.02, 0);
@@ -112,7 +120,10 @@ export function createPlayer(
   healthBack.renderOrder = 10;
   healthFill.renderOrder = 11;
 
-  const teamRing = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.018, 6, 24), makeMat(teamColor, 0.5, 0.1));
+  const teamRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.46, 0.018, 6, 24),
+    makeMat(teamColor, 0.5, 0.1)
+  );
   teamRing.name = 'teamRing';
   teamRing.rotation.x = Math.PI / 2;
   teamRing.position.y = -0.88;
@@ -121,7 +132,7 @@ export function createPlayer(
   pose.name = 'characterPose';
   mesh.add(pose);
   pose.add(
-    body,
+    torso,
     head,
     helmet,
     leftArm,
@@ -132,23 +143,37 @@ export function createPlayer(
     remoteWeapon,
     healthBack,
     healthFill,
-    teamRing,
-    hitProxy
+    teamRing
   );
 
   mesh.traverse((child) => {
-    if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
   });
   if (isLocal) mesh.visible = false;
-  if (scene?.add) scene.add(mesh);
+  scene?.add?.(mesh);
 
   const character = {
     mesh,
     pose,
-    parts: { head, helmet, leftArm, rightArm, healthFill, healthBack, remoteWeapon, teamRing },
+    parts: {
+      torso,
+      head,
+      helmet,
+      leftArm,
+      rightArm,
+      leftLeg,
+      rightLeg,
+      healthFill,
+      healthBack,
+      remoteWeapon,
+      teamRing,
+    },
     setWeaponType(typeId) {
       const scale = typeId === 3 ? 1.18 : typeId === 4 ? 1.3 : typeId === 2 ? 0.92 : 0.8;
-      remoteWeapon.scale.set(scale, scale, scale);
+      remoteWeapon.scale.setScalar(scale);
     },
     updateVisuals({ stance = 0, pitch = 0, health = 100, maxHealth = 100, isDead = false }) {
       const crouch = stance === 1;
@@ -167,6 +192,7 @@ export function createPlayer(
       healthBack.visible = alive && !isLocal;
       healthFill.visible = alive && !isLocal;
       teamRing.visible = alive && !isLocal;
+
       const ratio = THREE.MathUtils.clamp(
         Number(health) / Math.max(1, Number(maxHealth) || 100),
         0,
@@ -201,7 +227,11 @@ export function createPlayer(
       GAME_CONFIG.MAX_HEALTH
     ),
     transform: createTransform(spawnPos.x, groundedY, spawnPos.z),
-    physics: createPhysics(phys.body, phys.collider, phys.controller),
+    physics: {
+      ...createPhysics(phys.body, phys.collider, phys.controller),
+      colliders: phys.colliders,
+      hitZones: phys.hitZones,
+    },
     weapon: activeWeapon,
     loadout,
     input: createInput(),
@@ -215,6 +245,23 @@ export function createPlayer(
     maxHealth: GAME_CONFIG.MAX_HEALTH,
   });
 
-  physicsWorld.registerColliderEntity?.(phys.collider, playerEntity, hitProxy);
+  const targetByZone = {
+    torso,
+    head,
+    leftArm,
+    rightArm,
+    leftLeg,
+    rightLeg,
+  };
+  for (let i = 0; i < phys.colliders.length; i++) {
+    const zone = phys.hitZones[i];
+    physicsWorld.registerColliderEntity(
+      phys.colliders[i],
+      playerEntity,
+      targetByZone[zone] || torso,
+      zone
+    );
+  }
+
   return playerEntity;
 }
