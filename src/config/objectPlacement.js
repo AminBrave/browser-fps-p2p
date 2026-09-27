@@ -31,14 +31,33 @@ function evenGrid(bounds, count, padding, offset = 0) {
   return out;
 }
 function manhattan(bounds, count, padding, roadSpacing = 8) {
-  const out = [], xs = [], zs = [];
-  for (let x = -bounds.halfWidth + padding; x <= bounds.halfWidth - padding; x += roadSpacing) xs.push(x);
-  for (let z = -bounds.halfLength + padding; z <= bounds.halfLength - padding; z += roadSpacing) zs.push(z);
-  for (const x of xs) for (const z of zs) {
-    if (out.length >= count) break;
-    const side = ((out.length + 1) % 2 === 0 ? 1 : -1) * Math.min(2, roadSpacing * 0.22);
-    const useXRoad = out.length % 2 === 0;
-    out.push({ x: useXRoad ? x + side : x, z: useXRoad ? z : z + side, rotationY: useXRoad ? Math.PI / 2 : 0 });
+  // Manhattan means objects occupy city blocks, while roads remain on the
+  // grid lines between those blocks. This deliberately does NOT emit points
+  // on the road center lines.
+  const out = [];
+  const halfW = bounds.halfWidth - padding;
+  const halfL = bounds.halfLength - padding;
+  const block = Math.max(4, roadSpacing);
+  const xCenters = [];
+  const zCenters = [];
+
+  for (let x = -halfW + block / 2; x <= halfW - block / 2 + 0.001; x += block) xCenters.push(x);
+  for (let z = -halfL + block / 2; z <= halfL - block / 2 + 0.001; z += block) zCenters.push(z);
+
+  for (let row = 0; row < zCenters.length && out.length < count; row++) {
+    for (let col = 0; col < xCenters.length && out.length < count; col++) {
+      const x = xCenters[col];
+      const z = zCenters[row];
+      const edge = Math.min(block * 0.34, block / 2 - 0.5);
+      const variant = (row + col) % 4;
+      const ox = variant === 1 || variant === 2 ? edge : -edge;
+      const oz = variant >= 2 ? edge : -edge;
+      out.push({
+        x: x + ox,
+        z: z + oz,
+        rotationY: variant % 2 ? Math.PI / 2 : 0,
+      });
+    }
   }
   return out;
 }
