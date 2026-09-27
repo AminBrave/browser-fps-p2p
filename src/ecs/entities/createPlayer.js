@@ -6,7 +6,7 @@ import { createPhysics } from '../components/Physics.js';
 import { createPlayer as createPlayerComponent } from '../components/Player.js';
 import { createWeapon, createLoadout } from '../components/Weapon.js';
 import { createInput } from '../components/Input.js';
-import { GAME_CONFIG, PLAYER_CONFIG, PLAYER_CHARACTER_CONFIG, peerIdToNumeric } from '../../config/index.js';
+import { PLAYER_CONFIG, PLAYER_CHARACTER_CONFIG, peerIdToNumeric } from '../../config/index.js';
 import { WORLD_CONFIG } from '../../config/index.js';
 
 export function createPlayer(
@@ -247,8 +247,8 @@ export function createPlayer(
 
   character.setWeaponType(activeWeapon?.typeId ?? 1);
   character.updateVisuals({
-    health: GAME_CONFIG.MAX_HEALTH,
-    maxHealth: GAME_CONFIG.MAX_HEALTH,
+    health: PLAYER_CONFIG.MAX_HEALTH,
+    maxHealth: PLAYER_CONFIG.MAX_HEALTH,
   });
 
   const targetByZone = {
