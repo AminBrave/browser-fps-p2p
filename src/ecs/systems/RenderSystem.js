@@ -1,7 +1,7 @@
 // src/ecs/systems/RenderSystem.js
 
 import * as THREE from 'three';
-import { GAME_CONFIG, CAMERA_CONFIG, INPUT_FLAGS, STANCE, getPlayerEyeOffset } from '../../config/index.js';
+import { GAME_CONFIG, PLAYER_CONFIG, CAMERA_CONFIG, INPUT_FLAGS, STANCE, getPlayerEyeOffset } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { WeaponViewModel } from '../../render/WeaponViewModel.js';
 import { moveIntensity } from '../../utils/Movement.js';
@@ -256,7 +256,7 @@ export class RenderSystem {
       const movementConfig = CAMERA_CONFIG.MOVEMENT;
       const bobConfig = CAMERA_CONFIG.BOB;
       const landingConfig = CAMERA_CONFIG.LANDING;
-      const maxRunSpeed = Math.max(1, GAME_CONFIG.PLAYER_SPEED || 8);
+      const maxRunSpeed = Math.max(1, PLAYER_CONFIG.SPEED);
       const moveAmount = THREE.MathUtils.clamp(
         horizontalSpeed / maxRunSpeed,
         0,
@@ -280,7 +280,8 @@ export class RenderSystem {
       const previousY = this._cameraShake.lastVerticalVelocity;
       const verticalVelocity = Number(velocity.y) || 0;
       if (
-        !grounded &&
+        !this._wasGrounded &&
+        grounded &&
         previousY < landingConfig.DETECT_FALL_SPEED &&
         verticalVelocity >= landingConfig.DETECT_LANDING_SPEED
       ) {
