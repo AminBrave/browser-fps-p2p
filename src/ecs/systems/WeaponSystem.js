@@ -175,7 +175,7 @@ export class WeaponSystem {
 
     const pelletCount = Math.max(1, weapon.pelletCount || 1);
     const range = weapon.range || 100;
-    const exclude = physics?.collider || null;
+    const exclude = physics?.colliders || physics?.collider || null;
 
     let origin;
     if (player.isLocal && this.renderSystem?.weaponViewModel?.getMuzzleWorldPosition) {
