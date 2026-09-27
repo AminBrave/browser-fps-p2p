@@ -8,6 +8,10 @@ export const NETWORK_CONFIG = Object.freeze({
   INTERPOLATION_BUFFER_MS: 100,
   INPUT_HISTORY_SIZE: 128,
   MAX_SNAPSHOT_HISTORY: 16,
+  INVITATION_CODE: Object.freeze({
+    LENGTH: 5,
+    ALPHABET: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789',
+  }),
 });
 
 export const PROTOCOL_CONFIG = Object.freeze({
