@@ -101,21 +101,37 @@ export class RenderSystem {
       if (entity.isPermanentDecal && renderMesh?.mesh) {
         if (entity.impactSparkUntil) {
           const started = Number(entity.impactSparkStartedAt) || now;
-          const duration = Math.max(1, Number(RENDER_CONFIG.IMPACT_FLASH.SPARK_MS) || 180);
-          const t = THREE.MathUtils.clamp((now - started) / duration, 0, 1);
+          const duration = Math.max(1, Number(RENDER_CONFIG.IMPACT_FLASH.SPARK_MS) || 360);
+          const elapsed = Math.max(0, (now - started) / 1000);
+          const t = THREE.MathUtils.clamp((elapsed * 1000) / duration, 0, 1);
           const sparkGroup = renderMesh.mesh.getObjectByName?.('impactSpark');
           if (sparkGroup) {
             sparkGroup.children.forEach((spark) => {
-              const velocity = spark.userData?.velocity;
-              if (velocity) {
-                spark.position.x += velocity.x * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
-                spark.position.y += velocity.y * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
-                spark.position.z += velocity.z * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
+              const age = elapsed + (Number(spark.userData?.age) || 0);
+              if (age <= 0) { spark.visible = false; return; }
+              spark.visible = true;
+              const v = spark.userData?.velocity;
+              if (v) {
+                const drag = Math.max(0, Number(spark.userData.drag) || 0);
+                const f = Math.exp(-drag * dt);
+                v.x *= f; v.y *= f; v.z *= f;
+                v.y -= (Number(spark.userData.gravity) || 0) * dt;
+                spark.position.x += v.x * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
+                spark.position.y += v.y * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
+                spark.position.z += v.z * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
               }
-              if (spark.material) spark.material.opacity = Math.max(0, 1 - t * t);
-              const baseScale = Number(spark.userData?.baseScale) || 1;
-              const scale = baseScale * (1 + t * 0.75);
-              spark.scale.set(scale, scale, Math.max(0.05, 1 - t * 0.8));
+              const av = spark.userData?.angularVelocity;
+              if (av) {
+                spark.rotation.x += av.x * dt; spark.rotation.y += av.y * dt; spark.rotation.z += av.z * dt;
+                av.x *= 0.94; av.y *= 0.94; av.z *= 0.94;
+              }
+              const fadeDelay = Math.max(0, RENDER_CONFIG.IMPACT_FLASH.FADE_DELAY_MS) / 1000;
+              const lifeT = THREE.MathUtils.clamp(
+                (age - fadeDelay) / Math.max(0.001, duration / 1000 - fadeDelay), 0, 1
+              );
+              if (spark.material) spark.material.opacity = 1 - Math.pow(lifeT, RENDER_CONFIG.IMPACT_FLASH.FADE_POWER);
+              const s = (Number(spark.userData?.baseScale) || 1) * (1 + lifeT * 0.35);
+              spark.scale.set(s, s, Math.max(0.08, 1 - lifeT * 0.8));
             });
           }
           if (t >= 1) {
