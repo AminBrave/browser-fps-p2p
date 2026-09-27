@@ -53,7 +53,9 @@ export const WORLD_CONFIG = {
       WHEELS: {
         RADIUS: 0.32, WIDTH: 0.28, OFFSET_X: 0.95, OFFSET_Z: 1.2, RADIAL_SEGMENTS: 14,
       },
-      COLLIDER: { SIZE: { x: 2.1, y: 1.45, z: 3.9 }, CENTER_Y: 0.725 },
+      COLLIDER: {
+        BOUNDS: { x: 2.1, y: 1.87, z: 3.9 },
+      },
       PLACEMENTS: [
         { x: -5, z: 14, rotationY: 0.4, color: 0x2e86de },
         { x: 8, z: -16, rotationY: -0.8, color: 0xee5a24 },
