@@ -89,7 +89,7 @@ export class ClientReconcileSystem {
     }
 
     const body = physics.rigidBody;
-    const before = body?.translation?.() || transform.position;
+    const predictedBefore = body?.translation?.() || transform.position;
 
     const serverPos = {
       x: Number(authoritative.x ?? authoritative.position?.x ?? 0),
@@ -97,10 +97,30 @@ export class ClientReconcileSystem {
       z: Number(authoritative.z ?? authoritative.position?.z ?? 0),
     };
 
-    // Start the prediction replay from the exact authoritative body state.
-    // setTranslation is intentional here: this is the simulation's
-    // reconciliation boundary, not a render-time correction.
+    // Do not reset a healthy local prediction on every snapshot. Tiny
+    // authoritative differences are normal in a networked fixed-step game;
+    // repeatedly teleporting the camera to those differences is the source of
+    // the visible jitter. Only reconcile when the error exceeds the configured
+    // correction threshold.
+    const error = {
+      x: serverPos.x - predictedBefore.x,
+      y: serverPos.y - predictedBefore.y,
+      z: serverPos.z - predictedBefore.z,
+    };
+    const errorMagnitude = Math.hypot(error.x, error.y, error.z);
+    const threshold = 0.15;
+
+    if (errorMagnitude <= threshold) {
+      if (transform.rotation) {
+        transform.rotation.yaw = Number(authoritative.yaw ?? authoritative.rotation?.yaw ?? transform.rotation.yaw ?? 0);
+        transform.rotation.pitch = Number(authoritative.pitch ?? authoritative.rotation?.pitch ?? transform.rotation.pitch ?? 0);
+      }
+      return;
+    }
+
+    // Start prediction replay from the exact authoritative body state.
     if (body?.setTranslation) body.setTranslation(serverPos, true);
+    this.physicsWorld.updateQueryPipeline?.();
 
     transform.position.x = serverPos.x;
     transform.position.y = serverPos.y;
@@ -130,21 +150,17 @@ export class ClientReconcileSystem {
 
     const after = body?.translation?.() || transform.position;
     const correction = {
-      x: before.x - after.x,
-      y: before.y - after.y,
-      z: before.z - after.z,
+      x: predictedBefore.x - after.x,
+      y: predictedBefore.y - after.y,
+      z: predictedBefore.z - after.z,
     };
 
-    // RenderSystem consumes this as a visual-only smoothing offset. The ECS
-    // transform and Rapier body remain authoritative/predicted coordinates.
-    const existing = localEntity.networkVisualCorrection || { x: 0, y: 0, z: 0 };
+    // RenderSystem consumes this as a visual-only smoothing offset. Replace
+    // the previous correction instead of accumulating corrections from every
+    // snapshot; accumulation can otherwise create an oscillating camera.
     const magnitude = Math.hypot(correction.x, correction.y, correction.z);
     if (magnitude > 0.001 && magnitude < 4) {
-      localEntity.networkVisualCorrection = {
-        x: existing.x + correction.x,
-        y: existing.y + correction.y,
-        z: existing.z + correction.z,
-      };
+      localEntity.networkVisualCorrection = { ...correction };
     }
 
     transform.position.x = after.x;
@@ -193,6 +209,7 @@ export class ClientReconcileSystem {
       };
 
       physics.rigidBody.setTranslation(next, true);
+      this.physicsWorld.updateQueryPipeline?.();
 
       physics.isGrounded =
         typeof physics.controller.computedGrounded === 'function'
