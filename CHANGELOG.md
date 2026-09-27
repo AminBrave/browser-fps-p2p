@@ -8,6 +8,8 @@ All notable changes to **browser-fps-p2p** are documented here.
 - Added a reusable fixed-step `GameLoop` with bounded catch-up and a separate render phase.
 - Host and client simulation now run at the configured tick rate independently of monitor refresh rate.
 - Client prediction is no longer followed by a second physics simulation pass in the same render frame.
+- Client prediction advances Rapier exactly once per fixed tick; reconciliation applies corrected kinematic positions immediately.
+- Remote crouch/prone state is reconstructed from the transmitted 16-bit input mask.
 - Input is sampled once per simulation tick, preventing duplicate/high-refresh input sequences.
 
 ### WebRTC & protocol hardening
