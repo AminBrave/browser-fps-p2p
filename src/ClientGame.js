@@ -17,7 +17,7 @@ import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.j
 import { CircularBuffer } from './utils/CircularBuffer.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
-import { disposeImpactDecals } from './ecs/entities/createBullet.js';
+import { createBullet, createImpactDecal, createBloodImpact, disposeImpactDecals } from './ecs/entities/createBullet.js';
 import { applyWorldManifest } from './network/WorldSync.js';
 
 export class ClientGame {
@@ -176,6 +176,11 @@ export class ClientGame {
   _handleServerPacket(dataView) {
     const packetType = Protocol.getPacketType(dataView);
 
+    if (packetType === PACKET_TYPES.GAME_EVENT) {
+      this._handleGameEvent(Protocol.decodeGameEvent(dataView));
+      return;
+    }
+
     if (packetType === PACKET_TYPES.WORLD_INIT) {
       try {
         const manifest = Protocol.decodeWorldInit(dataView);
@@ -190,6 +195,47 @@ export class ClientGame {
       }
       return;
     }
+
+  _handleGameEvent(event) {
+    if (!event || event.sourceId === this.localEntity?.player?.id || event.shooterId === this.localEntity?.player?.id) {
+      return;
+    }
+
+    if (event.type === 4) {
+      const origin = event.origin;
+      const end = event.end;
+      if (!origin || !end) return;
+
+      createBullet(this.ecsWorld, this.sceneManager, origin, end);
+
+      if (event.hit && event.hitEntityId != null) {
+        const target = this.playerById.get(event.hitEntityId);
+        const zone = event.hitZone || 'torso';
+        const targetMesh = target?.character?.parts?.[zone] || target?.character?.parts?.torso || null;
+        if (targetMesh) {
+          createBloodImpact(this.ecsWorld, this.sceneManager, end, event.normal, targetMesh);
+        }
+      } else if (event.hit) {
+        createImpactDecal(this.ecsWorld, this.sceneManager, end, event.normal);
+      }
+
+      if (event.primary) {
+        audio.playShootAt?.(event.sfx || 'pistol', origin);
+        if (event.hit) audio.playImpactAt?.(end);
+      }
+      return;
+    }
+
+    if (event.type === 5) {
+      if (event.hit) audio.playImpactAt?.(event.position);
+      return;
+    }
+
+    if (event.type === 6) {
+      if (event.sfx === 'reloadStart') audio.playReloadStartAt?.(event.position);
+      else if (event.sfx === 'reloadEnd') audio.playReloadEndAt?.(event.position);
+    }
+  }
 
     if (packetType === PACKET_TYPES.JOIN_ACCEPT) {
       const accepted = Protocol.decodeJoinAccept(dataView);
