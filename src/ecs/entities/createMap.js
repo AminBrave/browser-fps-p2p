@@ -1,3 +1,4 @@
+import RAPIER from '@dimforge/rapier3d-compat';
 // src/ecs/entities/createMap.js
 
 import * as THREE from 'three';
@@ -247,15 +248,17 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
     config.WHEELS.RADIAL_SEGMENTS
   );
 
-  for (const [wx, wz] of [
-    [config.WHEELS.OFFSET_X, config.WHEELS.OFFSET_Z],
-    [-config.WHEELS.OFFSET_X, config.WHEELS.OFFSET_Z],
-    [config.WHEELS.OFFSET_X, -config.WHEELS.OFFSET_Z],
-    [-config.WHEELS.OFFSET_X, -config.WHEELS.OFFSET_Z],
-  ]) {
+  const wheelPositions = [
+    { x: config.WHEELS.OFFSET_X, z: config.WHEELS.OFFSET_Z },
+    { x: -config.WHEELS.OFFSET_X, z: config.WHEELS.OFFSET_Z },
+    { x: config.WHEELS.OFFSET_X, z: -config.WHEELS.OFFSET_Z },
+    { x: -config.WHEELS.OFFSET_X, z: -config.WHEELS.OFFSET_Z },
+  ];
+
+  for (const { x, z } of wheelPositions) {
     const wheel = new THREE.Mesh(wheelGeo, wheelMat);
     wheel.rotation.z = Math.PI / 2;
-    wheel.position.set(wx, config.WHEELS.RADIUS, wz);
+    wheel.position.set(x, config.WHEELS.RADIUS, z);
     wheel.castShadow = true;
     wheel.receiveShadow = true;
     group.add(wheel);
@@ -263,14 +266,56 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
 
   addToScene(sceneManager, group);
 
-  const collider = config.COLLIDER.SIZE;
-  const physics = physicsWorld.createStaticBox(
+  const halfWheelWidth = config.WHEELS.WIDTH / 2;
+  const wheelRotation = {
+    x: 0,
+    y: 0,
+    z: Math.SQRT1_2,
+    w: Math.SQRT1_2,
+  };
+
+  const physics = physicsWorld.createStaticCompound(
     safePosition.x,
-    groundY() + config.COLLIDER.CENTER_Y,
+    groundY(),
     safePosition.z,
-    collider.x / 2,
-    collider.y / 2,
-    collider.z / 2,
+    [
+      {
+        shape: new RAPIER.Cuboid(
+          config.BODY.SIZE.x / 2,
+          config.BODY.SIZE.y / 2,
+          config.BODY.SIZE.z / 2
+        ),
+        position: {
+          x: 0,
+          y: config.BODY.CENTER_Y,
+          z: 0,
+        },
+      },
+      {
+        shape: new RAPIER.Cuboid(
+          config.CABIN.SIZE.x / 2,
+          config.CABIN.SIZE.y / 2,
+          config.CABIN.SIZE.z / 2
+        ),
+        position: {
+          x: 0,
+          y: config.CABIN.CENTER_Y,
+          z: config.CABIN.CENTER_Z,
+        },
+      },
+      ...wheelPositions.map(({ x, z }) => ({
+        shape: new RAPIER.Cylinder(
+          config.WHEELS.WIDTH / 2,
+          config.WHEELS.RADIUS
+        ),
+        position: {
+          x,
+          y: config.WHEELS.RADIUS,
+          z,
+        },
+        rotation: wheelRotation,
+      })),
+    ],
     placement.rotationY
   );
 
