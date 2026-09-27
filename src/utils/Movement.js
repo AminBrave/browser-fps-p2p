@@ -1,6 +1,6 @@
 // src/utils/Movement.js
 
-import { GAME_CONFIG, INPUT_FLAGS, STANCE } from '../config/constants.js';
+import { PLAYER_CONFIG, INPUT_FLAGS, STANCE } from '../config/index.js';
 import { hasFlag } from './BitFlags.js';
 
 /**
@@ -29,9 +29,9 @@ export function applyFpsMovement(inputMask, yaw, velocity, isGrounded, dt, stanc
   const rx = cosY;
   const rz = -sinY;
 
-  let speed = GAME_CONFIG.PLAYER_SPEED || 8.0;
-  if (stance === STANCE.CROUCH) speed *= GAME_CONFIG.SPEED_MULT_CROUCH ?? 0.45;
-  else if (stance === STANCE.PRONE) speed *= GAME_CONFIG.SPEED_MULT_PRONE ?? 0.2;
+  let speed = PLAYER_CONFIG.SPEED;
+  if (stance === STANCE.CROUCH) speed *= PLAYER_CONFIG.SPEED_MULTIPLIERS[STANCE.CROUCH];
+  else if (stance === STANCE.PRONE) speed *= PLAYER_CONFIG.SPEED_MULTIPLIERS[STANCE.PRONE];
 
   // Cannot jump while prone
   const canJump = stance !== STANCE.PRONE;
@@ -42,13 +42,13 @@ export function applyFpsMovement(inputMask, yaw, velocity, isGrounded, dt, stanc
   if (isGrounded) {
     velocity.y = -0.1;
     if (canJump && hasFlag(inputMask, INPUT_FLAGS.JUMP)) {
-      velocity.y = GAME_CONFIG.PLAYER_JUMP_FORCE || 6.5;
+      velocity.y = PLAYER_CONFIG.JUMP_FORCE;
       return false;
     }
     return true;
   }
 
-  velocity.y += (GAME_CONFIG.GRAVITY || -19.62) * dt;
+  velocity.y += (PLAYER_CONFIG.GRAVITY) * dt;
   return false;
 }
 
@@ -56,6 +56,6 @@ export function applyFpsMovement(inputMask, yaw, velocity, isGrounded, dt, stanc
 export function moveIntensity(velocity) {
   if (!velocity) return 0;
   const h = Math.hypot(velocity.x || 0, velocity.z || 0);
-  const max = GAME_CONFIG.PLAYER_SPEED || 8;
+  const max = PLAYER_CONFIG.SPEED;
   return Math.min(1, h / max);
 }
