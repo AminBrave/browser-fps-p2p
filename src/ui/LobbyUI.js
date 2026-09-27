@@ -94,7 +94,7 @@ export class LobbyUI {
             <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
           </div>
 
-          <input id="input-room-id" type="text" maxlength="${NETWORK_CONFIG.INVITATION_CODE.LENGTH}" autocomplete="off" autocapitalize="characters" placeholder="Enter 5-character invitation code" style="
+          <input id="input-room-id" type="text" maxlength="${NETWORK_CONFIG.INVITATION_CODE.LENGTH}" autocomplete="off" autocapitalize="characters" placeholder="Enter ${NETWORK_CONFIG.INVITATION_CODE.LENGTH}-character invitation code" style="
             padding: 12px;
             background: rgba(0, 0, 0, 0.4);
             border: 1px solid rgba(255, 255, 255, 0.2);
