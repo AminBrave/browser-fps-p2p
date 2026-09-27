@@ -1,4 +1,4 @@
-import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, WORLD_CONFIG, validateConfig } from './config/index.js';
+import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, INPUT_FLAGS, WORLD_CONFIG, validateConfig } from './config/index.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
@@ -14,6 +14,7 @@ import { RenderSystem } from './ecs/systems/RenderSystem.js';
 import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
+import { getAccuracyState } from './utils/AccuracyModel.js';
 import { disposeImpactDecals } from './ecs/entities/createBullet.js';
 import { Protocol } from './network/Protocol.js';
 import { createWorldManifest } from './network/WorldSync.js';
@@ -119,6 +120,41 @@ export class HostGame {
     this.renderSystem.update(this.ecsWorld, this.localEntity, now);
     this.sceneManager.render();
     this._updateHUD();
+
+    const velocity = this.localEntity?.physics?.velocity;
+    const speed = Math.hypot(Number(velocity?.x) || 0, Number(velocity?.z) || 0);
+    const input = this.localEntity?.input;
+    const weapon = this.localEntity?.weapon;
+    const recoil = Math.abs(Number(weapon?.cameraRecoilPitch) || 0);
+    const mask = input?.inputMask || 0;
+    const stance = input?.stance ?? STANCE.STAND;
+    const isSprinting =
+      !!(mask & INPUT_FLAGS.SPRINT) &&
+      !!(mask & INPUT_FLAGS.FORWARD) &&
+      stance === STANCE.STAND;
+
+    const accuracy = getAccuracyState({
+      stance,
+      speed,
+      maxSpeed: GAME_CONFIG.MAX_SPEED ?? 10.8,
+      isAiming: !!input?.isAiming,
+      isSprinting,
+      steadySpread: Number(weapon?.steadySpread) || 0.003,
+      baseSpread: Number(weapon?.spreadBase) || 0,
+      bloom: Number(weapon?.currentSpread) || 0,
+      spreadMax: Number(weapon?.spreadMax) || 0.05,
+      moveSpreadMax: GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035,
+    });
+
+    this.hud.updateCrosshair({
+      spread: accuracy.rawSpread,
+      spreadMax: Number(weapon?.spreadMax) || 0.05,
+      isAiming: !!input?.isAiming,
+      isFiring: !!(mask & INPUT_FLAGS.SHOOT),
+      recoil,
+      speed01: accuracy.speedT,
+      isSprinting,
+    });
   }
 
   start() {
