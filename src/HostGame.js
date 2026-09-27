@@ -148,6 +148,20 @@ export class HostGame {
       false,
       false
     );
+
+    // Host-owned remote players are always renderable world entities. Keep
+    // their network role explicit so later camera/visibility changes cannot
+    // accidentally treat them as the host's first-person body.
+    entity.networkRole = 'remote';
+    entity.renderMesh.mesh.visible = true;
+    entity.character?.updateVisuals?.({
+      health: entity.player?.health ?? GAME_CONFIG.MAX_HEALTH,
+      maxHealth: entity.player?.maxHealth ?? GAME_CONFIG.MAX_HEALTH,
+      stance: entity.player?.remoteStance ?? 0,
+      pitch: entity.player?.remotePitch ?? 0,
+      isDead: false,
+    });
+
     this.clientEntities.set(id, entity);
     return entity;
   }
