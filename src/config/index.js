@@ -11,6 +11,8 @@ import {
   WEAPON_CONFIG,
   WEAPON_LOADOUT,
   DEFAULT_WEAPON,
+  PLAYER_CHARACTER_CONFIG,
+  getPlayerEyeOffset,
   peerIdToNumeric,
 } from './constants.js';
 
@@ -30,6 +32,8 @@ export {
   WEAPON_CONFIG,
   WEAPON_LOADOUT,
   DEFAULT_WEAPON,
+  PLAYER_CHARACTER_CONFIG,
+  getPlayerEyeOffset,
   peerIdToNumeric,
   WORLD_CONFIG,
   generateObjectPlacements,
