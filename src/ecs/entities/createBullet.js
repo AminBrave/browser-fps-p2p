@@ -196,6 +196,8 @@ export function createImpactDecal(
     impactSparkStartedAt: performance.now(),
     impactMarkOwner: targetEntity?.player ? targetEntity : null,
     isPlayerImpactMark: !!targetEntity?.player,
+    impactHealthOpacity: 1,
+    impactHealthOpacity: 1,
   });
 
   let decals = decalRegistry.get(ecsWorld);
@@ -221,6 +223,39 @@ export function createImpactDecal(
 }
 export function createImpact(ecsWorld, sceneOrManager, position, normal, targetMesh = null, targetEntity = null) {
   return createImpactDecal(ecsWorld, sceneOrManager, position, normal, targetMesh, targetEntity);
+}
+
+export function updatePlayerImpactMarksForHealth(ecsWorld, playerEntity, health, maxHealth) {
+  const decals = decalRegistry.get(ecsWorld);
+  if (!decals || !playerEntity) return;
+
+  const max = Math.max(1, Number(maxHealth) || 100);
+  const current = THREE.MathUtils.clamp(Number(health) || 0, 0, max);
+  // 0 health => full visual damage, 100% health => no visible impacts.
+  const healthOpacity = 1 - current / max;
+
+  for (const entity of decals) {
+    if (!entity?.isPlayerImpactMark || entity.impactMarkOwner !== playerEntity) continue;
+    const mesh = entity.renderMesh?.mesh;
+    if (!mesh) continue;
+
+    entity.impactHealthOpacity = healthOpacity;
+    mesh.visible = healthOpacity > 0;
+
+    mesh.traverse?.((child) => {
+      const material = child.material;
+      if (!material) return;
+      const materials = Array.isArray(material) ? material : [material];
+      for (const mat of materials) {
+        if (mat.userData?.impactBaseOpacity == null) {
+          mat.userData.impactBaseOpacity = mat.opacity ?? 1;
+        }
+        mat.opacity = mat.userData.impactBaseOpacity * healthOpacity;
+        mat.transparent = true;
+        mat.needsUpdate = true;
+      }
+    });
+  }
 }
 
 export function getPlayerImpactMarkCount(ecsWorld, playerEntity) {
