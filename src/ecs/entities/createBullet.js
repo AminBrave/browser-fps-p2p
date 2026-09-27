@@ -153,6 +153,7 @@ export function createImpactDecal(
     const oldEntity = decals.shift();
     const oldMesh = oldEntity?.renderMesh?.mesh;
     if (oldMesh) {
+      oldMesh.parent?.remove?.(oldMesh);
       scene?.remove?.(oldMesh);
       disposeObject3D(oldMesh);
     }
