@@ -8,6 +8,7 @@ export class PhysicsWorld {
     this.initialized = false;
     this.colliderToEntity = new Map();
     this.colliderToRenderTarget = new Map();
+    this.colliderToHitZone = new Map();
   }
 
   async init() {
@@ -21,11 +22,12 @@ export class PhysicsWorld {
     if (this.world) this.world.step();
   }
 
-  registerColliderEntity(collider, entity, renderTarget = null) {
+  registerColliderEntity(collider, entity, renderTarget = null, hitZone = null) {
     if (!collider) return;
     const handle = collider.handle ?? collider;
     this.colliderToEntity.set(handle, entity);
     if (renderTarget) this.colliderToRenderTarget.set(handle, renderTarget);
+    if (hitZone) this.colliderToHitZone.set(handle, hitZone);
   }
 
   unregisterCollider(collider) {
@@ -33,6 +35,7 @@ export class PhysicsWorld {
     const handle = collider.handle ?? collider;
     this.colliderToEntity.delete(handle);
     this.colliderToRenderTarget.delete(handle);
+    this.colliderToHitZone.delete(handle);
   }
 
   createPlayerBody(x, y, z, radius = 0.4, height = 1.8) {
@@ -41,27 +44,69 @@ export class PhysicsWorld {
     const body = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z)
     );
-    const halfHeight = Math.max(0.01, (height - radius * 2) / 2);
-    const collider = this.world.createCollider(
-      RAPIER.ColliderDesc.capsule(halfHeight, radius),
+
+    // Player locomotion uses one compound rigid body. Bullet queries hit the
+    // individual anatomical colliders, so the visual surface, impact point and
+    // damage zone can all refer to the same part.
+    const torsoHalfHeight = Math.max(0.12, (height * 0.54) / 2);
+    const torsoRadius = Math.min(radius * 0.9, 0.24);
+    const headRadius = Math.min(radius * 0.52, 0.20);
+    const torso = this.world.createCollider(
+      RAPIER.ColliderDesc.capsule(torsoHalfHeight, torsoRadius)
+        .setTranslation(0, -height * 0.02, 0),
       body
     );
+    const head = this.world.createCollider(
+      RAPIER.ColliderDesc.ball(headRadius)
+        .setTranslation(0, height * 0.36, 0),
+      body
+    );
+
+    const limbRadius = Math.max(0.055, radius * 0.20);
+    const armHalf = Math.max(0.08, height * 0.18);
+    const legHalf = Math.max(0.10, height * 0.19);
+    const armX = radius * 0.86;
+    const legX = radius * 0.34;
+
+    const leftArm = this.world.createCollider(
+      RAPIER.ColliderDesc.capsule(armHalf, limbRadius)
+        .setTranslation(-armX, height * 0.02, 0),
+      body
+    );
+    const rightArm = this.world.createCollider(
+      RAPIER.ColliderDesc.capsule(armHalf, limbRadius)
+        .setTranslation(armX, height * 0.02, 0),
+      body
+    );
+    const leftLeg = this.world.createCollider(
+      RAPIER.ColliderDesc.capsule(legHalf, limbRadius)
+        .setTranslation(-legX, -height * 0.38, 0),
+      body
+    );
+    const rightLeg = this.world.createCollider(
+      RAPIER.ColliderDesc.capsule(legHalf, limbRadius)
+        .setTranslation(legX, -height * 0.38, 0),
+      body
+    );
+
+    const colliders = [torso, head, leftArm, rightArm, leftLeg, rightLeg];
+    const hitZones = ['torso', 'head', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
+
+    // Character controller movement needs a stable body collider. The torso
+    // is the locomotion collider; the anatomical colliders are the authoritative
+    // bullet hit geometry.
     const controller = this.world.createCharacterController(0.01);
     controller.enableAutostep(0.5, 0.2, true);
     controller.enableSnapToGround(0.5);
     controller.setUp({ x: 0.0, y: 1.0, z: 0.0 });
-    return { body, collider, controller };
+
+    return { body, collider: torso, colliders, hitZones, controller };
   }
 
   createStaticBox(x, y, z, hx, hy, hz, rotationY = 0, renderTarget = null) {
     return this.createStaticCompound(
-      x,
-      y,
-      z,
-      [{
-        desc: RAPIER.ColliderDesc.cuboid(hx, hy, hz),
-        renderTarget,
-      }],
+      x, y, z,
+      [{ desc: RAPIER.ColliderDesc.cuboid(hx, hy, hz), renderTarget }],
       rotationY
     );
   }
@@ -70,8 +115,6 @@ export class PhysicsWorld {
     if (!this.world) throw new Error('Physics world is not initialized');
     if (!parts?.length) throw new Error('Static compound requires at least one part');
 
-    // Rapier 0.11.x does not expose a compound-collider builder. The equivalent
-    // object is one rigid body with multiple colliders attached to that body.
     const body = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.fixed()
         .setTranslation(x, y, z)
@@ -79,20 +122,9 @@ export class PhysicsWorld {
     );
 
     const colliders = parts.map((part) => {
-      const desc = part.desc
-        ? part.desc
-        : new RAPIER.ColliderDesc(part.shape);
-
-      desc.setTranslation(
-        part.position?.x ?? 0,
-        part.position?.y ?? 0,
-        part.position?.z ?? 0
-      );
-
-      if (part.rotation) {
-        desc.setRotation(part.rotation);
-      }
-
+      const desc = part.desc ? part.desc : new RAPIER.ColliderDesc(part.shape);
+      desc.setTranslation(part.position?.x ?? 0, part.position?.y ?? 0, part.position?.z ?? 0);
+      if (part.rotation) desc.setRotation(part.rotation);
       return this.world.createCollider(desc, body);
     });
 
@@ -101,14 +133,13 @@ export class PhysicsWorld {
       collider: colliders[0],
       colliders,
       colliderTargets: parts.map((part) => part.renderTarget || null),
+      hitZones: parts.map((part) => part.hitZone || null),
     };
   }
 
   createStaticCone(x, y, z, radius, height, rotationY = 0, renderTarget = null) {
     return this.createStaticCompound(
-      x,
-      y,
-      z,
+      x, y, z,
       [{ desc: RAPIER.ColliderDesc.cone(height / 2, radius), renderTarget }],
       rotationY
     );
@@ -116,83 +147,44 @@ export class PhysicsWorld {
 
   createStaticCylinder(x, y, z, radius, height, rotationY = 0, renderTarget = null) {
     return this.createStaticCompound(
-      x,
-      y,
-      z,
+      x, y, z,
       [{ desc: RAPIER.ColliderDesc.cylinder(height / 2, radius), renderTarget }],
       rotationY
     );
   }
 
-  _identityQuaternion() {
-    return { x: 0, y: 0, z: 0, w: 1 };
-  }
-
   _yawQuaternion(rotationY = 0) {
-    return {
-      x: 0,
-      y: Math.sin(rotationY / 2),
-      z: 0,
-      w: Math.cos(rotationY / 2),
-    };
+    return { x: 0, y: Math.sin(rotationY / 2), z: 0, w: Math.cos(rotationY / 2) };
   }
 
   createWorldSafetyFloor() {
     const { WIDTH, LENGTH } = WORLD_CONFIG.MAP;
     const { Y, THICKNESS } = WORLD_CONFIG.MAP.SAFETY_FLOOR;
-    return this.createStaticBox(
-      0,
-      Y - THICKNESS / 2,
-      0,
-      WIDTH / 2,
-      THICKNESS / 2,
-      LENGTH / 2
-    );
+    return this.createStaticBox(0, Y - THICKNESS / 2, 0, WIDTH / 2, THICKNESS / 2, LENGTH / 2);
   }
 
   castRay(origin, direction, maxDistance = 100, excludeCollider = null) {
     if (!this.world) return null;
-
     const len = Math.hypot(direction.x, direction.y, direction.z) || 1;
-    const dir = {
-      x: direction.x / len,
-      y: direction.y / len,
-      z: direction.z / len,
-    };
-
+    const dir = { x: direction.x / len, y: direction.y / len, z: direction.z / len };
     const ray = new RAPIER.Ray(origin, dir);
-    const excludeHandle =
-      excludeCollider ? excludeCollider.handle ?? excludeCollider : null;
+    const excludeHandle = excludeCollider ? excludeCollider.handle ?? excludeCollider : null;
 
     let hit = typeof this.world.castRayAndGetNormal === 'function'
       ? this.world.castRayAndGetNormal(ray, maxDistance, true)
       : this.world.castRay(ray, maxDistance, true);
 
-    let normalFromApi = hit?.normal
-      ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
-      : null;
-
-    const collider = hit?.collider;
-    const handle = collider ? collider.handle ?? collider : null;
+    let normalFromApi = hit?.normal ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z } : null;
+    let collider = hit?.collider || null;
+    let handle = collider ? collider.handle ?? collider : null;
 
     if (excludeHandle != null && handle === excludeHandle) {
-      const nudged = {
-        x: origin.x + dir.x * 0.55,
-        y: origin.y + dir.y * 0.55,
-        z: origin.z + dir.z * 0.55,
-      };
+      const nudged = { x: origin.x + dir.x * 0.55, y: origin.y + dir.y * 0.55, z: origin.z + dir.z * 0.55 };
       const ray2 = new RAPIER.Ray(nudged, dir);
       hit = typeof this.world.castRayAndGetNormal === 'function'
-        ? this.world.castRayAndGetNormal(
-            ray2,
-            Math.max(0.1, maxDistance - 0.55),
-            true
-          )
+        ? this.world.castRayAndGetNormal(ray2, Math.max(0.1, maxDistance - 0.55), true)
         : this.world.castRay(ray2, Math.max(0.1, maxDistance - 0.55), true);
-      normalFromApi = hit?.normal
-        ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
-        : null;
-
+      normalFromApi = hit?.normal ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z } : null;
       if (!hit) return null;
       return this._formatHit(nudged, dir, hit, normalFromApi);
     }
@@ -203,46 +195,29 @@ export class PhysicsWorld {
 
   _formatHit(origin, dir, hit, normalFromApi) {
     const toi = hit.timeOfImpact ?? hit.toi ?? 0;
-    const point = {
-      x: origin.x + dir.x * toi,
-      y: origin.y + dir.y * toi,
-      z: origin.z + dir.z * toi,
-    };
-
-    let normal = normalFromApi || (
-      hit.normal
-        ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
-        : { x: -dir.x, y: -dir.y, z: -dir.z }
-    );
-
-    // Rapier's raycast normal is already expressed in world space and points
-    // out of the hit collider. Do not flip it based on ray direction: doing so
-    // breaks legitimate exit hits and compound surfaces whose outward normal
-    // happens to align with the ray.
+    const point = { x: origin.x + dir.x * toi, y: origin.y + dir.y * toi, z: origin.z + dir.z * toi };
+    let normal = normalFromApi || hit.normal || { x: -dir.x, y: -dir.y, z: -dir.z };
     const nLen = Math.hypot(normal.x, normal.y, normal.z) || 1;
-    normal = {
-      x: normal.x / nLen,
-      y: normal.y / nLen,
-      z: normal.z / nLen,
-    };
+    normal = { x: normal.x / nLen, y: normal.y / nLen, z: normal.z / nLen };
 
     const collider = hit.collider || null;
     const handle = collider ? collider.handle ?? collider : null;
-    const entity = handle != null
-      ? this.colliderToEntity.get(handle) || null
-      : null;
-    const renderTarget = handle != null
-      ? this.colliderToRenderTarget.get(handle) || null
-      : null;
-
-    return { point, normal, toi, collider, entity, renderTarget };
+    return {
+      point,
+      normal,
+      toi,
+      collider,
+      entity: handle != null ? this.colliderToEntity.get(handle) || null : null,
+      renderTarget: handle != null ? this.colliderToRenderTarget.get(handle) || null : null,
+      hitZone: handle != null ? this.colliderToHitZone.get(handle) || null : null,
+    };
   }
 
   dispose() {
     if (!this.initialized) return;
-
     this.colliderToEntity.clear();
     this.colliderToRenderTarget.clear();
+    this.colliderToHitZone.clear();
     this.world?.free?.();
     this.world = null;
     this.initialized = false;
