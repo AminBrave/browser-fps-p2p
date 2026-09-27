@@ -24,10 +24,18 @@ export class HostNetworkSystem {
     this.lastBroadcastTime = 0;
     this.broadcastIntervalMs = 1000 / Math.max(1, NETWORK_CONFIG.SNAPSHOT_BROADCAST_RATE);
 
+    this.onJoinRequest = null;
+
     this.peerManager.onData((peerId, dataView) => {
       if (dataView.byteLength < 1) return;
 
       const packetType = dataView.getUint8(0);
+
+      if (packetType === PACKET_TYPES.JOIN_REQUEST) {
+        this.onJoinRequest?.(peerId);
+        return;
+      }
+
       if (packetType === PACKET_TYPES.GAME_EVENT) {
         const event = Protocol.decodeGameEvent(dataView);
         if (event?.type === EVENT_TYPES.SFX) {
@@ -155,6 +163,10 @@ export class HostNetworkSystem {
         )
       );
     }
+  }
+
+  setJoinHandler(callback) {
+    this.onJoinRequest = typeof callback === 'function' ? callback : null;
   }
 
   // Compatibility for callers that still use a single update method.
