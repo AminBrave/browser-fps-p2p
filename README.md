@@ -82,6 +82,8 @@ See **CHANGELOG.md** for a full history of gameplay and systems work on this bra
 - **Host acknowledgements are per client**, avoiding one player's input sequence from acknowledging another player's prediction buffer.
 - **Remote interpolation uses indexed snapshots** and keeps remote physics proxies aligned with rendered positions.
 - **Resource ownership is session-scoped**: Three.js scene resources, Rapier state, and impact decals are released when a match stops.
+- **World object transforms use a ground-origin convention**: ECS render roots are placed at GROUND_Y; visible geometry is offset upward locally, while Rapier colliders use the same configured dimensions and world offsets. This prevents floating trees/cars and invisible colliders.
+- **Every solid prop is declarative**: crate, tree, car, barrier, mountain and boundary dimensions/placements live together in src/config/world.js; visual geometry and collision geometry are derived from those definitions.
 
 
 - **Host** simulates physics, weapons, and damage; broadcasts world snapshots.
@@ -106,6 +108,7 @@ The world geometry is centralized in `src/config/world.js`. It is the single sou
 - Player spawn points and grounded player placement.
 - Crate, tree, car, barrier, path and mountain dimensions and layouts.
 - Shared object placement rules that clamp world objects inside the playable island.
+- Object definitions also contain their collision dimensions and visual offsets; there are no separate per-factory size/position constants for trees and cars.
 
 Rendering and Rapier physics consume the same dimensions. Ground objects are created with solid static colliders, and mountains use Rapier's native cone collider so player collision and bullet raycasts use the same solid volume as the visual mountain. An invisible safety floor provides a final containment layer below the playable ground.
 
