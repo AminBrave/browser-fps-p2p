@@ -84,7 +84,6 @@ export class PeerManager {
 
         conn.on('open', () => {
           this._registerConnection(conn);
-          this.onConnectCallback?.(this.hostPeerId);
           if (!settled) {
             settled = true;
             resolve(localId);
@@ -127,6 +126,15 @@ export class PeerManager {
     }
 
     this.connections.set(peerId, conn);
+    let announced = false;
+    const announceConnected = () => {
+      if (announced || this.destroyed) return;
+      announced = true;
+      this.onConnectCallback?.(peerId);
+    };
+
+    conn.on('open', announceConnected);
+    if (conn.open) announceConnected();
 
     conn.on('data', (data) => {
       const buffer = this._toArrayBuffer(data);
