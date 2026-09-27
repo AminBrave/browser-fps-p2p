@@ -8,7 +8,6 @@ import {
 import { hasFlag } from '../../utils/BitFlags.js';
 import { createBullet, createImpactDecal, createBloodImpact } from '../entities/createBullet.js';
 import { copyWeaponState } from '../components/Weapon.js';
-import { moveIntensity } from '../../utils/Movement.js';
 import { getAccuracyState } from '../../utils/AccuracyModel.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
@@ -98,7 +97,12 @@ export class WeaponSystem {
           this._completeReload(weapon);
           weapon.justReloaded = true;
           if (player.isLocal) audio.playReloadEnd();
-          this._emit({ type: EVENT_TYPES.SFX, sfx: 'reloadEnd', sourceId: player.id, position: { ...transform.position } });
+          this._emit({
+            type: EVENT_TYPES.SFX,
+            sfx: 'reloadEnd',
+            sourceId: player.id,
+            position: { ...transform.position },
+          });
         }
       }
 
@@ -118,8 +122,12 @@ export class WeaponSystem {
             audio.playReloadStart();
             this.renderSystem?.weaponViewModel?.onReloadStart?.();
           }
-          // Emit exactly one reload-start event; keep this block balanced for Vite parsing.
-          this._emit({ type: EVENT_TYPES.SFX, sfx: 'reloadStart', sourceId: player.id, position: { ...transform.position } });
+          this._emit({
+            type: EVENT_TYPES.SFX,
+            sfx: 'reloadStart',
+            sourceId: player.id,
+            position: { ...transform.position },
+          });
         }
       }
 
@@ -142,8 +150,6 @@ export class WeaponSystem {
     const slots = entity.loadout.slots;
     if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= slots.length) return false;
     if (entity.loadout.active === slotIndex) {
-      // Re-assert the visual state; this also recovers if rendering was
-      // temporarily hidden while a respawn/death transition occurred.
       if (entity.player?.isLocal) {
         this.renderSystem?.weaponViewModel?.setWeaponType?.(entity.weapon.typeId);
       }
@@ -161,9 +167,6 @@ export class WeaponSystem {
     entity.weapon.currentSpread = 0;
     entity.weapon.shootHeldPrev = false;
 
-    // Weapon selection is a state change, not a reload. Do not play reload
-    // audio here. The viewmodel is updated immediately so the pistol (slot 0)
-    // and every other slot become visible on the same simulation tick.
     if (entity.player?.isLocal) {
       this.renderSystem?.weaponViewModel?.setWeaponType?.(entity.weapon.typeId);
     }
@@ -182,6 +185,110 @@ export class WeaponSystem {
     weapon.currentAmmo = weapon.magazine;
     weapon.maxAmmo = size;
     weapon.isReloading = false;
+  }
+
+  /**
+   * Trace a projectile through the authoritative physics world while applying
+   * constant gravitational acceleration. Each small chord is a real physics
+   * ray query, so walls and hitboxes remain the source of truth.
+   */
+  _traceBallisticShot(origin, direction, muzzleVelocity, range, excludeCollider) {
+    const speed = Math.max(1, Number(muzzleVelocity) || 500);
+    const maxRange = Math.max(1, Number(range) || 100);
+    const gravity = Number(GAME_CONFIG.GRAVITY) || -19.62;
+
+    // Use short trajectory chords for reliable collision detection without
+    // turning every rifle shot into hundreds of scene queries.
+    const stepDistance = 3.0;
+    const steps = Math.max(8, Math.min(64, Math.ceil(maxRange / stepDistance)));
+    const flightTime = maxRange / speed;
+    const dt = flightTime / steps;
+
+    const path = [{ ...origin }];
+    let previous = { ...origin };
+    let travelled = 0;
+
+    for (let i = 1; i <= steps; i++) {
+      const t = dt * i;
+      const next = {
+        x: origin.x + direction.x * speed * t,
+        y: origin.y + direction.y * speed * t + 0.5 * gravity * t * t,
+        z: origin.z + direction.z * speed * t,
+      };
+
+      const segment = {
+        x: next.x - previous.x,
+        y: next.y - previous.y,
+        z: next.z - previous.z,
+      };
+      const segmentLength = Math.hypot(segment.x, segment.y, segment.z);
+
+      if (segmentLength > 1e-6 && this.physicsWorld?.castRay) {
+        const segmentDirection = {
+          x: segment.x / segmentLength,
+          y: segment.y / segmentLength,
+          z: segment.z / segmentLength,
+        };
+        const hit = this.physicsWorld.castRay(
+          previous,
+          segmentDirection,
+          segmentLength,
+          excludeCollider
+        );
+
+        if (hit) {
+          const hitDistance = Math.max(0, Math.min(segmentLength, Number(hit.toi) || 0));
+          const hitPoint = {
+            x: previous.x + segmentDirection.x * hitDistance,
+            y: previous.y + segmentDirection.y * hitDistance,
+            z: previous.z + segmentDirection.z * hitDistance,
+          };
+          path.push(hitPoint);
+          return {
+            hit,
+            point: hitPoint,
+            distance: travelled + hitDistance,
+            path,
+          };
+        }
+      }
+
+      travelled += segmentLength;
+      previous = next;
+      path.push(next);
+    }
+
+    return {
+      hit: null,
+      point: previous,
+      distance: travelled,
+      path,
+    };
+  }
+
+  _getDamageMultiplier(weapon, distance) {
+    const start = Math.max(0, Number(weapon.damageFalloffStart) || 0);
+    const end = Math.max(start + 0.001, Number(weapon.damageFalloffEnd) || Number(weapon.range) || 100);
+    const minimum = Math.min(1, Math.max(0, Number(weapon.minDamageMultiplier) || 0.5));
+
+    if (distance <= start) return 1;
+    if (distance >= end) return minimum;
+
+    const t = (distance - start) / (end - start);
+    return 1 + (minimum - 1) * t;
+  }
+
+  _getHitZoneMultiplier(hitZone) {
+    if (hitZone === 'head') return 2.0;
+    if (
+      hitZone === 'leftArm' ||
+      hitZone === 'rightArm' ||
+      hitZone === 'leftLeg' ||
+      hitZone === 'rightLeg'
+    ) {
+      return 0.65;
+    }
+    return 1.0;
   }
 
   _fireShot(ecsWorld, entity, now) {
@@ -204,7 +311,6 @@ export class WeaponSystem {
       hasFlag(mask, INPUT_FLAGS.FORWARD) &&
       stance === 0;
 
-    // One shared accuracy model drives both shot dispersion and HUD reticle.
     const accuracy = getAccuracyState({
       stance,
       speed,
@@ -231,18 +337,15 @@ export class WeaponSystem {
     }
 
     const pelletCount = Math.max(1, weapon.pelletCount || 1);
-    const range = weapon.range || 100;
+    const range = Math.max(1, Number(weapon.range) || 100);
+    const muzzleVelocity = Math.max(1, Number(weapon.muzzleVelocity) || 500);
     const exclude = physics?.colliders || physics?.collider || null;
-
     const origin = this._getMuzzleWorldPosition(entity);
 
     for (let p = 0; p < pelletCount; p++) {
       let yawOff = 0;
       let pitchOff = 0;
-      // Uniform disk sampling gives a circular, weapon-agnostic cone.
-      // Shotguns still use their configured base spread and pellet count through
-      // the same accuracy pipeline; every pellet shares the current stance,
-      // movement, ADS and bloom state.
+
       if (effectiveSpread > 0) {
         const angle = Math.random() * Math.PI * 2;
         const radius = Math.sqrt(Math.random()) * effectiveSpread;
@@ -259,32 +362,37 @@ export class WeaponSystem {
         z: -Math.cos(yaw) * cosPitch,
       };
       const dLen = Math.hypot(dir.x, dir.y, dir.z) || 1;
-      dir.x /= dLen; dir.y /= dLen; dir.z /= dLen;
+      dir.x /= dLen;
+      dir.y /= dLen;
+      dir.z /= dLen;
 
-      let endPos = {
-        x: origin.x + dir.x * range,
-        y: origin.y + dir.y * range,
-        z: origin.z + dir.z * range,
+      const trace = this._traceBallisticShot(
+        origin,
+        dir,
+        muzzleVelocity,
+        range,
+        exclude
+      );
+
+      const endPos = trace.point;
+      const hit = trace.hit;
+      const hitNormal = hit?.normal || {
+        x: -dir.x,
+        y: -dir.y,
+        z: -dir.z,
       };
-      let hitNormal = { x: -dir.x, y: -dir.y, z: -dir.z };
-      let hitEntity = null;
-      let hitRenderTarget = null;
-      let hitZone = null;
-      let didHit = false;
+      const hitEntity = hit?.entity === entity ? null : (hit?.entity || null);
+      const hitRenderTarget = hit?.renderTarget || null;
+      const hitZone = hit?.hitZone || null;
+      const didHit = !!hit;
 
-      if (this.physicsWorld?.castRay) {
-        const hit = this.physicsWorld.castRay(origin, dir, range, exclude);
-        if (hit) {
-          didHit = true;
-          endPos = hit.point;
-          hitNormal = hit.normal || hitNormal;
-          hitEntity = hit.entity === entity ? null : hit.entity;
-          hitRenderTarget = hit.renderTarget || null;
-          hitZone = hit.hitZone || null;
-        }
-      }
-
-      createBullet(ecsWorld, this.sceneManager, origin, endPos);
+      createBullet(
+        ecsWorld,
+        this.sceneManager,
+        origin,
+        endPos,
+        trace.path
+      );
 
       this._emit({
         type: EVENT_TYPES.SHOT,
@@ -297,6 +405,11 @@ export class WeaponSystem {
         hitEntityId: hitEntity?.player?.id ?? null,
         hitZone: hitZone || null,
         normal: hitNormal,
+        distance: trace.distance,
+        muzzleVelocity,
+        ballisticDrop: endPos.y - (
+          origin.y + dir.y * muzzleVelocity * (trace.distance / muzzleVelocity)
+        ),
         primary: p === 0,
       });
 
@@ -324,17 +437,11 @@ export class WeaponSystem {
       }
 
       if (this.isAuthoritative && this.healthSystem && hitEntity?.player && !hitEntity.player.isDead) {
-        const baseDamage = weapon.damage || 20;
-        const multiplier = hitZone === 'head'
-          ? 2.0
-          : (hitZone === 'leftArm' || hitZone === 'rightArm' || hitZone === 'leftLeg' || hitZone === 'rightLeg')
-            ? 0.65
-            : 1.0;
-        const dmg = baseDamage * multiplier;
+        const baseDamage = Number(weapon.damage) || 20;
+        const distanceMultiplier = this._getDamageMultiplier(weapon, trace.distance);
+        const hitZoneMultiplier = this._getHitZoneMultiplier(hitZone);
+        const dmg = baseDamage * distanceMultiplier * hitZoneMultiplier;
 
-        // HealthSystem owns the lethal transition and kill/death accounting.
-        // This is important for multi-pellet weapons: several pellets can hit
-        // the same target in one shot, but a death must increment K/D exactly once.
         this.healthSystem.applyDamage(hitEntity, dmg, player.id);
         this._emit({
           type: EVENT_TYPES.SFX,
