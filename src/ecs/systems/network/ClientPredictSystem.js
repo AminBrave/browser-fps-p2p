@@ -107,6 +107,7 @@ export class ClientPredictSystem {
         deltaTime: dt,
         predictedPosition: { ...predictedPos },
         velocity: { ...physComp.velocity },
+        stance,
         isGrounded: physComp.isGrounded,
       });
     }
