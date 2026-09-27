@@ -10,4 +10,5 @@ export const INPUT_FLAGS = Object.freeze({
   RELOAD: 1 << 6,
   CROUCH: 1 << 7,
   PRONE: 1 << 8,
+  SPRINT: 1 << 9,
 });
