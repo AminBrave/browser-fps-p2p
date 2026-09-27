@@ -407,6 +407,10 @@ export class PhysicsWorld {
       entity: handle != null ? this.colliderToEntity.get(handle) || null : null,
       renderTarget: handle != null ? this.colliderToRenderTarget.get(handle) || null : null,
       hitZone: handle != null ? this.colliderToHitZone.get(handle) || null : null,
+      material: this.getProjectileMaterial({
+        entity: handle != null ? this.colliderToEntity.get(handle) || null : null,
+        renderTarget: handle != null ? this.colliderToRenderTarget.get(handle) || null : null,
+      }),
     };
   }
 
