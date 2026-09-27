@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
 import { createPhysics } from '../components/Physics.js';
 import { WORLD_CONFIG } from '../../config/world.js';
+import { generateObjectPlacements } from '../../config/objectPlacement.js';
 
 const MAT = {
   concrete: new THREE.MeshStandardMaterial({ color: 0x777b78, roughness: 0.88 }),
@@ -115,7 +116,7 @@ function sphere(name, radius, position, material, extra = {}) {
   return { kind: 'sphere', name, radius, position, material, ...extra };
 }
 
-const P = [
+export const URBAN_PROP_LIBRARY = [
   { type:'bench', name:'UrbanBench', x:-19, z:-10, parts:[
     box('seat',{x:1.8,y:.14,z:.46},{x:0,y:.72,z:0},MAT.wood),
     box('back',{x:1.8,y:.62,z:.12},{x:0,y:1.02,z:.16},MAT.wood),
@@ -231,11 +232,45 @@ const P = [
 ];
 
 export function createUrbanObjects(ecsWorld, physicsWorld, sceneManager, mapEntities) {
-  const created = [];
-  for (const spec of P) {
+  const config = WORLD_CONFIG.OBJECT_PLACEMENT;
+  const bounds = {
+    halfWidth: WORLD_CONFIG.MAP.WIDTH / 2,
+    halfLength: WORLD_CONFIG.MAP.LENGTH / 2,
+  };
+
+  if (!config?.ENABLED) {
     const safe = Math.max(1, WORLD_CONFIG.MAP.WIDTH / 2 - WORLD_CONFIG.MAP.OBJECT_PADDING);
-    if (Math.abs(spec.x) > safe || Math.abs(spec.z) > safe) continue;
-    created.push(addUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec));
+    return URBAN_PROP_LIBRARY
+      .filter((spec) => Math.abs(spec.x) <= safe && Math.abs(spec.z) <= safe)
+      .map((spec) => addUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec));
   }
-  return created;
+
+  const placements = generateObjectPlacements({
+    pattern: config.PATTERN,
+    count: Math.min(config.MAX_OBJECTS, URBAN_PROP_LIBRARY.length * 4),
+    density: config.DENSITY,
+    bounds,
+    padding: config.PADDING,
+    minSpacing: config.MIN_SPACING,
+    roadSpacing: config.ROAD_SPACING,
+    seed: config.SEED,
+    reservedZones: config.RESERVED_ZONES,
+  });
+
+  return placements.map((placement, index) => {
+    const template = URBAN_PROP_LIBRARY[index % URBAN_PROP_LIBRARY.length];
+    return addUrbanProp(
+      ecsWorld,
+      physicsWorld,
+      sceneManager,
+      mapEntities,
+      {
+        ...template,
+        x: placement.x,
+        z: placement.z,
+        rotationY: placement.rotationY,
+        name: template.name + '_' + index,
+      }
+    );
+  });
 }
