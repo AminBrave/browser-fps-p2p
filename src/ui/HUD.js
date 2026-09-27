@@ -28,13 +28,13 @@ export class HUD {
     this.container.innerHTML = `
       <svg id="crosshair" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet" aria-hidden="true"
         style="position:fixed;top:50%;left:50%;width:140px;height:140px;transform:translate3d(-50%,-50%,0);overflow:visible;pointer-events:none;z-index:1000;will-change:transform;">
-        <g data-crosshair-arms fill="rgba(255,255,255,0.96)" stroke="rgba(0,0,0,0.65)" stroke-width="0.7">
+        <g data-crosshair-arms fill="#ffffff" stroke="#000000" stroke-width="0.8">
           <rect data-crosshair-part="top" x="99" y="0" width="2" height="7" rx="1"></rect>
           <rect data-crosshair-part="right" x="193" y="99" width="7" height="2" rx="1"></rect>
           <rect data-crosshair-part="bottom" x="99" y="193" width="2" height="7" rx="1"></rect>
           <rect data-crosshair-part="left" x="0" y="99" width="7" height="2" rx="1"></rect>
         </g>
-        <circle data-crosshair-dot cx="100" cy="100" r="1.35" fill="rgba(255,255,255,0.98)" stroke="rgba(0,0,0,0.7)" stroke-width="0.5"></circle>
+        <circle data-crosshair-dot cx="100" cy="100" r="1.35" fill="#ffffff" stroke="#000000" stroke-width="0.8"></circle>
       </svg>
 
       <div id="hud-scoreboard" style="position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;background:rgba(0,0,0,0.42);padding:7px 14px;border-radius:8px;backdrop-filter:blur(6px);font-weight:700;letter-spacing:1px;">
@@ -102,6 +102,7 @@ export class HUD {
     this.crosshairDot = this.crosshair?.querySelector('[data-crosshair-dot]');
     this._crosshairGap = 5;
     this._crosshairLength = 7;
+    this._crosshairOpacity = 0.96;
   }
 
   updateCrosshair({
@@ -118,48 +119,27 @@ export class HUD {
     const cfg = RENDER_CONFIG.CROSSHAIR;
     const safeSpread = Math.max(0, Number(spread) || 0);
     const safeMax = Math.max(0.001, Number(spreadMax) || 0.05);
-
-    // Perceptual mapping: tiny angular changes are amplified near the center,
-    // while large cones saturate instead of producing an unreadable reticle.
-    const spreadT = Math.max(
-      0,
-      Math.min(1, Math.sqrt(safeSpread / Math.max(0.001, safeMax)))
-    );
+    const spreadT = Math.max(0, Math.min(1, Math.sqrt(safeSpread / safeMax)));
     const movementT = Math.max(0, Math.min(1, Number(speed01) || 0));
     const recoilT = Math.max(0, Math.min(1, Math.abs(Number(recoil) || 0) * 4));
 
     const movementGap =
       cfg.RESTING_GAP_PX +
-      movementT * (
-        (isSprinting ? cfg.MAX_SPRINT_GAP_PX : cfg.MAX_MOVEMENT_GAP_PX) -
-        cfg.RESTING_GAP_PX
-      );
-
+      movementT * ((isSprinting ? cfg.MAX_SPRINT_GAP_PX : cfg.MAX_MOVEMENT_GAP_PX) - cfg.RESTING_GAP_PX);
     const accuracyGap = spreadT * cfg.MAX_BLOOM_GAP_PX;
     const recoilGap = recoilT * cfg.RECOIL_BLOOM_PX;
     const firingGap = isFiring ? cfg.FIRE_BLOOM_PX : 0;
 
-    // Never hide the actual cone while ADS. ADS tightens it; firing/recoil
-    // still communicate the temporary loss of precision.
     const targetGap = isAiming && !isSprinting
       ? cfg.AIM_GAP_PX + accuracyGap * 0.9 + firingGap * 0.3 + recoilGap * 0.35
       : movementGap + accuracyGap + firingGap + recoilGap;
 
     const targetLength = isAiming && !isSprinting
       ? cfg.AIM_LENGTH_PX + spreadT * 2
-      : cfg.RESTING_LENGTH_PX +
-        movementT * (cfg.MAX_LENGTH_PX - cfg.RESTING_LENGTH_PX) +
-        spreadT * 2.5;
+      : cfg.RESTING_LENGTH_PX + movementT * (cfg.MAX_LENGTH_PX - cfg.RESTING_LENGTH_PX) + spreadT * 2.5;
 
-    const targetOpacity = isAiming && !isSprinting
-      ? 0.92
-      : 0.96 - spreadT * 0.08;
-
+    const targetOpacity = isAiming && !isSprinting ? cfg.ARMS_OPACITY : cfg.ARMS_OPACITY - spreadT * 0.08;
     const response = 1 - Math.exp(-cfg.RESPONSE / 60);
-
-    if (!Number.isFinite(this._crosshairGap)) this._crosshairGap = targetGap;
-    if (!Number.isFinite(this._crosshairLength)) this._crosshairLength = targetLength;
-    if (!Number.isFinite(this._crosshairOpacity)) this._crosshairOpacity = targetOpacity;
 
     this._crosshairGap += (targetGap - this._crosshairGap) * response;
     this._crosshairLength += (targetLength - this._crosshairLength) * response;
@@ -168,7 +148,21 @@ export class HUD {
     const center = 100;
     const gap = Math.max(0, this._crosshairGap);
     const length = Math.max(2, this._crosshairLength);
-    const thickness = cfg.RESTING_THICKNESS_PX;
+    const thickness = Math.max(0.5, cfg.RESTING_THICKNESS_PX);
+
+    const accuracyColor = spreadT < 0.33
+      ? cfg.ACCURACY_COLOR_GOOD
+      : spreadT < 0.66 ? cfg.ACCURACY_COLOR_MID : cfg.ACCURACY_COLOR_BAD;
+    const color = cfg.COLOR_MODE === 'accuracy' ? accuracyColor : cfg.COLOR;
+
+    const setPartStyle = (part) => {
+      if (!part) return;
+      part.setAttribute('fill', color);
+      part.setAttribute('stroke', cfg.OUTLINE_COLOR);
+      part.setAttribute('stroke-width', String(cfg.OUTLINE_WIDTH));
+      part.style.opacity = String(this._crosshairOpacity);
+      part.style.display = cfg.ARMS_ENABLED ? '' : 'none';
+    };
 
     const [top, right, bottom, left] = this.crosshairParts;
     if (top) {
@@ -176,32 +170,63 @@ export class HUD {
       top.setAttribute('y', center - gap - length);
       top.setAttribute('width', thickness * 2);
       top.setAttribute('height', length);
+      setPartStyle(top);
     }
     if (right) {
       right.setAttribute('x', center + gap);
       right.setAttribute('y', center - thickness);
       right.setAttribute('width', length);
       right.setAttribute('height', thickness * 2);
+      setPartStyle(right);
     }
     if (bottom) {
       bottom.setAttribute('x', center - thickness);
       bottom.setAttribute('y', center + gap);
       bottom.setAttribute('width', thickness * 2);
       bottom.setAttribute('height', length);
+      setPartStyle(bottom);
     }
     if (left) {
       left.setAttribute('x', center - gap - length);
       left.setAttribute('y', center - thickness);
       left.setAttribute('width', length);
       left.setAttribute('height', thickness * 2);
+      setPartStyle(left);
     }
 
     if (this.crosshairDot) {
-      this.crosshairDot.setAttribute('cx', String(center));
-      this.crosshairDot.setAttribute('cy', String(center));
-      this.crosshairDot.setAttribute('r', isAiming && !isSprinting ? '1.0' : '1.35');
-      this.crosshairDot.style.opacity = String(this._crosshairOpacity);
+      this.crosshairDot.setAttribute('fill', color);
+      this.crosshairDot.setAttribute('stroke', cfg.OUTLINE_COLOR);
+      this.crosshairDot.setAttribute('stroke-width', String(cfg.OUTLINE_WIDTH));
+      this.crosshairDot.setAttribute('r', String(isAiming && !isSprinting ? cfg.DOT_RADIUS_ADS_PX : cfg.DOT_RADIUS_PX));
+      this.crosshairDot.style.opacity = cfg.DOT_ENABLED
+        ? String(this._crosshairOpacity * cfg.DOT_OPACITY)
+        : '0';
     }
+  }
+
+  setCrosshairStyle({
+    color,
+    outlineColor,
+    colorMode,
+    outlineWidth,
+    armsEnabled,
+    dotEnabled,
+    dotRadius,
+  } = {}) {
+    const cfg = RENDER_CONFIG.CROSSHAIR;
+    if (color != null) cfg.COLOR = String(color);
+    if (outlineColor != null) cfg.OUTLINE_COLOR = String(outlineColor);
+    if (colorMode != null) cfg.COLOR_MODE = String(colorMode);
+    if (outlineWidth != null) cfg.OUTLINE_WIDTH = Math.max(0, Number(outlineWidth) || 0);
+    if (armsEnabled != null) cfg.ARMS_ENABLED = !!armsEnabled;
+    if (dotEnabled != null) cfg.DOT_ENABLED = !!dotEnabled;
+    if (dotRadius != null) {
+      const radius = Math.max(0, Number(dotRadius) || 0);
+      cfg.DOT_RADIUS_PX = radius;
+      cfg.DOT_RADIUS_ADS_PX = radius * 0.74;
+    }
+    this.updateCrosshair();
   }
 
   setVisible(v) {
