@@ -21,9 +21,11 @@ export const GAME_CONFIG = {
   PLAYER_HEIGHT: 1.8,
   // A human shoulder/hip envelope of ~0.68 m diameter.
   PLAYER_RADIUS: 0.34,
-  CAMERA_HEIGHT_OFFSET: 1.6,
-  CAMERA_HEIGHT_CROUCH: 1.0,
-  CAMERA_HEIGHT_PRONE: 0.35,
+  // Camera height is derived from the same head/pose geometry used by the
+  // visible player model. These legacy names remain for compatibility.
+  CAMERA_HEIGHT_OFFSET: 0.73,
+  CAMERA_HEIGHT_CROUCH: 0.377,
+  CAMERA_HEIGHT_PRONE: -0.054,
   SPEED_MULT_CROUCH: 0.45,
   SPEED_MULT_PRONE: 0.2,
   MAX_HEALTH: 100,
@@ -52,6 +54,25 @@ export const INPUT_FLAGS = {
 
 export const FIRE_MODE = { SEMI: 'semi', AUTO: 'auto' };
 export const STANCE = { STAND: 0, CROUCH: 1, PRONE: 2 };
+
+// The character mesh and first-person camera use the same anatomical reference.
+// The player transform/physics body is at the capsule centre (0.9 m above ground).
+export const PLAYER_CHARACTER_CONFIG = {
+  HEAD_CENTER_Y: 0.67,
+  EYE_ABOVE_HEAD: 0.06,
+  POSE: {
+    [STANCE.STAND]: { offsetY: 0, scaleY: 1 },
+    [STANCE.CROUCH]: { offsetY: -0.28, scaleY: 0.9 },
+    [STANCE.PRONE]: { offsetY: -0.58, scaleY: 0.72 },
+  },
+};
+
+export function getPlayerEyeOffset(stance = STANCE.STAND) {
+  const pose = PLAYER_CHARACTER_CONFIG.POSE[stance] || PLAYER_CHARACTER_CONFIG.POSE[STANCE.STAND];
+  return pose.offsetY +
+    (PLAYER_CHARACTER_CONFIG.HEAD_CENTER_Y + PLAYER_CHARACTER_CONFIG.EYE_ABOVE_HEAD) *
+      pose.scaleY;
+}
 
 /** Real-world-ish rates (ms between shots) */
 export const WEAPON_CONFIG = {
