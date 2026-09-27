@@ -11,6 +11,7 @@ export const NETWORK_CONFIG = Object.freeze({
   INVITATION_CODE: Object.freeze({
     LENGTH: 5,
     ALPHABET: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789',
+    MAX_RETRIES: 5,
   }),
 });
 
