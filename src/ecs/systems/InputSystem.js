@@ -13,11 +13,13 @@ export class InputSystem {
     this.mouseConfig = mouseConfig || MOUSE_CONFIG;
 
     this.currentInputMask = 0;
+    this.isAiming = false;
     this.yaw = 0;
     this.pitch = 0;
     this.sequence = 0;
     this.weaponSlot = -1;
     this.stance = STANCE.STAND;
+    this.isAiming = false;
     this.isPointerLocked = false;
     this.keyStateMap = new Map();
     this.disposed = false;
@@ -27,6 +29,7 @@ export class InputSystem {
     this._onMouseDownBound = (e) => this._onMouseDown(e);
     this._onMouseUpBound = (e) => this._onMouseUp(e);
     this._onMouseMoveBound = (e) => this._onMouseMove(e);
+    this._onContextMenuBound = (e) => e.preventDefault();
     this._onPointerLockChangeBound = () => {
       this.isPointerLocked =
         document.pointerLockElement === this.domElement;
@@ -50,6 +53,7 @@ export class InputSystem {
     window.addEventListener('mousedown', this._onMouseDownBound);
     window.addEventListener('mouseup', this._onMouseUpBound);
     window.addEventListener('mousemove', this._onMouseMoveBound);
+    window.addEventListener('contextmenu', this._onContextMenuBound);
     document.addEventListener(
       'pointerlockchange',
       this._onPointerLockChangeBound
@@ -85,18 +89,29 @@ export class InputSystem {
   }
 
   _onMouseDown(event) {
-    if (!this.isPointerLocked || event.button !== 0 || this.disposed) return;
+    if (!this.isPointerLocked || this.disposed) return;
+    if (event.button === 2) {
+      this.isAiming = true;
+      return;
+    }
+    if (event.button !== 0) return;
     this.currentInputMask = setFlag(this.currentInputMask, INPUT_FLAGS.SHOOT);
   }
 
   _onMouseUp(event) {
-    if (event.button !== 0 || this.disposed) return;
+    if (this.disposed) return;
+    if (event.button === 2) {
+      this.isAiming = false;
+      return;
+    }
+    if (event.button !== 0) return;
     this.currentInputMask = clearFlag(this.currentInputMask, INPUT_FLAGS.SHOOT);
   }
 
   _onMouseMove(event) {
     if (!this.isPointerLocked || this.disposed) return;
-    const sensitivity = this.mouseConfig?.SENSITIVITY ?? 0.002;
+    const sensitivity = (this.mouseConfig?.SENSITIVITY ?? 0.002) *
+      (this.isAiming ? (this.mouseConfig?.AIM_SENSITIVITY_MULTIPLIER ?? 0.65) : 1);
     const invertY = this.mouseConfig?.INVERT_Y ? -1 : 1;
     const maxPitch = (89 * Math.PI) / 180;
 
@@ -154,6 +169,7 @@ export class InputSystem {
       inputMask: mask,
       yaw: this.yaw,
       pitch: this.pitch,
+      isAiming: this.isAiming,
       weaponSlot: slot,
       stance: this.stance,
     };
@@ -188,6 +204,7 @@ export class InputSystem {
     window.removeEventListener('mousedown', this._onMouseDownBound);
     window.removeEventListener('mouseup', this._onMouseUpBound);
     window.removeEventListener('mousemove', this._onMouseMoveBound);
+    window.removeEventListener('contextmenu', this._onContextMenuBound);
     document.removeEventListener(
       'pointerlockchange',
       this._onPointerLockChangeBound
