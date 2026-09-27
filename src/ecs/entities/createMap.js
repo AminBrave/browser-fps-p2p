@@ -49,8 +49,13 @@ function addSolidMapEntity(
     renderMesh: { mesh },
   });
 
-  for (const collider of physics.colliders || [physics.collider]) {
-    physicsWorld.registerColliderEntity(collider, entity);
+  const physicsColliders = physics.colliders || [physics.collider];
+  for (let i = 0; i < physicsColliders.length; i++) {
+    physicsWorld.registerColliderEntity(
+      physicsColliders[i],
+      entity,
+      physics.colliderTargets?.[i] || null
+    );
   }
   for (const collider of colliders) {
     physicsWorld.registerColliderEntity(collider, entity);
@@ -153,6 +158,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
         y: config.TRUNK.HEIGHT / 2,
         z: 0,
       },
+      renderTarget: trunk,
     },
   ];
 
@@ -180,6 +186,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
     compoundParts.push({
       desc: RAPIER.ColliderDesc.cone(config.CANOPY.HEIGHT / 2, radius),
       position: { x: 0, y: centerY, z: 0 },
+      renderTarget: cone,
     });
   }
 
@@ -296,6 +303,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
         config.BODY.SIZE.z / 2
       ),
       position: { x: 0, y: config.BODY.CENTER_Y, z: 0 },
+      renderTarget: body,
     },
     {
       desc: RAPIER.ColliderDesc.cuboid(
@@ -308,6 +316,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
         y: config.CABIN.CENTER_Y,
         z: config.CABIN.CENTER_Z,
       },
+      renderTarget: cabin,
     },
     ...wheelPositions.map(({ x, z }) => ({
       desc: RAPIER.ColliderDesc.cylinder(
@@ -316,6 +325,12 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
       ),
       position: { x, y: config.WHEELS.RADIUS, z },
       rotation: wheelRotation,
+      renderTarget: group.children.find(
+        (child) =>
+          child.position.x === x &&
+          child.position.y === config.WHEELS.RADIUS &&
+          child.position.z === z
+      ),
     })),
   ];
 
