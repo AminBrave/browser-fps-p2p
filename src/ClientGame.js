@@ -1,4 +1,4 @@
-import { GAME_CONFIG, NETWORK_CONFIG, STANCE, WORLD_CONFIG } from './config/index.js';
+import { GAME_CONFIG, NETWORK_CONFIG, STANCE, WORLD_CONFIG, validateConfig } from './config/index.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
