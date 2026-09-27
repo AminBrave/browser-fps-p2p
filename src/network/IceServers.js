@@ -5,7 +5,8 @@ import { NETWORK_CONFIG } from '../config/index.js';
  *
  * TURN credentials are deployment configuration, not source-code constants.
  * The Vercel /api/ice endpoint returns a short-lived/provider-scoped ICE list.
- * If it is unavailable, STUN remains available and direct P2P can still work.
+ * Production builds fail fast when TURN is unavailable because STUN alone
+ * cannot provide broad Internet NAT traversal.
  */
 export async function resolveIceServers() {
   const servers = [...NETWORK_CONFIG.WEBRTC.STUN_SERVERS];
@@ -54,7 +55,7 @@ export async function resolveIceServers() {
       source: payload?.source || 'runtime',
     };
   } catch (error) {
-    console.warn('[Network] TURN configuration unavailable; using STUN only.', error);
+    console.warn('[Network] TURN configuration unavailable.', error);
     const message = error instanceof Error ? error.message : String(error);
 
     if (NETWORK_CONFIG.WEBRTC.REQUIRE_TURN_IN_PRODUCTION) {
