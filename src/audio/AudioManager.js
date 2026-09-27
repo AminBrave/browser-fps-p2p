@@ -148,6 +148,7 @@ export class AudioManager {
 
   playJumpAt(position) { this._playAt(position, output => this._tone(140, 0.1, 'sine', 0.09, 260, output)); }
   playLandAt(position) { this._playAt(position, output => this._noise(0.05, 0.11, 280, output)); }
+  playHitAt(position) { this._playAt(position, output => { this._tone(85, 0.09, 'sawtooth', 0.14, 35, output); this._noise(0.07, 0.1, 700, output); }); }
 
   playEmptyClick() {
     this._tone(420, 0.035, 'square', 0.07, 180);
