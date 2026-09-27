@@ -220,9 +220,8 @@ export class ClientGame {
 
   _removeRemoteEntity(id, entity) {
     const physics = entity.physics;
-    if (physics?.collider) {
-      this.physicsWorld.unregisterCollider?.(physics.collider);
-      this.physicsWorld.world?.removeCollider(physics.collider, true);
+    for (const collider of physics?.colliders || (physics?.collider ? [physics.collider] : [])) {
+      this.physicsWorld.unregisterCollider?.(collider);
     }
     if (physics?.rigidBody) {
       this.physicsWorld.world?.removeRigidBody(physics.rigidBody);
