@@ -7,7 +7,13 @@
 // renderer/physics objects cross the network. Those are reconstructed locally
 // from the same authoritative data.
 
-import { WORLD_CONFIG } from '../config/index.js';
+import {
+  WORLD_CONFIG,
+  GAME_CONFIG,
+  NETWORK_CONFIG,
+  INPUT_FLAGS,
+  PLAYER_CHARACTER_CONFIG,
+} from '../config/index.js';
 
 export const WORLD_SCHEMA_VERSION = 1;
 
@@ -34,7 +40,13 @@ function fnv1a32(text) {
 }
 
 export function createWorldManifest() {
-  const config = JSON.parse(JSON.stringify(WORLD_CONFIG));
+  const config = {
+    world: JSON.parse(JSON.stringify(WORLD_CONFIG)),
+    game: JSON.parse(JSON.stringify(GAME_CONFIG)),
+    network: JSON.parse(JSON.stringify(NETWORK_CONFIG)),
+    inputFlags: JSON.parse(JSON.stringify(INPUT_FLAGS)),
+    playerCharacter: JSON.parse(JSON.stringify(PLAYER_CHARACTER_CONFIG)),
+  };
   const canonical = JSON.stringify({
     schemaVersion: WORLD_SCHEMA_VERSION,
     config: canonicalize(config),
@@ -70,11 +82,24 @@ export function applyWorldManifest(manifest) {
     );
   }
 
-  // Keep the imported WORLD_CONFIG object identity intact because other
-  // modules import it directly. Replace its complete contents before any
-  // client-side map/physics construction occurs.
+  const config = manifest.config;
+  if (!config.world || !config.game || !config.network || !config.inputFlags || !config.playerCharacter) {
+    throw new Error('Host sent an incomplete world/simulation manifest');
+  }
+
+  // Keep imported object identities intact because gameplay modules import
+  // these shared definitions directly. Replace their complete contents before
+  // any client-side map/physics construction occurs.
   for (const key of Object.keys(WORLD_CONFIG)) delete WORLD_CONFIG[key];
-  Object.assign(WORLD_CONFIG, JSON.parse(JSON.stringify(manifest.config)));
+  Object.assign(WORLD_CONFIG, JSON.parse(JSON.stringify(config.world)));
+  for (const key of Object.keys(GAME_CONFIG)) delete GAME_CONFIG[key];
+  Object.assign(GAME_CONFIG, JSON.parse(JSON.stringify(config.game)));
+  for (const key of Object.keys(NETWORK_CONFIG)) delete NETWORK_CONFIG[key];
+  Object.assign(NETWORK_CONFIG, JSON.parse(JSON.stringify(config.network)));
+  for (const key of Object.keys(INPUT_FLAGS)) delete INPUT_FLAGS[key];
+  Object.assign(INPUT_FLAGS, JSON.parse(JSON.stringify(config.inputFlags)));
+  for (const key of Object.keys(PLAYER_CHARACTER_CONFIG)) delete PLAYER_CHARACTER_CONFIG[key];
+  Object.assign(PLAYER_CHARACTER_CONFIG, JSON.parse(JSON.stringify(config.playerCharacter)));
 
   return manifest.hash >>> 0;
 }
