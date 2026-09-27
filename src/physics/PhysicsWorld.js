@@ -21,6 +21,18 @@ export class PhysicsWorld {
     if (this.world) this.world.step();
   }
 
+  // Rebuild Rapier's broad-phase after an authoritative teleport during
+  // client reconciliation. Character-controller queries otherwise continue
+  // seeing the collider positions from the previous physics step.
+  updateQueryPipeline() {
+    if (!this.world) return;
+    if (typeof this.world.updateSceneQueries === 'function') {
+      this.world.updateSceneQueries();
+    } else if (typeof this.world.updateQueryPipeline === 'function') {
+      this.world.updateQueryPipeline();
+    }
+  }
+
   registerColliderEntity(collider, entity, renderTarget = null, hitZone = null) {
     if (!collider) return;
     const handle = collider.handle ?? collider;
