@@ -394,7 +394,6 @@ export class RenderSystem {
           !!weapon?.isReloading,
           intensity
         );
-        this.sceneManager?.hud?.updateCrosshair?.(horizontalSpeed);
 
         const grounded = physics?.isGrounded !== false;
         const playedFootstep = audio.updateFootsteps(dt, isMoving, grounded, stance);
