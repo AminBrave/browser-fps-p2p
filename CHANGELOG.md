@@ -22,6 +22,9 @@ All notable changes to **browser-fps-p2p** are documented here.
 - Remote kinematic physics proxies are synchronized with interpolated render transforms.
 - Input, interpolation buffers, game loops, and WebRTC transports are explicitly disposed during session shutdown.
 
+### WebRTC correctness
+- Preserved the PeerManager connection-open callback so host-side player entities are created when a DataConnection becomes ready.
+
 ### Resource lifecycle & rendering
 - Scene shutdown now disposes unique Three.js geometries, materials, textures, renderer lists, and the canvas.
 - Rapier world state and collider/entity mappings are explicitly released on shutdown.
