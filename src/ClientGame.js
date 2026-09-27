@@ -18,6 +18,7 @@ import { CircularBuffer } from './utils/CircularBuffer.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
 import { disposeImpactDecals } from './ecs/entities/createBullet.js';
+import { applyWorldManifest } from './network/WorldSync.js';
 
 export class ClientGame {
   constructor(containerElement) {
@@ -35,6 +36,16 @@ export class ClientGame {
     this.pendingInputBuffer = new CircularBuffer(NETWORK_CONFIG.INPUT_HISTORY_SIZE);
     this.fixedDeltaTime = 1 / (NETWORK_CONFIG.CLIENT_TICK_RATE || GAME_CONFIG.TICK_RATE || 60);
     this.isRunning = false;
+    this._spawnPosition = null;
+    this._worldHash = null;
+    this._worldReadyPromise = new Promise((resolve, reject) => {
+      this._resolveWorldReady = resolve;
+      this._rejectWorldReady = reject;
+    });
+
+    // Install the handler before opening the WebRTC connection. The host sends
+    // the world manifest immediately when the connection opens.
+    this.peerManager.onData((_id, dataView) => this._handleServerPacket(dataView));
 
     this._audioUnlockHandler = () => audio.unlock();
     window.addEventListener('click', this._audioUnlockHandler);
@@ -64,20 +75,22 @@ export class ClientGame {
     );
     this.interpolationSystem = new InterpolationSystem();
 
+    this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
+    await this._worldReadyPromise;
+
     createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
 
-    this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
-    this.peerManager.onData((_id, dataView) => this._handleServerPacket(dataView));
+    const spawn = this._spawnPosition || {
+      ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[1 % WORLD_CONFIG.PLAYER.SPAWN_POINTS.length],
+      y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2,
+    };
 
     this.localEntity = createPlayer(
       this.ecsWorld,
       this.physicsWorld,
       this.sceneManager,
       this.localPlayerId,
-      {
-        ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[1 % WORLD_CONFIG.PLAYER.SPAWN_POINTS.length],
-        y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2,
-      },
+      spawn,
       true,
       false
     );
@@ -131,6 +144,30 @@ export class ClientGame {
 
   _handleServerPacket(dataView) {
     const packetType = Protocol.getPacketType(dataView);
+
+    if (packetType === PACKET_TYPES.WORLD_INIT) {
+      try {
+        const manifest = Protocol.decodeWorldInit(dataView);
+        this._worldHash = applyWorldManifest(manifest);
+        this._resolveWorldReady?.(this._worldHash);
+        this._resolveWorldReady = null;
+        this._rejectWorldReady = null;
+      } catch (error) {
+        this._rejectWorldReady?.(error);
+        this._resolveWorldReady = null;
+        this._rejectWorldReady = null;
+      }
+      return;
+    }
+
+    if (packetType === PACKET_TYPES.JOIN_ACCEPT) {
+      const accepted = Protocol.decodeJoinAccept(dataView);
+      if (accepted?.spawn) {
+        this._spawnPosition = accepted.spawn;
+      }
+      return;
+    }
+
     if (
       packetType !== PACKET_TYPES.WORLD_SNAPSHOT &&
       packetType !== PACKET_TYPES.STATE_SNAPSHOT
