@@ -314,6 +314,13 @@ export class WeaponSystem {
           player.kills = (player.kills || 0) + 1;
         }
         this.healthSystem.applyDamage(hitEntity, dmg, player.id);
+        this._emit({
+          type: EVENT_TYPES.SFX,
+          sfx: 'hit',
+          sourceId: player.id,
+          targetId: hitEntity.player.id,
+          position: endPos,
+        });
         if (player.isLocal && p === 0) audio.playHit();
       }
     }
