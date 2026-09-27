@@ -113,6 +113,19 @@ export class RenderSystem {
       );
       const yaw = transform.rotation?.yaw ?? transform.rotation?.y ?? 0;
       if (renderMesh.mesh.rotation) renderMesh.mesh.rotation.y = yaw;
+
+      if (entity.player && !entity.player.isLocal && entity.character) {
+        entity.character.updateVisuals({
+          stance: entity.player.remoteStance ?? entity.input?.stance ?? STANCE.STAND,
+          pitch: entity.player.remotePitch ?? entity.input?.pitch ?? 0,
+          health: entity.player.health ?? 100,
+          maxHealth: entity.player.maxHealth ?? 100,
+          isDead: !!entity.player.isDead,
+        });
+        const billboardQuaternion = this.camera?.quaternion || renderMesh.mesh.quaternion;
+        entity.character.parts.healthBack?.quaternion.copy(billboardQuaternion);
+        entity.character.parts.healthFill?.quaternion.copy(billboardQuaternion);
+      }
     }
 
     if (!localEntity) {
