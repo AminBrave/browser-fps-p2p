@@ -109,6 +109,7 @@ export class HostNetworkSystem {
         pitch: next.pitch,
         sequence: next.sequence,
         weaponSlot: next.weaponSlot,
+        isAiming: !!next.isAiming,
         stance: (next.inputMask & INPUT_FLAGS.PRONE)
           ? STANCE.PRONE
           : (next.inputMask & INPUT_FLAGS.CROUCH)
