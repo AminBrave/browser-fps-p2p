@@ -129,6 +129,8 @@ export class HostNetworkSystem {
         health: player.health ?? GAME_CONFIG.MAX_HEALTH,
         stance: entity.input?.stance ?? STANCE.STAND,
         weaponId: entity.weapon?.typeId ?? 1,
+        velocity: entity.physics?.velocity ? { ...entity.physics.velocity } : { x: 0, y: 0, z: 0 },
+        isGrounded: entity.physics?.isGrounded !== false,
         isDead: !!player.isDead,
         isHost: !!player.isHost,
       });
