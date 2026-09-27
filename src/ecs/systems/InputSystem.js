@@ -137,6 +137,9 @@ export class InputSystem {
       case b.MOVE_RIGHT: flag = INPUT_FLAGS.RIGHT; break;
       case b.JUMP: flag = INPUT_FLAGS.JUMP; break;
       case b.RELOAD: flag = INPUT_FLAGS.RELOAD; break;
+      case b.SPRINT:
+      case 'ShiftLeft':
+      case 'ShiftRight': flag = INPUT_FLAGS.SPRINT; break;
       default: break;
     }
 
