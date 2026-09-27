@@ -4,6 +4,14 @@
 
 ### Rendering and physics alignment
 
+### Compound world physics
+
+- Fixed the Rapier 0.11.x startup failure caused by calling the unavailable `ColliderDesc.compound()` API.
+- Implemented compound world objects using one fixed Rapier rigid body with multiple child colliders, which is the supported equivalent in this Rapier version.
+- Converted trees to one compound body containing the trunk cylinder and every canopy cone; converted cars to one compound body containing the body, cabin and four correctly rotated wheel cylinders.
+- Refactored single-shape crates, barriers, mountains, boundaries and ground through the same compound-body factory as one-part compounds, keeping one physical-object model across the map.
+- Registered every child collider back to its owning ECS object so bullet raycasts and player collision resolve to the same world entity.
+
 ### Car physical model alignment
 
 - Replaced the car's single oversized cuboid collider with a compound Rapier collider containing the rendered body, cabin and four wheel volumes.
