@@ -75,6 +75,14 @@ See **CHANGELOG.md** for a full history of gameplay and systems work on this bra
 
 ## Architecture notes
 
+- **Simulation is fixed-step** at the configured server/client tick rate; rendering runs independently. This prevents high-refresh displays from advancing gameplay faster and bounds catch-up after tab suspension.
+- **Input is sampled once per simulation tick**, not once per render frame.
+- **WebRTC lifecycle is explicit**: connection errors/close are idempotent, unsupported payloads are ignored, sends are guarded, and shutdown clears transports/callbacks.
+- **Binary input uses a 16-bit input mask** so crouch/prone flags are transmitted correctly. Weapon-slot selection is also serialized.
+- **Host acknowledgements are per client**, avoiding one player's input sequence from acknowledging another player's prediction buffer.
+- **Remote interpolation uses indexed snapshots** and keeps remote physics proxies aligned with rendered positions.
+
+
 - **Host** simulates physics, weapons, and damage; broadcasts world snapshots.
 - **Clients** predict movement, play local weapon FX, and reconcile against host state.
 - Hitscan uses Rapier `castRayAndGetNormal` when available so decals lie on the correct face.
