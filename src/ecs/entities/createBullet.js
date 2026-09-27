@@ -183,17 +183,67 @@ export function disposeImpactDecals(ecsWorld) {
   decalRegistry.delete(ecsWorld);
 }
 
-export function createBloodImpact(ecsWorld, sceneOrManager, position, normal) {
+export function createBloodImpact(ecsWorld, sceneOrManager, position, normal, targetMesh = null) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
   const n = new THREE.Vector3(normal.x, normal.y, normal.z);
   if (n.lengthSq() < 1e-8) n.set(0, 1, 0);
   n.normalize();
+
   const point = new THREE.Vector3(position.x, position.y, position.z).addScaledVector(n, 0.003);
-  const group = new THREE.Group(); group.name = 'bloodImpact'; group.renderOrder = 21;
-  const stain = new THREE.Mesh(new THREE.CircleGeometry(0.055, 16), new THREE.MeshBasicMaterial({ color: 0x8f1010, transparent: true, opacity: 0.88, side: THREE.FrontSide, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
-  stain.position.copy(point); stain.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), n); group.add(stain);
-  const tangent = new THREE.Vector3().crossVectors(Math.abs(n.y) < 0.9 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0), n).normalize();
-  const bitangent = new THREE.Vector3().crossVectors(n, tangent).normalize();
-  for (let i=0;i<5;i++) { const a=i*Math.PI*2/5; const drop=new THREE.Mesh(new THREE.SphereGeometry(0.008+i*0.001,5,4),new THREE.MeshBasicMaterial({color:0x8f1010,transparent:true,opacity:0.8,depthTest:true,depthWrite:false})); drop.position.copy(point).addScaledVector(tangent,Math.cos(a)*0.015).addScaledVector(bitangent,Math.sin(a)*0.015).addScaledVector(n,0.006); group.add(drop); }
-  scene?.add?.(group); return ecsWorld.add({isImpact:true,isBloodImpact:true,isPermanentDecal:true,transform:createTransform(point.x,point.y,point.z),renderMesh:{mesh:group},impactFlashUntil:performance.now()+70});
+  if (targetMesh?.updateWorldMatrix) targetMesh.updateWorldMatrix(true, false);
+
+  const localPoint = targetMesh?.worldToLocal
+    ? targetMesh.worldToLocal(point.clone())
+    : point.clone();
+  let localNormal = n.clone();
+  if (targetMesh?.worldToLocal) {
+    localNormal = targetMesh.worldToLocal(point.clone().addScaledVector(n, 1))
+      .sub(localPoint).normalize();
+  }
+
+  const group = new THREE.Group();
+  group.name = 'bloodImpact';
+  group.renderOrder = 21;
+
+  const stain = new THREE.Mesh(
+    new THREE.CircleGeometry(0.055, 16),
+    new THREE.MeshBasicMaterial({
+      color: 0x8f1010, transparent: true, opacity: 0.88,
+      side: THREE.DoubleSide, depthTest: true, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+    })
+  );
+  stain.position.copy(localPoint);
+  stain.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), localNormal);
+  group.add(stain);
+
+  const tangent = new THREE.Vector3()
+    .crossVectors(Math.abs(localNormal.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0), localNormal)
+    .normalize();
+  const bitangent = new THREE.Vector3().crossVectors(localNormal, tangent).normalize();
+
+  for (let i = 0; i < 5; i++) {
+    const a = i * Math.PI * 2 / 5;
+    const drop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.008 + i * 0.001, 5, 4),
+      new THREE.MeshBasicMaterial({ color: 0x8f1010, transparent: true, opacity: 0.8, depthTest: true, depthWrite: false })
+    );
+    drop.position.copy(localPoint)
+      .addScaledVector(tangent, Math.cos(a) * 0.015)
+      .addScaledVector(bitangent, Math.sin(a) * 0.015)
+      .addScaledVector(localNormal, 0.006);
+    group.add(drop);
+  }
+
+  if (targetMesh) targetMesh.add(group);
+  else scene?.add?.(group);
+
+  return ecsWorld.add({
+    isImpact: true,
+    isBloodImpact: true,
+    isPermanentDecal: true,
+    transform: createTransform(point.x, point.y, point.z),
+    renderMesh: { mesh: group },
+    impactFlashUntil: performance.now() + 70,
+  });
 }
