@@ -1,7 +1,7 @@
 // src/ecs/systems/HealthSystem.js
 
 import * as THREE from 'three';
-import { GAME_CONFIG, DEFAULT_WEAPON } from '../../config/index.js';
+import { GAME_CONFIG, PLAYER_CONFIG, DEFAULT_WEAPON } from '../../config/index.js';
 import { WORLD_CONFIG } from '../../config/index.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
@@ -26,8 +26,8 @@ export class HealthSystem {
   }
 
   _isSpawnFree(ecsWorld, entity, x, y, z) {
-    const radius = GAME_CONFIG.PLAYER_RADIUS + 0.08;
-    const halfHeight = GAME_CONFIG.PLAYER_HEIGHT / 2;
+    const radius = PLAYER_CONFIG.RADIUS + 0.08;
+    const halfHeight = PLAYER_CONFIG.HEIGHT / 2;
 
     const overlapsAabb = (box) => {
       const closestX = Math.max(box.min.x, Math.min(x, box.max.x));
@@ -119,7 +119,7 @@ export class HealthSystem {
           player.lastAttackerId = event.attackerId ?? null;
           player.deathTime = now;
           player.deaths = (player.deaths || 0) + 1;
-          player.respawnTimer = GAME_CONFIG.RESPAWN_TIME_MS || 3000;
+          player.respawnTimer = PLAYER_CONFIG.RESPAWN_TIME_MS || 3000;
           entity.physics?.rigidBody?.setLinvel?.({ x: 0, y: 0, z: 0 }, true);
           entity.physics?.rigidBody?.setAngvel?.({ x: 0, y: 0, z: 0 }, true);
           if (entity.renderMesh?.mesh) entity.renderMesh.mesh.visible = false;
@@ -145,7 +145,7 @@ export class HealthSystem {
 
       const spawn = this._findSpawn(ecsWorld, entity);
       player.isDead = false;
-      player.health = player.maxHealth || GAME_CONFIG.MAX_HEALTH || 100;
+      player.health = player.maxHealth || PLAYER_CONFIG.MAX_HEALTH || 100;
       player.respawnTimer = 0;
 
       transform.position.x = spawn.x;
