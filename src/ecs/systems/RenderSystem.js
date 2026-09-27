@@ -182,13 +182,9 @@ export class RenderSystem {
 
       const stance = input.stance ?? STANCE.STAND;
 
-      // The Rapier body is the authoritative local placement. ECS transform
-      // is a cached/render value and can briefly differ after controller
-      // correction, reconciliation, or a kinematic step. The first-person
-      // camera must never be driven from that stale cache: anchor it directly
-      // to the actual body translation, then mirror that position back into
-      // ECS so camera, visible remote representation, raycasts and gameplay
-      // all share one coordinate.
+      // Rapier is authoritative for local simulation. ECS transform remains
+      // the gameplay state; render interpolation/correction is visual-only and
+      // is never written back into ECS.
       const bodyPosition = physics?.rigidBody?.translation?.();
       if (bodyPosition) {
         // Render interpolation is visual-only. Never write the interpolated
