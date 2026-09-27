@@ -214,7 +214,7 @@ export class ClientGame {
       !!input?.isAiming,
       Number(weapon?.currentSpread) || 0,
       Number(weapon?.spreadMax) || 0.05,
-      !!(input?.inputMask && (input.inputMask & 1)),
+      !!(input?.inputMask && (input.inputMask & (1 << 5))),
       recoil
     );
   }
