@@ -3,7 +3,10 @@
 import * as THREE from 'three';
 import { GAME_CONFIG, PLAYER_CONFIG, DEFAULT_WEAPON } from '../../config/index.js';
 import { WORLD_CONFIG } from '../../config/index.js';
-import { clearPlayerImpactMarks } from '../entities/createBullet.js';
+import {
+  clearPlayerImpactMarks,
+  getPlayerImpactMarkCount,
+} from '../entities/createBullet.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
 
@@ -155,7 +158,7 @@ export class HealthSystem {
           // fraction itself made floor(marks * fraction) round to zero on
           // almost every frame, so marks could remain visible for the entire
           // regeneration cycle.
-          const marksBeforeHeal = clearPlayerImpactMarks(ecsWorld, entity, 0);
+          const marksBeforeHeal = getPlayerImpactMarkCount(ecsWorld, entity);
           player.impactMarkClearAccumulator =
             (Number(player.impactMarkClearAccumulator) || 0) +
             (delta / maxHealth) * marksBeforeHeal;
