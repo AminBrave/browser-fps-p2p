@@ -9,6 +9,7 @@ export const DEFAULT_KEYBINDINGS = {
   CROUCH: 'KeyC',
   PRONE: 'KeyZ',
   RELOAD: 'KeyR',
+  SPRINT: 'ShiftLeft',
   SHOOT: 'Mouse0',
   AIM: 'Mouse2',
   WEAPON_1: 'Digit1',
@@ -25,6 +26,7 @@ export const MOUSE_CONFIG = {
 
 export const HUD_HINTS = [
   'WASD — Move',
+  'Shift — Sprint',
   'Mouse — Look',
   'LMB — Fire',
   'RMB — Aim / Zoom',
