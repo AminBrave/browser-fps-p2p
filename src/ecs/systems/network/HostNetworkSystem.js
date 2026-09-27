@@ -10,8 +10,8 @@ function isNewerSequence(next, previous) {
 
 /**
  * Host-side network adapter.
- * Incoming transport events retain only the newest frame per peer; simulation
- * consumes those frames at the fixed server tick.
+ * Transport preserves ordered input frames; simulation consumes exactly one
+ * frame per authoritative server tick so acknowledgements match replay.
  */
 export class HostNetworkSystem {
   constructor(peerManager) {
