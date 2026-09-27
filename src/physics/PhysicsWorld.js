@@ -49,68 +49,67 @@ export class PhysicsWorld {
   }
 
   createStaticBox(x, y, z, hx, hy, hz, rotationY = 0) {
-    if (!this.world) throw new Error('Physics world is not initialized');
-
-    const body = this.world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(x, y, z)
-        .setRotation(this._yawQuaternion(rotationY))
+    return this.createStaticCompound(
+      x,
+      y,
+      z,
+      [{ shape: new RAPIER.Cuboid(hx, hy, hz) }],
+      rotationY
     );
-    const collider = this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(hx, hy, hz),
-      body
-    );
-    return { body, collider };
   }
 
   createStaticCompound(x, y, z, parts, rotationY = 0) {
     if (!this.world) throw new Error('Physics world is not initialized');
-    if (!parts?.length) throw new Error('Static compound requires at least one shape');
+    if (!parts?.length) throw new Error('Static compound requires at least one part');
 
-    const shapes = parts.map(({ shape }) => shape);
-    const positions = parts.map(({ position = { x: 0, y: 0, z: 0 } }) => position);
-    const rotations = parts.map(({ rotation = this._identityQuaternion() }) => rotation);
-
+    // Rapier 0.11.x has no ColliderDesc.compound(). The equivalent compound
+    // object is one rigid body with multiple colliders attached to that body.
     const body = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.fixed()
         .setTranslation(x, y, z)
         .setRotation(this._yawQuaternion(rotationY))
     );
-    const collider = this.world.createCollider(
-      RAPIER.ColliderDesc.compound(shapes, positions, rotations),
-      body
-    );
-    return { body, collider };
+
+    const colliders = parts.map((part) => {
+      const desc = new RAPIER.ColliderDesc(part.shape)
+        .setTranslation(
+          part.position?.x ?? 0,
+          part.position?.y ?? 0,
+          part.position?.z ?? 0
+        );
+
+      if (part.rotation) {
+        desc.setRotation(part.rotation);
+      }
+
+      return this.world.createCollider(desc, body);
+    });
+
+    return {
+      body,
+      collider: colliders[0],
+      colliders,
+    };
   }
 
   createStaticCone(x, y, z, radius, height, rotationY = 0) {
-    if (!this.world) throw new Error('Physics world is not initialized');
-
-    const body = this.world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(x, y, z)
-        .setRotation(this._yawQuaternion(rotationY))
+    return this.createStaticCompound(
+      x,
+      y,
+      z,
+      [{ shape: new RAPIER.Cone(height / 2, radius) }],
+      rotationY
     );
-    const collider = this.world.createCollider(
-      RAPIER.ColliderDesc.cone(height / 2, radius),
-      body
-    );
-    return { body, collider };
   }
 
   createStaticCylinder(x, y, z, radius, height, rotationY = 0) {
-    if (!this.world) throw new Error('Physics world is not initialized');
-
-    const body = this.world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(x, y, z)
-        .setRotation(this._yawQuaternion(rotationY))
+    return this.createStaticCompound(
+      x,
+      y,
+      z,
+      [{ shape: new RAPIER.Cylinder(height / 2, radius) }],
+      rotationY
     );
-    const collider = this.world.createCollider(
-      RAPIER.ColliderDesc.cylinder(height / 2, radius),
-      body
-    );
-    return { body, collider };
   }
 
   _identityQuaternion() {
