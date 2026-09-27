@@ -107,8 +107,13 @@ const ALGORITHMS = { EVEN: evenGrid, GRID: evenGrid, MANHATTAN: manhattan, ROADS
 
 export function generateObjectPlacements({ pattern = 'MANHATTAN', count = 20, density = 1, bounds, padding = 2, minSpacing = 2.5, roadSpacing = 8, seed = 'world', reservedZones = [], reservedRectangles = [] } = {}) {
   const total = Math.max(0, Math.round(count * Math.max(0, Math.min(1, density))));
-  const generator = ALGORITHMS[String(pattern).toUpperCase()] || ALGORITHMS.MANHATTAN;
-  const candidates = generator(bounds, total, padding, seed, minSpacing, roadSpacing);
+  const patternKey = String(pattern).toUpperCase();
+  const generator = ALGORITHMS[patternKey] || ALGORITHMS.MANHATTAN;
+  let candidates;
+  if (patternKey === 'MANHATTAN') candidates = generator(bounds, total, padding, roadSpacing);
+  else if (patternKey === 'ROADSIDE') candidates = generator(bounds, total, padding, roadSpacing);
+  else if (patternKey === 'POISSON') candidates = generator(bounds, total, padding, seed, minSpacing);
+  else candidates = generator(bounds, total, padding, seed);
   const accepted = [], minSq = minSpacing * minSpacing;
   for (const candidate of candidates) {
     if (!inside(bounds, candidate.x, candidate.z, padding)) continue;
