@@ -32,6 +32,14 @@ export class HostNetworkSystem {
       const packetType = dataView.getUint8(0);
 
       if (packetType === PACKET_TYPES.JOIN_REQUEST) {
+        const request = Protocol.decodeJoinRequest(dataView);
+        if (!request || request.protocolVersion !== NETWORK_CONFIG.HANDSHAKE.PROTOCOL_VERSION) {
+          console.warn('[Network] Rejecting incompatible client protocol', {
+            peerId,
+            protocolVersion: request?.protocolVersion,
+          });
+          return;
+        }
         this.onJoinRequest?.(peerId);
         return;
       }
