@@ -32,7 +32,7 @@ export class ClientReconcileSystem {
   }
 
   update(ecsWorld, localEntityOrId, latestSnapshot) {
-    if (!localEntityOrId || !latestSnapshot || !this.physicsWorld?.initialized) return;
+    if (!localEntityOrId || !latestSnapshot || !this.physicsWorld?.initialized) return false;
 
     let localEntity =
       typeof localEntityOrId === 'object' && localEntityOrId.player
@@ -48,10 +48,10 @@ export class ClientReconcileSystem {
       }
     }
 
-    if (!localEntity?.player || !localEntity.physics || !localEntity.transform) return;
+    if (!localEntity?.player || !localEntity.physics || !localEntity.transform) return false;
 
     const serverTick = Number(latestSnapshot.serverTick) >>> 0;
-    if (!isNewerTick(serverTick, this.lastServerTick)) return;
+    if (!isNewerTick(serverTick, this.lastServerTick)) return false;
     this.lastServerTick = serverTick;
 
     const player = localEntity.player;
@@ -61,7 +61,7 @@ export class ClientReconcileSystem {
     const authoritative = entities.find(
       (entry) => (entry.entityId ?? entry.id) === player.id
     );
-    if (!authoritative) return;
+    if (!authoritative) return false;
 
     if (authoritative.health !== undefined) {
       player.health = Number(authoritative.health);
@@ -171,6 +171,8 @@ export class ClientReconcileSystem {
       transform.rotation.yaw = Number(authoritative.yaw ?? authoritative.rotation?.yaw ?? transform.rotation.yaw ?? 0);
       transform.rotation.pitch = Number(authoritative.pitch ?? authoritative.rotation?.pitch ?? transform.rotation.pitch ?? 0);
     }
+
+    return errorMagnitude > threshold;
   }
 
   _reSimulateInputFrame(physics, transform, inputFrame) {
