@@ -1,5 +1,7 @@
 // src/config/constants.js
 
+const SIMULATION_TICK_RATE = 60;
+
 export const NETWORK_CONFIG = {
   SERVER_TICK_RATE: SIMULATION_TICK_RATE,
   CLIENT_TICK_RATE: SIMULATION_TICK_RATE,
@@ -8,8 +10,6 @@ export const NETWORK_CONFIG = {
   INTERPOLATION_BUFFER_MS: 100,
   INPUT_HISTORY_SIZE: 128,
 };
-
-const SIMULATION_TICK_RATE = 60;
 
 // World-space convention: 1.0 unit = 1 metre.
 export const GAME_CONFIG = {
