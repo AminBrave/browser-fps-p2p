@@ -19,7 +19,9 @@ export const WORLD_CONFIG = {
   },
   PLAYER: {
     SPAWN_POINTS: [
-      { x: 0, z: 0 }, { x: -4, z: 4 }, { x: 4, z: 4 }, { x: 0, z: -4 },
+      // Kept away from the central crate, mountains, cars and tree ring.
+      { x: -16, z: -24 }, { x: 16, z: -24 },
+      { x: -16, z: 24 }, { x: 16, z: 24 },
     ],
   },
   OBJECTS: {
