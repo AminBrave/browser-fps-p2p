@@ -10,6 +10,7 @@ export { GAME_CONFIG } from './constants.js';
 export { CAMERA_CONFIG } from './camera.js';
 export { COMBAT_CONFIG } from './combat.js';
 export { PHYSICS_CONFIG } from './physics.js';
+export { RENDER_CONFIG } from './render.js';
 export { WORLD_CONFIG } from './world.js';
 export { generateObjectPlacements, OBJECT_PLACEMENT_ALGORITHMS } from './objectPlacement.js';
 
