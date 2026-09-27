@@ -30,6 +30,12 @@ export class HUD {
         <div style="position:absolute;top:0;left:6px;width:2px;height:14px;background:rgba(255,255,255,0.9);"></div>
       </div>
 
+      <div id="hud-scoreboard" style="position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;background:rgba(0,0,0,0.42);padding:7px 14px;border-radius:8px;backdrop-filter:blur(6px);font-weight:700;letter-spacing:1px;">
+        <span style="color:#7bed9f;">KILLS <b id="hud-kills">0</b></span>
+        <span style="color:#ff6b81;">DEATHS <b id="hud-deaths">0</b></span>
+        <span style="color:#dfe4ea;">K/D <b id="hud-kd">0.00</b></span>
+      </div>
+
       <div style="position:absolute;top:16px;right:20px;text-align:right;background:rgba(0,0,0,0.35);padding:10px 14px;border-radius:8px;backdrop-filter:blur(6px);line-height:1.55;">
         <div style="font-size:10px;color:#70a1ff;font-weight:bold;margin-bottom:4px;letter-spacing:1px;">CONTROLS</div>
         ${hintsHtml}
@@ -76,6 +82,9 @@ export class HUD {
     this.weaponNameEl = this.container.querySelector('#hud-weapon-name');
     this.weaponSlots = this.container.querySelector('#hud-weapon-slots');
     this.deathOverlay = this.container.querySelector('#hud-death-overlay');
+    this.killsEl = this.container.querySelector('#hud-kills');
+    this.deathsEl = this.container.querySelector('#hud-deaths');
+    this.kdEl = this.container.querySelector('#hud-kd');
   }
 
   setVisible(v) {
@@ -118,6 +127,14 @@ export class HUD {
         }
       });
     }
+  }
+
+  updateScoreboard(kills = 0, deaths = 0) {
+    const k = Math.max(0, Number(kills) || 0);
+    const d = Math.max(0, Number(deaths) || 0);
+    if (this.killsEl) this.killsEl.textContent = String(k);
+    if (this.deathsEl) this.deathsEl.textContent = String(d);
+    if (this.kdEl) this.kdEl.textContent = (d > 0 ? k / d : k).toFixed(2);
   }
 
   setDeathOverlay(isDead) {
