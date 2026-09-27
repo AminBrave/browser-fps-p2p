@@ -39,6 +39,15 @@ export class SceneManager {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87ceeb);
+
+    // Viewmodels are rendered in a second pass so world geometry can never
+    // depth-clip the weapon mesh when the camera gets close to a wall/object.
+    this.weaponScene = new THREE.Scene();
+    this.weaponScene.name = 'WeaponViewModelScene';
+    this.weaponScene.add(
+      new THREE.HemisphereLight(0xffffff, 0x555555, 1.8),
+      new THREE.DirectionalLight(0xffffff, 1.4)
+    );
     this.scene.fog = new THREE.Fog(0xb8d4e8, 40, 120);
 
     const aspect = window.innerWidth / Math.max(1, window.innerHeight);
@@ -131,7 +140,17 @@ export class SceneManager {
   }
 
   render() {
-    if (!this.disposed) this.renderer.render(this.scene, this.camera);
+    if (this.disposed) return;
+
+    // Explicit multi-pass rendering: world first, then viewmodel after
+    // clearing depth. autoClear must be disabled or the second render would
+    // erase the world color buffer.
+    this.renderer.autoClear = false;
+    this.renderer.clear(true, true, true);
+    this.renderer.render(this.scene, this.camera);
+    this.renderer.clearDepth();
+    this.renderer.render(this.weaponScene, this.camera);
+    this.renderer.autoClear = true;
   }
 
   dispose() {
@@ -148,5 +167,6 @@ export class SceneManager {
     canvas?.parentNode?.removeChild(canvas);
 
     this.scene.clear();
+    this.weaponScene.clear();
   }
 }
