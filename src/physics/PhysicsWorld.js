@@ -63,6 +63,26 @@ export class PhysicsWorld {
     return { body, collider };
   }
 
+  createStaticCompound(x, y, z, parts, rotationY = 0) {
+    if (!this.world) throw new Error('Physics world is not initialized');
+    if (!parts?.length) throw new Error('Static compound requires at least one shape');
+
+    const shapes = parts.map(({ shape }) => shape);
+    const positions = parts.map(({ position = { x: 0, y: 0, z: 0 } }) => position);
+    const rotations = parts.map(({ rotation = this._identityQuaternion() }) => rotation);
+
+    const body = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed()
+        .setTranslation(x, y, z)
+        .setRotation(this._yawQuaternion(rotationY))
+    );
+    const collider = this.world.createCollider(
+      RAPIER.ColliderDesc.compound(shapes, positions, rotations),
+      body
+    );
+    return { body, collider };
+  }
+
   createStaticCone(x, y, z, radius, height, rotationY = 0) {
     if (!this.world) throw new Error('Physics world is not initialized');
 
@@ -91,6 +111,10 @@ export class PhysicsWorld {
       body
     );
     return { body, collider };
+  }
+
+  _identityQuaternion() {
+    return { x: 0, y: 0, z: 0, w: 1 };
   }
 
   _yawQuaternion(rotationY = 0) {
