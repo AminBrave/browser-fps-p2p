@@ -28,6 +28,7 @@ export class HostGame {
 
     this.localPlayerId = 'host-player';
     this.localEntity = null;
+    this.clientEntities = new Map();
     this.isRunning = false;
 
     this.fixedDeltaTime =
@@ -83,6 +84,14 @@ export class HostGame {
   _fixedUpdate(dt) {
     if (!this.localEntity) return;
 
+    // Make the ECS authoritative for every currently connected peer. This
+    // also covers a connection that became open before the UI callback was
+    // installed, eliminating the "client connected but host has no entity"
+    // race.
+    for (const peerId of this.peerManager.connections.keys()) {
+      this._ensureClientEntity(peerId);
+    }
+
     this.inputSystem.sample(this.ecsWorld, this.localEntity);
     this.hostNetworkSystem.preUpdate(this.ecsWorld);
 
@@ -105,22 +114,40 @@ export class HostGame {
   }
 
   _handleClientConnect(peerId) {
-    const spawnIndex = Math.max(0, this.peerManager.connections.size - 1);
+    this._ensureClientEntity(peerId);
+  }
+
+  _ensureClientEntity(peerId) {
+    const id = String(peerId);
+    const existing = this.clientEntities.get(id);
+    if (existing) return existing;
+
+    for (const entity of this.ecsWorld.with('player')) {
+      if (entity.player?.peerId === id) {
+        this.clientEntities.set(id, entity);
+        return entity;
+      }
+    }
+
+    const spawnIndex = Math.max(0, this.clientEntities.size);
     const spawn = WORLD_CONFIG.PLAYER.SPAWN_POINTS[
       spawnIndex % WORLD_CONFIG.PLAYER.SPAWN_POINTS.length
     ];
-    createPlayer(
+
+    const entity = createPlayer(
       this.ecsWorld,
       this.physicsWorld,
       this.sceneManager,
-      peerId,
+      id,
       {
         ...spawn,
-        y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2,
+        y: WORLD_CONFIG.GROUND_Y + GAME_CONFIG.PLAYER_HEIGHT / 2 + 0.04,
       },
       false,
       false
     );
+    this.clientEntities.set(id, entity);
+    return entity;
   }
 
   _handleClientDisconnect(peerId) {
@@ -159,6 +186,7 @@ export class HostGame {
     }
 
     this.ecsWorld.remove(entity);
+    this.clientEntities.delete(String(entity.player?.peerId ?? ''));
   }
 
   _updateHUD() {
@@ -198,6 +226,7 @@ export class HostGame {
     this.sceneManager.dispose();
     this.physicsWorld.dispose();
     this.peerManager.destroy();
+    this.clientEntities.clear();
     window.removeEventListener('click', this._audioUnlockHandler);
     this.gameLoop = null;
   }
