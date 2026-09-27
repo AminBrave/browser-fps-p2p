@@ -91,6 +91,12 @@ export class RenderSystem {
       }
 
       if (!transform || !renderMesh?.mesh) continue;
+      if (entity.isMap && !entity.isBoundary) {
+        // World objects are owned by the ECS render transform. Keep their
+        // visible state deterministic so physics cannot remain active while
+        // the corresponding visual root is accidentally hidden.
+        renderMesh.mesh.visible = true;
+      }
       if (entity.player?.isLocal) {
         renderMesh.mesh.visible = false;
         continue;
