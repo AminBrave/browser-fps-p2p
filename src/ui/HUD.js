@@ -1,6 +1,7 @@
 // src/ui/HUD.js
 
 import { HUD_HINTS } from '../config/controls.js';
+import { RENDER_CONFIG } from '../config/index.js';
 
 export class HUD {
   constructor() {
@@ -85,6 +86,14 @@ export class HUD {
     this.killsEl = this.container.querySelector('#hud-kills');
     this.deathsEl = this.container.querySelector('#hud-deaths');
     this.kdEl = this.container.querySelector('#hud-kd');
+    this.crosshair = this.container.querySelector('#crosshair');
+    this.crosshairParts = Array.from(this.crosshair?.children || []);
+  }
+
+  updateCrosshair(speed = 0) {
+    if (!this.crosshair) return;
+    const cfg = RENDER_CONFIG.CROSSHAIR;
+    const normalized = THREE? 0 : 0;
   }
 
   setVisible(v) {
