@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
 import { createTransform } from '../components/Transform.js';
 import { GAME_CONFIG } from '../../config/constants.js';
 
@@ -51,46 +50,33 @@ export function createImpactDecal(
   targetMesh = null
 ) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
-
   const n = new THREE.Vector3(normal.x, normal.y, normal.z);
   if (n.lengthSq() < 1e-8) n.set(0, 1, 0);
   n.normalize();
 
+  // Use the Rapier hit point directly in world space. This deliberately avoids
+  // projected decals: projected decals are sensitive to a mesh's local transform,
+  // while this patch is guaranteed to sit on the exact physics surface.
+  const point = new THREE.Vector3(position.x, position.y, position.z)
+    .addScaledVector(n, 0.0015);
+
   const group = new THREE.Group();
+  group.name = 'bulletImpact';
   group.renderOrder = 20;
 
-  // Euler has no setFromUnitVectors(); build the rotation with a quaternion,
-  // then convert it to the Euler expected by DecalGeometry.
-  const orientation = new THREE.Euler().setFromQuaternion(
-    new THREE.Quaternion().setFromUnitVectors(
-      new THREE.Vector3(0, 0, 1),
-      n
-    )
+  const q = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(0, 0, 1),
+    n
   );
-  const decalSize = new THREE.Vector3(0.18, 0.18, 0.08);
-  const surface = targetMesh?.isMesh ? targetMesh : null;
 
-  if (surface) {
-    surface.updateWorldMatrix(true, false);
-  }
-
-  const createSurfaceDecal = (size, color, opacity) => {
-    const geometry = surface
-      ? new DecalGeometry(
-          surface,
-          new THREE.Vector3(position.x, position.y, position.z),
-          orientation,
-          size
-        )
-      : new THREE.CircleGeometry(size.x * 0.39, 20);
-
+  const makePatch = (radius, color, opacity, segments = 20) => {
     const mesh = new THREE.Mesh(
-      geometry,
+      new THREE.CircleGeometry(radius, segments),
       new THREE.MeshBasicMaterial({
         color,
         transparent: true,
         opacity,
-        side: THREE.FrontSide,
+        side: THREE.DoubleSide,
         depthTest: true,
         depthWrite: false,
         polygonOffset: true,
@@ -98,38 +84,21 @@ export function createImpactDecal(
         polygonOffsetUnits: -1,
       })
     );
-
-    if (!surface) {
-      mesh.position.set(
-        position.x + n.x * 0.012,
-        position.y + n.y * 0.012,
-        position.z + n.z * 0.012
-      );
-      mesh.quaternion.setFromUnitVectors(
-        new THREE.Vector3(0, 0, 1),
-        n
-      );
-    }
-
+    mesh.position.copy(point);
+    mesh.quaternion.copy(q);
     return mesh;
   };
 
-  const hole = createSurfaceDecal(
-    new THREE.Vector3(0.14, 0.14, 0.06),
-    0x120c08,
-    0.95
-  );
+  const hole = makePatch(0.07, 0x120c08, 0.96, 20);
+  hole.name = 'bulletHole';
   group.add(hole);
 
-  const scorch = createSurfaceDecal(
-    new THREE.Vector3(0.22, 0.22, 0.08),
-    0x3a2814,
-    0.72
-  );
+  const scorch = makePatch(0.12, 0x3a2814, 0.62, 24);
+  scorch.name = 'bulletScorch';
   group.add(scorch);
 
   const flash = new THREE.Mesh(
-    new THREE.SphereGeometry(0.03, 6, 6),
+    new THREE.SphereGeometry(0.022, 6, 6),
     new THREE.MeshBasicMaterial({
       color: 0xffaa44,
       transparent: true,
@@ -139,7 +108,7 @@ export function createImpactDecal(
     })
   );
   flash.name = 'impactFlash';
-  flash.position.set(position.x, position.y, position.z);
+  flash.position.copy(point);
   group.add(flash);
 
   scene?.add?.(group);
@@ -147,7 +116,7 @@ export function createImpactDecal(
   const entity = ecsWorld.add({
     isImpact: true,
     isPermanentDecal: true,
-    transform: createTransform(position.x, position.y, position.z),
+    transform: createTransform(point.x, point.y, point.z),
     renderMesh: { mesh: group },
     impactFlashUntil: performance.now() + 90,
   });
@@ -172,7 +141,6 @@ export function createImpactDecal(
 
   return entity;
 }
-
 export function createImpact(ecsWorld, sceneOrManager, position, normal, targetMesh = null) {
   return createImpactDecal(ecsWorld, sceneOrManager, position, normal, targetMesh);
 }
