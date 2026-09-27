@@ -46,11 +46,9 @@ export class HealthSystem {
     const halfLength = Math.max(1, map.LENGTH / 2 - PLAYER_CONFIG.RADIUS - 0.5);
     const y = WORLD_CONFIG.GROUND_Y + PLAYER_CONFIG.HEIGHT / 2 + 0.04;
 
-    // Respawns are intentionally randomized rather than cycling through fixed
-    // points. The authoritative host chooses the position; clients receive it
-    // through the normal world snapshot, so there is only one source of truth.
-    const attempts = 96;
-    for (let i = 0; i < attempts; i++) {
+    // Respawns are randomized, while the authoritative physics world decides
+    // whether each candidate has enough clearance from real world geometry.
+    for (let i = 0; i < 96; i++) {
       const x = THREE.MathUtils.randFloat(-halfWidth, halfWidth);
       const z = THREE.MathUtils.randFloat(-halfLength, halfLength);
       if (this._isSpawnFree(ecsWorld, entity, x, y, z)) {
@@ -58,9 +56,8 @@ export class HealthSystem {
       }
     }
 
-    // If the random search is saturated, fall back to configured spawn points,
-    // but still validate every point against the real physics world. Never
-    // teleport into a mesh merely because a configured point exists.
+    // Validate configured points as a fallback. Never force a spawn into
+    // geometry merely because the point is configured.
     const configured = WORLD_CONFIG.PLAYER.SPAWN_POINTS || [];
     const offset = Math.floor(Math.random() * Math.max(1, configured.length));
     for (let i = 0; i < configured.length; i++) {
@@ -72,14 +69,8 @@ export class HealthSystem {
       }
     }
 
-    // Last-resort search around the map center. It is bounded and physics
-    // validated; if no valid location exists, keep the player at its current
-    // position rather than injecting it into world geometry.
-    const current = entity.transform?.position;
-    if (current && this._isSpawnFree(ecsWorld, entity, current.x, y, current.z)) {
-      return { x: current.x, y, z: current.z };
-    }
-
+    // If the map is temporarily saturated, keep the player dead and retry
+    // rather than injecting the character into another object's collider.
     return null;
   }
 
