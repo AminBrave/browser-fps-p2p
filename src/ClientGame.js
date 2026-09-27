@@ -19,7 +19,7 @@ import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
 import { createBullet, createImpactDecal, createBloodImpact, disposeImpactDecals } from './ecs/entities/createBullet.js';
 import { applyWorldManifest } from './network/WorldSync.js';
-import { moveIntensity } from './utils/Movement.js';
+import { getAccuracyState } from './utils/AccuracyModel.js';
 
 export class ClientGame {
   constructor(containerElement) {
@@ -217,31 +217,35 @@ export class ClientGame {
       (input?.stance ?? STANCE.STAND) === STANCE.STAND
     );
 
-    // Feed the HUD the same live spread components used by WeaponSystem so
-    // the reticle is a visual readout of actual shot dispersion.
-    const intensity = moveIntensity(velocity);
-    const stanceMultiplier =
-      (input?.stance ?? STANCE.STAND) === STANCE.PRONE ? 0.60 :
-      (input?.stance ?? STANCE.STAND) === STANCE.CROUCH ? 0.78 : 1.0;
-    const steady = Number(weapon?.steadySpread) || 0.003;
-    const base = Number(weapon?.spreadBase) || 0;
-    const bloom = Number(weapon?.currentSpread) || 0;
-    const aimMultiplier = input?.isAiming && !isSprinting ? 0.08 : 1.0;
-    const movementMultiplier = input?.isAiming && !isSprinting ? 0.45 : 1.0;
-    const movementSpread = intensity * (GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035) * movementMultiplier;
-    const sprintSpread = isSprinting ? 0.075 : 0;
-    const liveSpread = (steady + base + bloom) * aimMultiplier * stanceMultiplier +
-      movementSpread + sprintSpread;
-
-    this.hud.updateCrosshair(
-      speed,
-      !!input?.isAiming,
-      liveSpread,
-      Math.max(0.12, Number(weapon?.spreadMax) || 0.05),
-      !!(mask & INPUT_FLAGS.SHOOT),
-      recoil,
-      isSprinting
+    // The HUD consumes the exact same accuracy model as WeaponSystem.
+    // This prevents the reticle from drifting out of sync with actual shots.
+    const intensity = Math.hypot(
+      Number(velocity?.x) || 0,
+      Number(velocity?.z) || 0
     );
+    const stance = input?.stance ?? STANCE.STAND;
+    const accuracy = getAccuracyState({
+      stance,
+      speed: intensity,
+      maxSpeed: GAME_CONFIG.MAX_SPEED ?? 10.8,
+      isAiming: !!input?.isAiming,
+      isSprinting,
+      steadySpread: Number(weapon?.steadySpread) || 0.003,
+      baseSpread: Number(weapon?.spreadBase) || 0,
+      bloom: Number(weapon?.currentSpread) || 0,
+      spreadMax: Number(weapon?.spreadMax) || 0.05,
+      moveSpreadMax: GAME_CONFIG.MOVE_SPREAD_MAX ?? 0.035,
+    });
+
+    this.hud.updateCrosshair({
+      spread: accuracy.rawSpread,
+      spreadMax: Number(weapon?.spreadMax) || 0.05,
+      isAiming: !!input?.isAiming,
+      isFiring: !!(mask & INPUT_FLAGS.SHOOT),
+      recoil,
+      speed01: accuracy.speedT,
+      isSprinting,
+    });
   }
 
   _handleServerPacket(dataView) {
