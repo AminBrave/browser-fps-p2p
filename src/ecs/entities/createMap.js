@@ -24,6 +24,27 @@ function groundCenterY(height) {
   return WORLD_CONFIG.GROUND_Y + height / 2;
 }
 
+function addSolidMapEntity(
+  ecsWorld,
+  physicsWorld,
+  mapEntities,
+  { x, y, z, physics, mesh, name, boundary = false, solid = true }
+) {
+  mesh.name = name || mesh.name || 'world-object';
+  const entity = ecsWorld.add({
+    isMap: true,
+    isBoundary: boundary,
+    isSolid: solid,
+    transform: createTransform(x, y, z),
+    physics: createPhysics(physics.body, physics.collider),
+    renderMesh: { mesh },
+  });
+
+  physicsWorld.registerColliderEntity?.(physics.collider, entity);
+  mapEntities.push(entity);
+  return entity;
+}
+
 function addStaticBox(ecsWorld, physicsWorld, mapEntities, {
   position,
   size,
@@ -64,7 +85,7 @@ function addStaticBox(ecsWorld, physicsWorld, mapEntities, {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
 
-  return addMapEntity(ecsWorld, physicsWorld, mapEntities, {
+  return addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
     x: safePosition.x,
     y,
     z: safePosition.z,
