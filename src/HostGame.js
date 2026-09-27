@@ -1,5 +1,5 @@
-import { GAME_CONFIG, NETWORK_CONFIG, STANCE } from './config/constants.js';
-import { WORLD_CONFIG } from './config/world.js';
+import { GAME_CONFIG, NETWORK_CONFIG, STANCE } from './config/index.js';
+import { WORLD_CONFIG } from './config/index.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
