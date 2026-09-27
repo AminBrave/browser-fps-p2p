@@ -30,7 +30,7 @@ function addSolidMapEntity(
   ecsWorld,
   physicsWorld,
   mapEntities,
-  { position, physics, mesh, name, boundary = false, colliders = [] }
+  { position, physics, mesh, name, boundary = false, colliders = [], rotationY = 0 }
 ) {
   mesh.name = name || mesh.name || 'world-object';
   mesh.visible = !boundary;
@@ -39,7 +39,7 @@ function addSolidMapEntity(
     isMap: true,
     isBoundary: boundary,
     isSolid: true,
-    transform: createTransform(position.x, position.y, position.z),
+    transform: createTransform(position.x, position.y, position.z, rotationY),
     physics: {
       ...createPhysics(physics.body, physics.collider),
       colliders: [
@@ -328,6 +328,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
     physics,
     mesh: group,
     name: 'car',
+    rotationY: placement.rotationY || 0,
   });
 }
 function addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
