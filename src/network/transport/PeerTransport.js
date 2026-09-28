@@ -10,12 +10,12 @@ export class PeerTransport {
     this.peerManager = peerManager;
   }
 
-  initializeHost(customRoomId = null) {
-    return this.peerManager.initializeHost(customRoomId);
+  initializeHost(customRoomId = null, networkMode = undefined) {
+    return this.peerManager.initializeHost(customRoomId, networkMode);
   }
 
-  initializeClient(hostPeerId) {
-    return this.peerManager.initializeClient(hostPeerId);
+  initializeClient(hostPeerId, networkMode = undefined) {
+    return this.peerManager.initializeClient(hostPeerId, networkMode);
   }
 
   sendTo(peerId, packet) {
