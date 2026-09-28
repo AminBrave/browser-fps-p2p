@@ -55,7 +55,9 @@ function addSolidMapEntity(
     physicsWorld.registerColliderEntity(
       physicsColliders[i],
       entity,
-      physics.colliderTargets?.[i] || null
+      physics.colliderTargets?.[i] || null,
+      physics.hitZones?.[i] || null,
+      physics.colliderMaterials?.[i] || null
     );
   }
   for (const collider of colliders) {
