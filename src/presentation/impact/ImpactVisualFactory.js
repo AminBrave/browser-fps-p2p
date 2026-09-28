@@ -1,6 +1,6 @@
 
 import * as THREE from 'three';
-import { RENDER_CONFIG } from '../../config/index.js';
+import { RENDER_CONFIG, resolvePerformanceProfile } from '../../config/index.js';
 
 const MATERIAL_PRESETS = Object.freeze({
   metal: Object.freeze({
@@ -256,12 +256,13 @@ function addParticle(parent, type, position, direction, speed, size, color, life
   return particle;
 }
 
-const MAX_ACTIVE = Math.max(32, Number(RENDER_CONFIG.MAX_IMPACT_REACTIONS) || 96);
-const MAX_PARTICLES_PER_IMPACT = Math.max(12, Number(RENDER_CONFIG.MAX_IMPACT_PARTICLES_PER_REACTION) || 28);
-
 export class ImpactVisualFactory {
   constructor(sceneManager) {
     this.scene = sceneManager?.scene || sceneManager || null;
+    this.performanceProfile = sceneManager?.performanceProfile || resolvePerformanceProfile();
+    this.maxActive = Math.max(16, Number(this.performanceProfile.maxImpactReactions) || Number(RENDER_CONFIG.MAX_IMPACT_REACTIONS) || 96);
+    this.maxParticlesPerImpact = Math.max(4, Number(this.performanceProfile.maxParticlesPerImpact) || Number(RENDER_CONFIG.MAX_IMPACT_PARTICLES_PER_REACTION) || 28);
+    this.impactQuality = THREE.MathUtils.clamp(Number(this.performanceProfile.impactQuality) || 1, 0, 1);
   }
 
   createSurfaceImpact(options = {}) {
@@ -319,7 +320,8 @@ export class ImpactVisualFactory {
     const normalComponent = Math.max(0.05, Math.abs(incoming.dot(localNormal)));
     const tangentComponent = Math.sqrt(Math.max(0, 1 - normalComponent * normalComponent));
     const grazingBoost = 0.8 + tangentComponent * 1.25;
-    const totalCount = Math.min(MAX_PARTICLES_PER_IMPACT, Math.ceil((preset.sparkCount + preset.debrisCount + preset.dustCount + preset.smokeCount) * scale));
+    const requestedCount = Math.ceil((preset.sparkCount + preset.debrisCount + preset.dustCount + preset.smokeCount) * scale * this.impactQuality);
+    const totalCount = Math.min(this.maxParticlesPerImpact, Math.max(0, requestedCount));
     const counts = {
       spark: Math.min(preset.sparkCount, totalCount),
       debris: Math.min(preset.debrisCount, Math.max(0, totalCount - preset.sparkCount)),
