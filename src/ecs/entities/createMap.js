@@ -59,7 +59,7 @@ function addSolidMapEntity(
     );
   }
   for (const collider of colliders) {
-    physicsWorld.registerColliderEntity(collider, entity);
+    physicsWorld.registerColliderEntity(collider, entity, null, null, 'default');
   }
 
   mapEntities.push(entity);
@@ -73,6 +73,7 @@ function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
   roughness = 0.7,
   name = 'box',
   rotationY = 0,
+  materialType = 'wood',
 }) {
   const safePosition = clampToIsland(
     position.x,
@@ -105,7 +106,8 @@ function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
     size.y / 2,
     size.z / 2,
     rotationY,
-    mesh
+    mesh,
+    materialType
   );
 
   addToScene(sceneManager, root);
@@ -163,6 +165,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
         z: 0,
       },
       renderTarget: trunk,
+      materialType: 'wood',
     },
   ];
 
@@ -191,6 +194,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
       desc: RAPIER.ColliderDesc.cone(config.CANOPY.HEIGHT / 2, radius),
       position: { x: 0, y: centerY, z: 0 },
       renderTarget: cone,
+      materialType: 'foliage',
     });
   }
 
@@ -316,6 +320,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
       position: { x, y: config.WHEELS.RADIUS, z },
       rotation: wheelRotation,
       renderTarget: wheelMeshes[index],
+      materialType: 'rubber',
     })),
   ];
 
@@ -384,8 +389,8 @@ function addDumpster(ecsWorld, physicsWorld, sceneManager, mapEntities, placemen
   const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75,0.06,0.08),lidMat);
   handle.position.set(0,size.y+0.12,size.z/2+0.04); group.add(handle);
   const parts=[
-    {desc:RAPIER.ColliderDesc.cuboid(size.x/2,size.y/2,size.z/2),position:{x:0,y:size.y/2,z:0},renderTarget:body},
-    {desc:RAPIER.ColliderDesc.cuboid((size.x+0.04)/2,0.04,(size.z+0.04)/2),position:{x:0,y:size.y+0.04,z:0},renderTarget:lid},
+    {desc:RAPIER.ColliderDesc.cuboid(size.x/2,size.y/2,size.z/2),position:{x:0,y:size.y/2,z:0},renderTarget:body,materialType:'metal'},
+    {desc:RAPIER.ColliderDesc.cuboid((size.x+0.04)/2,0.04,(size.z+0.04)/2),position:{x:0,y:size.y+0.04,z:0},renderTarget:lid,materialType:'metal'},
   ];
   const physics=physicsWorld.createStaticCompound(safe.x,groundY(),safe.z,parts);
   addToScene(sceneManager,group);
@@ -438,6 +443,7 @@ function addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities) {
       physics,
       mesh,
       name: 'boundary',
+      materialType: 'concrete',
       boundary: true,
     });
   }
@@ -487,6 +493,7 @@ function addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position
     physics,
     mesh: group,
     name: 'mountain',
+    materialType: 'stone',
   });
 }
 
@@ -522,6 +529,7 @@ function addPath(ecsWorld, physicsWorld, sceneManager, mapEntities) {
       physics,
       mesh: path,
       name: 'path',
+      materialType: 'concrete',
     });
   }
 }
@@ -557,6 +565,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
     physics: floorPhysics,
     mesh: floorMesh,
     name: 'ground',
+    materialType: 'dirt',
   });
   addToScene(sceneManager, floorMesh);
 
@@ -593,6 +602,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
       size: barrier.SIZE,
       color: barrier.COLOR,
       name: 'barrier',
+      materialType: 'concrete',
     });
   }
 
