@@ -447,7 +447,7 @@ export class ImpactSystem {
     const now = performance.now();
     const effect = this.effectStore?.add?.({
       root: group,
-      durationMs: preset.life * 1000,
+      durationMs: 0,
       metadata: {
         type: 'impact',
         material,
