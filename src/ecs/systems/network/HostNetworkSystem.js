@@ -1,6 +1,7 @@
 import { PACKET_TYPES, EVENT_TYPES } from '../../../network/PacketTypes.js';
 import { Protocol } from '../../../network/Protocol.js';
 import { GAME_CONFIG, INPUT_FLAGS, NETWORK_CONFIG, PROTOCOL_CONFIG, STANCE } from '../../../config/index.js';
+import { validateClientInput } from '../../../network/InputValidator.js';
 
 function isNewerSequence(next, previous) {
   if (previous == null) return true;
@@ -56,22 +57,24 @@ export class HostNetworkSystem {
 
       if (packetType !== PACKET_TYPES.CLIENT_INPUT) return;
 
-      const input = Protocol.decodeClientInput(dataView);
-      if (!input) return;
+      const decodedInput = Protocol.decodeClientInput(dataView);
+      const input = validateClientInput(decodedInput);
+      if (!input) {
+        this._rejectPeer(peerId, 'invalid client input');
+        return;
+      }
 
       const previous = this.lastReceivedSequence.get(peerId);
       if (!isNewerSequence(input.sequence, previous)) return;
 
       this.lastReceivedSequence.set(peerId, input.sequence);
       const queue = this.incomingInputs.get(peerId) || [];
+      if (queue.length >= NETWORK_CONFIG.MAX_INPUT_QUEUE) {
+        this._rejectPeer(peerId, 'input backlog overflow');
+        return;
+      }
       queue.push(input);
       this.incomingInputs.set(peerId, queue);
-
-      // Defensive bound in case a PeerJS connection survives while its ECS
-      // entity is being removed.
-      // Never discard an input that has not been simulated. The snapshot ACK
-      // is the authoritative boundary used by client reconciliation; dropping
-      // a frame here would make the client replay a different input history.
     });
   }
 
@@ -173,6 +176,14 @@ export class HostNetworkSystem {
         )
       );
     }
+  }
+
+  _rejectPeer(peerId, reason) {
+    console.warn('[Network] Rejecting peer:', peerId, reason);
+    this.removePeer(peerId);
+    try {
+      this.peerManager.connections.get(peerId)?.close();
+    } catch {}
   }
 
   setJoinHandler(callback) {
