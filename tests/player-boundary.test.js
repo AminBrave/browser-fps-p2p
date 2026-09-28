@@ -12,7 +12,7 @@ test('player ECS assembler has no rendering dependency', () => {
     'utf8'
   );
   assert.doesNotMatch(source, /from ['"]three['"]/);
-  assert.doesNotMatch(source, /src/presentation/);
+  assert.doesNotMatch(source, /src\\\/presentation/);
 });
 
 test('player composition owns presentation construction outside ECS', () => {
