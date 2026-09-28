@@ -26,3 +26,13 @@ test('presentation impact code is the only owner of Three.js impact construction
   assert.doesNotMatch(read('src/ecs/entities/MapEntityAssembler.js'), /from ['"]three['"]/);
   assert.doesNotMatch(read('src/ecs/entities/UrbanPropAssembler.js'), /from ['"]three['"]/);
 });
+
+
+test('transient tracer creation does not depend on ECS', () => {
+  const effects = read('src/presentation/impact/ImpactEffects.js');
+  assert.match(effects, /effectStore/);
+  assert.doesNotMatch(effects.slice(0, effects.indexOf('export function createImpactDecal(')), /ecsWorld/);
+  const renderer = read('src/presentation/render/RenderSystem.js');
+  assert.doesNotMatch(renderer, /entity\.lifespan/);
+  assert.doesNotMatch(renderer, /ecsWorld\.remove\(entity\)/);
+});
