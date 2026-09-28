@@ -5,7 +5,6 @@ import {
   GAME_CONFIG,
 } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
-import { createImpactSeed } from '../../game/simulation/combat/ImpactSeed.js';
 import { buildShotEvent } from '../../game/simulation/combat/ShotEventModel.js';
 import { copyWeaponState } from '../components/Weapon.js';
 import { getAccuracyState } from '../../utils/AccuracyModel.js';
@@ -278,46 +277,14 @@ export class WeaponSystem {
 
       this._emit(buildShotEvent({ shooterId: player.id, weapon, origin, end: endPos, hit, hitEntityId: hitEntity?.player?.id ?? null, hitZone, normal: hitNormal, direction: dir, trace, pelletIndex: p }));
 
-      // Surface reactions are presentation-only and use the authoritative
-      // trace data. Network peers reconstruct the same reaction from the
-      // deterministic seeds carried by SHOT.
-      for (const [index, impact] of (trace.impacts || []).entries()) {
-        this.impactSystem?.spawnSurfaceImpact({
-          position: impact.point,
-          normal: impact.normal || hitNormal,
-          material: impact.material,
-          incomingDirection: dir,
-          velocityBefore: impact.velocityBefore,
-          velocityAfter: impact.velocityAfter,
-          seed: createImpactSeed({
-            shooterId: player.id,
-            weaponId: weapon.typeId ?? 1,
-            position: impact.point,
-            material: impact.material,
-            sequence: p * 32 + index * 2,
-          }),
-          penetrated: true,
-        });
-        if (impact.exitPoint) {
-          this.impactSystem?.spawnSurfaceImpact({
-            position: impact.exitPoint,
-            normal: impact.exitNormal || impact.normal || hitNormal,
-            material: impact.material,
-            incomingDirection: dir,
-            velocityBefore: impact.velocityAfter,
-            velocityAfter: impact.velocityAfter,
-            seed: createImpactSeed({
-              shooterId: player.id,
-              weaponId: weapon.typeId ?? 1,
-              position: impact.exitPoint,
-              material: impact.material,
-              sequence: p * 32 + index * 2 + 1,
-            }),
-            exit: true,
-            penetrated: true,
-          });
-        }
-      }
+      // Presentation receives only plain trace data; WeaponSystem does not own VFX.
+      this.presentation?.spawnPenetrationImpacts?.({
+        shooterId: player.id,
+        weaponId: weapon.typeId ?? 1,
+        direction: dir,
+        impacts: trace.impacts || [],
+        sequenceBase: p * 32,
+      });
 
       if (didHit) {
         const isPlayerHit = !!hitEntity?.player;
@@ -330,22 +297,17 @@ export class WeaponSystem {
             hit?.material ||
             this.physicsWorld?.getProjectileMaterial?.(hit) ||
             'default';
-          this.impactSystem?.spawnSurfaceImpact({
+          this.presentation?.spawnFinalImpact?.({
             position: endPos,
             normal: hitNormal,
             material: finalMaterial,
-            incomingDirection: dir,
+            direction: dir,
             velocityBefore: trace.velocity || muzzleVelocity,
-            velocityAfter: 0,
             targetMesh: hitRenderTarget,
             targetEntity: hitEntity,
-            seed: createImpactSeed({
-              shooterId: player.id,
-              weaponId: weapon.typeId ?? 1,
-              position: endPos,
-              material: finalMaterial,
-              sequence: p * 32 + (trace.impacts || []).length * 2 + 7,
-            }),
+            shooterId: player.id,
+            weaponId: weapon.typeId ?? 1,
+            sequence: p * 32 + (trace.impacts || []).length * 2 + 7,
           });
         }
         if (player.isLocal && p === 0) this.presentation?.onImpact?.();
