@@ -27,7 +27,8 @@ function disposeSceneResources(scene) {
   });
 
   for (const geometry of geometries) geometry.dispose();
-  for (const material of materials) disposeMaterial(material, new Set());
+  const disposedMaterials = new Set();
+  for (const material of materials) disposeMaterial(material, disposedMaterials);
 }
 
 /**
@@ -159,6 +160,7 @@ export class SceneManager {
 
     window.removeEventListener('resize', this._onWindowResize);
     disposeSceneResources(this.scene);
+    disposeSceneResources(this.weaponScene);
 
     this.renderer.dispose();
     this.renderer.renderLists?.dispose?.();
