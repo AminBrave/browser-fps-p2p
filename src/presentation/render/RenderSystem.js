@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GAME_CONFIG, PLAYER_CONFIG, CAMERA_CONFIG, RENDER_CONFIG, INPUT_FLAGS, STANCE, getPlayerEyeOffset } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { WeaponViewModel } from '../../render/WeaponViewModel.js';
-import { moveIntensity } from '../../utils/Movement.js';
+import { moveIntensity } from '../../game/simulation/movement/FpsMovement.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
 
@@ -418,7 +418,7 @@ export class RenderSystem {
           hasFlag(mask, INPUT_FLAGS.LEFT) ||
           hasFlag(mask, INPUT_FLAGS.RIGHT);
 
-        const intensity = moveIntensity(physics?.velocity);
+        const intensity = moveIntensity(physics?.velocity, maxRunSpeed);
         this.weaponViewModel.update(
           dt,
           isMoving,
