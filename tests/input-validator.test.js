@@ -37,7 +37,7 @@ test('non-finite aim values are rejected', () => {
 });
 
 test('pitch outside the gameplay limit is rejected', () => {
-  assert.equal(validateClientInput({ ...valid, pitch: MAX_PITCH }), notNull);
+  assert.notEqual(validateClientInput({ ...valid, pitch: MAX_PITCH }), null);
   assert.equal(validateClientInput({ ...valid, pitch: MAX_PITCH + 0.001 }), null);
 });
 
@@ -50,7 +50,3 @@ test('invalid sequence and weapon slot values are rejected', () => {
 test('isAiming must be a boolean', () => {
   assert.equal(validateClientInput({ ...valid, isAiming: 1 }), null);
 });
-
-function notNull(value) {
-  assert.notEqual(value, null);
-}
