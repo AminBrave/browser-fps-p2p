@@ -290,11 +290,16 @@ export class WeaponSystem {
         y: hitPoint.y + segmentDirection.y * 0.006,
         z: hitPoint.z + segmentDirection.z * 0.006,
       };
-      const exitHit = this.physicsWorld?.castRay
-        ? this.physicsWorld.castRay(exitOrigin, segmentDirection, thicknessLimit + 0.02, hit.collider)
+      const exitDistance = this.physicsWorld?.getProjectileExitDistance
+        ? this.physicsWorld.getProjectileExitDistance(
+            hit.collider,
+            exitOrigin,
+            segmentDirection,
+            thicknessLimit + 0.02
+          )
         : null;
-      const thickness = exitHit
-        ? Math.max(0.02, Math.min(thicknessLimit, Number(exitHit.toi) || thicknessLimit))
+      const thickness = exitDistance != null
+        ? Math.max(0.02, Math.min(thicknessLimit, exitDistance))
         : thicknessLimit;
 
       const energyCost = (thickness / thicknessLimit) * resistance;
@@ -316,13 +321,13 @@ export class WeaponSystem {
 
       const energyLoss = Math.min(0.88, energyCost / Math.max(0.01, penetrationPower));
       remainingEnergy *= Math.max(0.05, 1 - energyLoss);
-      const exitDistance = exitHit ? Math.max(0.02, Number(exitHit.toi) || thickness) : thickness;
+      const exactExitDistance = exitDistance != null ? Math.max(0.02, exitDistance) : thickness;
       const exitPoint = {
-        x: exitOrigin.x + segmentDirection.x * exitDistance,
-        y: exitOrigin.y + segmentDirection.y * exitDistance,
-        z: exitOrigin.z + segmentDirection.z * exitDistance,
+        x: exitOrigin.x + segmentDirection.x * exactExitDistance,
+        y: exitOrigin.y + segmentDirection.y * exactExitDistance,
+        z: exitOrigin.z + segmentDirection.z * exactExitDistance,
       };
-      travelled += exitDistance;
+      travelled += exactExitDistance;
 
       const residualSpeed = hitSpeed * Math.sqrt(Math.max(0.05, remainingEnergy));
       velocity = {
