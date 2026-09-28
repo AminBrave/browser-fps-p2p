@@ -178,9 +178,7 @@ export class HostNetworkSystem {
   _rejectPeer(peerId, reason) {
     console.warn('[Network] Rejecting peer:', peerId, reason);
     this.removePeer(peerId);
-    try {
-      null?.close();
-    } catch {}
+    this.peerTransport.closePeer(peerId);
   }
 
   setJoinHandler(callback) {
