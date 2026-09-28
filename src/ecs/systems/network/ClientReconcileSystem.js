@@ -1,7 +1,7 @@
 // src/ecs/systems/network/ClientReconcileSystem.js
 
 import { STANCE } from '../../../config/index.js';
-import { applyFpsMovement } from '../../../utils/Movement.js';
+import { applyFpsMovement } from '../../../game/simulation/movement/FpsMovement.js';
 import { calculatePositionError, magnitude, calculateVisualCorrection } from '../../../game/simulation/network/ReconciliationModel.js';
 
 function isNewerTick(next, previous) {
