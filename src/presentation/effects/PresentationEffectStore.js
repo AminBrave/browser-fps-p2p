@@ -53,6 +53,10 @@ export class PresentationEffectStore {
     }
   }
 
+  forEach(callback) {
+    for (const effect of this.effects) callback(effect);
+  }
+
   clear() {
     for (const effect of Array.from(this.effects)) this.remove(effect);
   }
