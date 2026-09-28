@@ -11,6 +11,7 @@ import { createBullet, createBloodImpact } from '../entities/createBullet.js';
 import { createImpactSeed } from './ImpactSystem.js';
 import { copyWeaponState } from '../components/Weapon.js';
 import { getAccuracyState } from '../../utils/AccuracyModel.js';
+import { sampleShotDirection } from '../../game/simulation/combat/ShotDirection.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
 import * as THREE from 'three';
@@ -544,28 +545,11 @@ export class WeaponSystem {
     const origin = this._getMuzzleWorldPosition(entity);
 
     for (let p = 0; p < pelletCount; p++) {
-      let yawOff = 0;
-      let pitchOff = 0;
-
-      if (effectiveSpread > 0) {
-        const angle = Math.random() * Math.PI * 2;
-        const radius = Math.sqrt(Math.random()) * effectiveSpread;
-        yawOff = Math.cos(angle) * radius;
-        pitchOff = Math.sin(angle) * radius;
-      }
-
-      const yaw = aimYaw + yawOff;
-      const pitch = aimPitch + pitchOff;
-      const cosPitch = Math.cos(pitch);
-      const dir = {
-        x: -Math.sin(yaw) * cosPitch,
-        y: Math.sin(pitch),
-        z: -Math.cos(yaw) * cosPitch,
-      };
-      const dLen = Math.hypot(dir.x, dir.y, dir.z) || 1;
-      dir.x /= dLen;
-      dir.y /= dLen;
-      dir.z /= dLen;
+      const dir = sampleShotDirection({
+        yaw: aimYaw,
+        pitch: aimPitch,
+        spread: effectiveSpread,
+      });
 
       const trace = this._traceBallisticShot(
         origin,
