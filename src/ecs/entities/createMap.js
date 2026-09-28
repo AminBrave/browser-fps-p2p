@@ -96,7 +96,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
     { desc: primitiveCollider(physicsWorld, { kind: 'box', size: { x: 1.48, y: 0.38, z: 0.036 } }), position: { x: 0, y: 1.22, z: -1.01 }, materialType: 'glass' },
     { desc: primitiveCollider(physicsWorld, { kind: 'box', size: { x: 1.48, y: 0.36, z: 0.036 } }), position: { x: 0, y: 1.21, z: 0.72 }, materialType: 'glass' },
     { desc: primitiveCollider(physicsWorld, { kind: 'box', size: { x: 0.036, y: 0.34, z: 1.38 } }), position: { x: -0.84, y: 1.21, z: -0.14 }, materialType: 'glass' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.018, 0.17, 0.69), position: { x: 0.84, y: 1.21, z: -0.14 }, materialType: 'glass' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'box', size: { x: 0.036, y: 0.34, z: 1.38 } }), position: { x: 0.84, y: 1.21, z: -0.14 }, materialType: 'glass' },
     ...wheelPositions.map(({ x, z }) => ({ desc: primitiveCollider(physicsWorld, { kind: 'cylinder', height: config.WHEELS.WIDTH, radius: config.WHEELS.RADIUS }), position: { x, y: config.WHEELS.RADIUS, z }, rotation: wheelRotation, materialType: 'rubber' })),
   ];
   const physics = physicsWorld.createStaticCompound(safePosition.x, groundY(), safePosition.z, compoundParts, rotationY);
