@@ -44,6 +44,8 @@ test('pitch outside the gameplay limit is rejected', () => {
 test('invalid sequence and weapon slot values are rejected', () => {
   assert.equal(validateClientInput({ ...valid, sequence: -1 }), null);
   assert.equal(validateClientInput({ ...valid, weaponSlot: -2 }), null);
+  assert.equal(validateClientInput({ ...valid, weaponSlot: 4 }), null);
+  assert.notEqual(validateClientInput({ ...valid, weaponSlot: 3 }), null);
   assert.equal(validateClientInput({ ...valid, weaponSlot: 128 }), null);
 });
 
