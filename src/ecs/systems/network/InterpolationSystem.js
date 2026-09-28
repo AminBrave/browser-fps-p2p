@@ -109,7 +109,7 @@ export class InterpolationSystem {
 
       entity.input.stance = stance;
       entity.input.pitch = pitch;
-      entity.character?.setWeaponType?.(weaponId);
+      // Rendering consumes remoteWeaponId; interpolation never mutates presentation objects.
     }
   }
 
