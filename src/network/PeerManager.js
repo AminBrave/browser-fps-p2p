@@ -20,6 +20,7 @@ export class PeerManager {
     this.invitationCode = null;
     this.state = STATE.IDLE;
     this.iceInfo = null;
+    this.networkMode = NETWORK_CONFIG.WEBRTC.DEFAULT_CONNECTION_MODE;
     this.onDataCallback = null;
     this.onConnectCallback = null;
     this.onDisconnectCallback = null;
@@ -28,13 +29,14 @@ export class PeerManager {
     this.destroyed = false;
   }
 
-  async initHost(customRoomId = null) {
+  async initHost(customRoomId = null, networkMode = NETWORK_CONFIG.WEBRTC.DEFAULT_CONNECTION_MODE) {
     this._resetForInitialization();
     this.isHost = true;
+    this.networkMode = networkMode;
     this._setState(STATE.SIGNALING);
 
     const requestedRoomId = String(customRoomId || '').trim();
-    this.iceInfo = await resolveIceServers();
+    this.iceInfo = await resolveIceServers(this.networkMode);
 
     for (let attempt = 1; attempt <= NETWORK_CONFIG.INVITATION_CODE.MAX_RETRIES; attempt++) {
       if (this.destroyed) throw new Error('Peer manager was destroyed');
@@ -63,8 +65,8 @@ export class PeerManager {
     throw new Error('Unable to allocate a unique invitation code');
   }
 
-  initializeHost(customRoomId = null) {
-    return this.initHost(customRoomId);
+  initializeHost(customRoomId = null, networkMode = NETWORK_CONFIG.WEBRTC.DEFAULT_CONNECTION_MODE) {
+    return this.initHost(customRoomId, networkMode);
   }
 
   async initClient(hostPeerId) {
