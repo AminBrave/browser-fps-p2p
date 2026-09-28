@@ -15,7 +15,7 @@ import { BallisticsTracer } from '../../game/simulation/combat/BallisticsTracer.
 import { canReload, completeReload, shouldFire } from '../../game/simulation/combat/WeaponStateModel.js';
 
 export class WeaponSystem {
-  constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null, eventSink = null, impactSystem = null, presentation = null) {
+  constructor({ physicsWorld, healthSystem = null, isAuthoritative = false, eventSink = null, impactSystem = null, presentation = null } = {}) {
     this.physicsWorld = physicsWorld;
     this.healthSystem = healthSystem;
     this.isAuthoritative = isAuthoritative;
