@@ -77,3 +77,10 @@ This preserves existing behavior while creating a testable simulation boundary. 
 Weapon fire/reload decisions now live in src/game/simulation/combat/WeaponStateModel.js. The pure model owns cooldown checks, semi/automatic fire decisions, reload eligibility, and ammunition transfer calculations. WeaponSystem remains the ECS orchestration layer for input consumption, weapon switching, ballistics, damage application, rendering, audio, VFX, and network events.
 
 This intentionally extracts rules rather than creating a second weapon system. Presentation and shot orchestration remain the next coupling to reduce.
+
+
+## Phase 7 — Weapon presentation boundary
+
+Weapon rendering, audio, bullet visual creation, and blood-impact visual creation now live behind `WeaponPresentation`. `WeaponSystem` no longer imports the audio manager or Three.js-facing bullet factories and no longer stores a `RenderSystem` reference. The game application constructs the presentation adapter and injects it into the weapon system.
+
+The existing positional constructor arguments are retained temporarily for migration compatibility; the unused scene/render parameters should be removed once all callers are migrated to the explicit dependency boundary.
