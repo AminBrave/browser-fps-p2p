@@ -26,7 +26,7 @@ test('movement player colliders are identified without gameplay-side maps', () =
   assert.equal(registry.isPlayerMovementCollider(c), true);
   assert.equal(registry.getMaterial(c), 'default');
 
-  registry.register(c, { player: {} }, null, 'torso', 'concrete');
+  registry.register(c, { player: {} }, 'torso', 'concrete');
   assert.equal(registry.isPlayerMovementCollider(c), false);
 });
 
@@ -37,7 +37,7 @@ test('unregister and clear remove all metadata', () => {
 
   registry.unregister(c);
   assert.equal(registry.getEntity(c), null);
-    assert.equal(registry.getHitZone(c), null);
+  assert.equal(registry.getHitZone(c), null);
   assert.equal(registry.getMaterial(c), 'default');
 
   registry.register(c, { id: 2 });
