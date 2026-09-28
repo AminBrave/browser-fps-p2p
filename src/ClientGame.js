@@ -17,7 +17,8 @@ import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.j
 import { CircularBuffer } from './utils/CircularBuffer.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
-import { createBullet, createImpactDecal, createBloodImpact, disposeImpactDecals, updatePlayerImpactMarksForHealth } from './ecs/entities/createBullet.js';
+import { createBullet, createBloodImpact, disposeImpactDecals, updatePlayerImpactMarksForHealth } from './ecs/entities/createBullet.js';
+import { ImpactSystem, createImpactSeed } from './ecs/systems/ImpactSystem.js';
 import { applyWorldManifest } from './network/WorldSync.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
 
@@ -27,6 +28,7 @@ export class ClientGame {
     this.ecsWorld = new World();
     this.physicsWorld = new PhysicsWorld();
     this.sceneManager = new SceneManager(this.container);
+    this.impactSystem = new ImpactSystem(this.ecsWorld, this.sceneManager);
     this.peerManager = new PeerManager();
     this.hud = new HUD();
 
@@ -69,7 +71,9 @@ export class ClientGame {
       this.sceneManager,
       null,
       false,
-      this.renderSystem
+      this.renderSystem,
+      null,
+      this.impactSystem
     );
     this.renderSystem.setEventSink((event) => this.peerManager.sendToHost(Protocol.encodeGameEvent(event)));
 
@@ -329,25 +333,44 @@ export class ClientGame {
       if (!origin || !end) return;
       createBullet(this.ecsWorld, this.sceneManager, origin, end);
 
-      // Reconstruct every material penetration entry/exit mark first.
-      // These are world-space decals because the authoritative event carries
-      // the exact Rapier contact positions; no client-side ballistic trace is
-      // needed (or trusted).
+      // Reconstruct every penetration reaction from authoritative
+      // contact data. No client-side ballistic trace is needed or trusted.
       for (const impact of event.impacts || []) {
         if (!impact?.point) continue;
-        createImpactDecal(
-          this.ecsWorld,
-          this.sceneManager,
-          impact.point,
-          impact.normal || event.normal || { x: 0, y: 1, z: 0 }
-        );
+        this.impactSystem?.spawnSurfaceImpact({
+          position: impact.point,
+          normal: impact.normal || event.normal || { x: 0, y: 1, z: 0 },
+          material: impact.material || 'default',
+          incomingDirection: impact.incomingDirection || event.direction || null,
+          velocityBefore: impact.velocityBefore,
+          velocityAfter: impact.velocityAfter,
+          seed: impact.entrySeed ?? createImpactSeed({
+            shooterId: event.shooterId,
+            weaponId: event.weaponId,
+            position: impact.point,
+            material: impact.material,
+            sequence: 0,
+          }),
+          penetrated: true,
+        });
         if (impact.exitPoint) {
-          createImpactDecal(
-            this.ecsWorld,
-            this.sceneManager,
-            impact.exitPoint,
-            impact.exitNormal || impact.normal || event.normal || { x: 0, y: 1, z: 0 }
-          );
+          this.impactSystem?.spawnSurfaceImpact({
+            position: impact.exitPoint,
+            normal: impact.exitNormal || impact.normal || { x: 0, y: 1, z: 0 },
+            material: impact.material || 'default',
+            incomingDirection: impact.incomingDirection || event.direction || null,
+            velocityBefore: impact.velocityAfter,
+            velocityAfter: impact.velocityAfter,
+            seed: impact.exitSeed ?? createImpactSeed({
+              shooterId: event.shooterId,
+              weaponId: event.weaponId,
+              position: impact.exitPoint,
+              material: impact.material,
+              sequence: 1,
+            }),
+            exit: true,
+            penetrated: true,
+          });
         }
       }
 
@@ -369,7 +392,21 @@ export class ClientGame {
           );
         }
       } else if (event.hit) {
-        createImpactDecal(this.ecsWorld, this.sceneManager, end, event.normal);
+        this.impactSystem?.spawnSurfaceImpact({
+          position: end,
+          normal: event.normal || { x: 0, y: 1, z: 0 },
+          material: event.material || 'default',
+          incomingDirection: event.direction || null,
+          velocityBefore: event.terminalVelocity || event.muzzleVelocity || 0,
+          velocityAfter: 0,
+          seed: event.impactSeed ?? createImpactSeed({
+            shooterId: event.shooterId,
+            weaponId: event.weaponId,
+            position: end,
+            material: event.material || 'default',
+            sequence: (event.impacts || []).length * 2 + 7,
+          }),
+        });
       }
 
       if (event.primary) {
@@ -541,6 +578,7 @@ export class ClientGame {
     this.inputSystem?.dispose();
     this.renderSystem?.dispose();
     this.hud.dispose();
+    this.impactSystem?.dispose();
     disposeImpactDecals(this.ecsWorld);
     this.sceneManager.dispose();
     this.physicsWorld.dispose();
