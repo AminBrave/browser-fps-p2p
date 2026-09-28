@@ -20,8 +20,9 @@ import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.j
 import { CircularBuffer } from './utils/CircularBuffer.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
-import { createBullet, createBloodImpact, disposeImpactDecals, updatePlayerImpactMarksForHealth } from './presentation/impact/ImpactEffects.js';
+import { createBloodImpact, disposeImpactDecals, updatePlayerImpactMarksForHealth } from './presentation/impact/ImpactEffects.js';
 import { ImpactSystem } from './presentation/impact/ImpactSystem.js';
+import { PresentationEffectStore } from './presentation/effects/PresentationEffectStore.js';
 import { createImpactSeed } from './game/simulation/combat/ImpactSeed.js';
 import { applyWorldManifest } from './network/WorldSync.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
@@ -32,6 +33,7 @@ export class ClientGame {
     this.ecsWorld = new World();
     this.physicsWorld = new PhysicsWorld();
     this.sceneManager = new SceneManager(this.container);
+    this.effectStore = new PresentationEffectStore();
     this.impactSystem = new ImpactSystem(this.ecsWorld, this.sceneManager);
     this.presentationColliderRegistry = new PresentationColliderRegistry();
     this.peerManager = new PeerManager();
@@ -78,7 +80,7 @@ export class ClientGame {
       isAuthoritative: false,
       eventSink: null,
       impactSystem: this.impactSystem,
-      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem, colliderRegistry: this.presentationColliderRegistry })
+      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem, colliderRegistry: this.presentationColliderRegistry, effectStore: this.effectStore })
     });
     this.renderSystem.setEventSink((event) => this.networkTransport.sendToHost(Protocol.encodeGameEvent(event)));
 
@@ -222,6 +224,7 @@ export class ClientGame {
       undefined,
       alpha
     );
+    this.effectStore.update(_dt, now);
     this.sceneManager.render();
     this._updateHUD();
     const velocity = this.localEntity?.physics?.velocity;
@@ -337,7 +340,21 @@ export class ClientGame {
       const origin = event.origin;
       const end = event.end;
       if (!origin || !end) return;
-      createBullet(this.ecsWorld, this.sceneManager, origin, end);
+      this.effectStore?.add?.({
+        root: (() => {
+          const points = [origin, end];
+          const geometry = new THREE.BufferGeometry().setFromPoints(points.map((point) => new THREE.Vector3(point.x, point.y, point.z)));
+          const material = new THREE.LineBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.95, depthWrite: false });
+          const line = new THREE.Line(geometry, material);
+          line.renderOrder = 10;
+          this.sceneManager.scene.add(line);
+          line.userData._tracerMaterial = material;
+          return line;
+        })(),
+        durationMs: 60,
+        update: ({ root, progress }) => { root.userData._tracerMaterial.opacity = 0.95 * (1 - progress); },
+        dispose: ({ root }) => { root.parent?.remove?.(root); root.geometry?.dispose?.(); root.material?.dispose?.(); },
+      });
 
       // Reconstruct every penetration reaction from authoritative
       // contact data. No client-side ballistic trace is needed or trusted.
@@ -587,6 +604,7 @@ export class ClientGame {
     this.renderSystem?.dispose();
     this.hud.dispose();
     this.impactSystem?.dispose();
+    this.effectStore?.dispose();
     disposeImpactDecals(this.ecsWorld);
     this.presentationColliderRegistry.clear();
     this.sceneManager.dispose();
