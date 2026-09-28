@@ -107,56 +107,75 @@ export class RenderSystem {
       const lifespan = entity.lifespan;
 
       if (entity.isPermanentDecal && renderMesh?.mesh) {
-        if (entity.impactSparkUntil) {
-          const started = Number(entity.impactSparkStartedAt) || now;
-          const duration = Math.max(1, Number(RENDER_CONFIG.IMPACT_FLASH.SPARK_MS) || 360);
-          const elapsed = Math.max(0, (now - started) / 1000);
-          const t = THREE.MathUtils.clamp((elapsed * 1000) / duration, 0, 1);
-          const sparkGroup = renderMesh.mesh.getObjectByName?.('impactSpark');
-          if (sparkGroup) {
-            sparkGroup.children.forEach((spark) => {
-              const age = elapsed + (Number(spark.userData?.age) || 0);
-              if (age <= 0) { spark.visible = false; return; }
-              spark.visible = true;
-              const v = spark.userData?.velocity;
-              if (v) {
-                const drag = Math.max(0, Number(spark.userData.drag) || 0);
-                const f = Math.exp(-drag * dt);
-                v.x *= f; v.y *= f; v.z *= f;
-                v.y -= (Number(spark.userData.gravity) || 0) * dt;
-                spark.position.x += v.x * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
-                spark.position.y += v.y * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
-                spark.position.z += v.z * dt * RENDER_CONFIG.IMPACT_FLASH.SPARK_SPEED;
-              }
-              const av = spark.userData?.angularVelocity;
-              if (av) {
-                spark.rotation.x += av.x * dt; spark.rotation.y += av.y * dt; spark.rotation.z += av.z * dt;
-                av.x *= 0.94; av.y *= 0.94; av.z *= 0.94;
-              }
-              const fadeDelay = Math.max(0, RENDER_CONFIG.IMPACT_FLASH.FADE_DELAY_MS) / 1000;
-              const lifeT = THREE.MathUtils.clamp(
-                (age - fadeDelay) / Math.max(0.001, duration / 1000 - fadeDelay), 0, 1
+        const particles = renderMesh.mesh.getObjectByName?.('impactParticles');
+        if (particles && entity.impactImpactUntil) {
+          const elapsed = Math.max(0, (now - (Number(entity.impactSparkStartedAt) || now)) / 1000);
+          particles.children.forEach((particle) => {
+            const age = elapsed + (Number(particle.userData?.age) || 0);
+            const life = Math.max(0.05, Number(particle.userData?.life) || 0.5);
+            if (age <= 0 || age >= life) {
+              particle.visible = false;
+              return;
+            }
+            particle.visible = true;
+            const velocity = particle.userData?.velocity;
+            if (velocity) {
+              const drag = Math.max(0, Number(particle.userData?.drag) || 0);
+              const dragFactor = Math.exp(-drag * dt);
+              velocity.multiplyScalar(dragFactor);
+              velocity.y -= (Number(particle.userData?.gravity) || 0) * dt;
+              velocity.multiplyScalar(Math.min(1, 1 + Math.max(0, Number(entity.impactVelocityAfter) || 0) * 0.00002 * dt));
+              particle.position.addScaledVector(
+                velocity,
+                dt * (particle.parent?.userData?.impactMaterial === 'metal' ? 1.35 : 1)
               );
-              if (spark.material) spark.material.opacity = 1 - Math.pow(lifeT, RENDER_CONFIG.IMPACT_FLASH.FADE_POWER);
-              const s = (Number(spark.userData?.baseScale) || 1) * (1 + lifeT * 0.35);
-              spark.scale.set(s, s, Math.max(0.08, 1 - lifeT * 0.8));
-            });
-          }
-          if (t >= 1) {
-            entity.impactSparkUntil = 0;
-            if (sparkGroup) sparkGroup.visible = false;
+            }
+            const angularVelocity = particle.userData?.angularVelocity;
+            if (angularVelocity) {
+              particle.rotation.x += angularVelocity.x * dt;
+              particle.rotation.y += angularVelocity.y * dt;
+              particle.rotation.z += angularVelocity.z * dt;
+              angularVelocity.x *= 0.965;
+              angularVelocity.y *= 0.965;
+              angularVelocity.z *= 0.965;
+            }
+            const fade = THREE.MathUtils.clamp(age / life, 0, 1);
+            const fadeStart = particle.name === 'smoke' ? 0.18 : 0.55;
+            const fadeT = THREE.MathUtils.clamp((fade - fadeStart) / Math.max(0.001, 1 - fadeStart), 0, 1);
+            if (particle.material) {
+              particle.material.opacity =
+                (Number(particle.userData?.baseOpacity) || 1) *
+                (1 - Math.pow(fadeT, particle.name === 'smoke' ? 1.15 : 1.8));
+            }
+            const baseScale = Number(particle.userData?.baseScale) || 1;
+            const grow = particle.name === 'smoke' ? 1 + fade * 1.8 : 1 + fade * 0.25;
+            particle.scale.set(
+              baseScale * grow,
+              baseScale * grow,
+              baseScale * (particle.name === 'spark' ? Math.max(0.08, 1 - fade * 0.9) : grow)
+            );
+          });
+          if (now >= entity.impactImpactUntil) {
+            particles.visible = false;
           }
         }
+
         if (entity.impactFlashUntil && now < entity.impactFlashUntil) {
-          const t = 1 - (entity.impactFlashUntil - now) / RENDER_CONFIG.IMPACT_FLASH.BULLET_MS;
-          renderMesh.mesh.traverse((c) => {
-            if (c.name === 'impactFlash' && c.material) {
-              c.material.opacity = Math.max(0, 1 - t);
+          const duration = Math.max(1, Number(RENDER_CONFIG.IMPACT_FLASH.BULLET_MS) || 90);
+          const t = THREE.MathUtils.clamp(
+            1 - (entity.impactFlashUntil - now) / duration,
+            0,
+            1
+          );
+          renderMesh.mesh.traverse((child) => {
+            if (child.name === 'impactFlash' && child.material) {
+              child.material.opacity =
+                (Number(child.userData?.baseOpacity) || 1) * (1 - t);
             }
           });
         } else if (entity.impactFlashUntil) {
-          renderMesh.mesh.traverse((c) => {
-            if (c.name === 'impactFlash') c.visible = false;
+          renderMesh.mesh.traverse((child) => {
+            if (child.name === 'impactFlash') child.visible = false;
           });
           entity.impactFlashUntil = 0;
         }
