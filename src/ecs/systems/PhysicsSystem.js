@@ -1,6 +1,6 @@
 // src/ecs/systems/PhysicsSystem.js
 
-import { applyFpsMovement } from '../../utils/Movement.js';
+import { applyFpsMovement } from '../../game/simulation/movement/FpsMovement.js';
 import { STANCE } from '../../config/index.js';
 
 export class PhysicsSystem {
