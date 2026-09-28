@@ -2,6 +2,7 @@
 
 import { STANCE } from '../../../config/index.js';
 import { applyFpsMovement } from '../../../utils/Movement.js';
+import { calculatePositionError, magnitude, calculateVisualCorrection } from '../../../game/simulation/network/ReconciliationModel.js';
 
 function isNewerTick(next, previous) {
   if (previous == null) return true;
@@ -104,12 +105,8 @@ export class ClientReconcileSystem {
       z: Number(authoritative.z ?? authoritative.position?.z ?? 0),
     };
     const predictedAtAck = ackFrame.predictedPosition;
-    const error = {
-      x: serverPos.x - predictedAtAck.x,
-      y: serverPos.y - predictedAtAck.y,
-      z: serverPos.z - predictedAtAck.z,
-    };
-    const errorMagnitude = Math.hypot(error.x, error.y, error.z);
+    const error = calculatePositionError(serverPos, predictedAtAck);
+    const errorMagnitude = magnitude(error);
 
     // Retire acknowledged input only after using its predicted state as the
     // correct comparison point.
@@ -154,6 +151,15 @@ export class ClientReconcileSystem {
       transform.rotation.pitch = Number(authoritative.pitch ?? authoritative.rotation?.pitch ?? 0);
     }
 
+    // Preserve the client's current predicted state before replacing it with
+    // the authoritative ACK state. Visual correction is from that current
+    // state to the replayed corrected state, not from the ACK frame itself.
+    const predictedCurrent = {
+      x: Number(transform.position.x) || 0,
+      y: Number(transform.position.y) || 0,
+      z: Number(transform.position.z) || 0,
+    };
+
     // Replay only input sampled after the acknowledged server state.
     for (const frame of this.inputBuffer?.toArray?.() || []) {
       if (!frame) continue;
@@ -161,14 +167,9 @@ export class ClientReconcileSystem {
     }
 
     const after = physics.rigidBody?.translation?.() || transform.position;
-    const current = ackFrame.predictedPosition;
-    const correction = {
-      x: current.x - after.x,
-      y: current.y - after.y,
-      z: current.z - after.z,
-    };
+    const correction = calculateVisualCorrection(predictedCurrent, after);
 
-    if (Math.hypot(correction.x, correction.y, correction.z) < 4) {
+    if (magnitude(correction) < 4) {
       localEntity.networkVisualCorrection = correction;
     }
 
