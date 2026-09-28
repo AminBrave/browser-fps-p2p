@@ -43,16 +43,73 @@ export class PhysicsWorld {
    * the ray starts just inside the material, so Rapier returns the next
    * boundary instead of treating the shape as an infinitely solid point.
    */
-  getProjectileExitDistance(collider, origin, direction, maxDistance) {
-    if (!collider?.castRay || !origin || !direction) return null;
+  getProjectileExitHit(collider, origin, direction, maxDistance) {
+    if (!this.world || !collider || !origin || !direction) return null;
+
     const len = Math.hypot(direction.x, direction.y, direction.z) || 1;
-    const dir = { x: direction.x / len, y: direction.y / len, z: direction.z / len };
+    const dir = {
+      x: direction.x / len,
+      y: direction.y / len,
+      z: direction.z / len,
+    };
+    const handle = collider.handle ?? collider;
     const ray = new RAPIER.Ray(
       { x: origin.x, y: origin.y, z: origin.z },
       dir
     );
-    const toi = collider.castRay(ray, Math.max(0.001, maxDistance), false);
-    return Number.isFinite(toi) && toi >= 0 ? toi : null;
+    const limit = Math.max(0.001, Number(maxDistance) || 0.001);
+
+    // The projectile starts just inside the already-hit volume. Query only
+    // that exact collider with solid=false so Rapier returns its exit face,
+    // including the exit surface normal. This is deliberately a physics query
+    // rather than reusing the entry normal or estimating the face from travel
+    // direction.
+    const filterPredicate = (candidate) =>
+      (candidate?.handle ?? candidate) === handle;
+
+    const hit = typeof this.world.castRayAndGetNormal === 'function'
+      ? this.world.castRayAndGetNormal(
+          ray,
+          limit,
+          false,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          filterPredicate
+        )
+      : null;
+
+    if (!hit) {
+      const toi = collider.castRay?.(ray, limit, false);
+      if (!Number.isFinite(toi) || toi < 0) return null;
+      return {
+        distance: toi,
+        normal: null,
+      };
+    }
+
+    const toi = Number(hit.timeOfImpact ?? hit.toi);
+    if (!Number.isFinite(toi) || toi < 0) return null;
+
+    const rawNormal = hit.normal;
+    if (!rawNormal) {
+      return { distance: toi, normal: null };
+    }
+
+    const normalLength = Math.hypot(rawNormal.x, rawNormal.y, rawNormal.z) || 1;
+    return {
+      distance: toi,
+      normal: {
+        x: rawNormal.x / normalLength,
+        y: rawNormal.y / normalLength,
+        z: rawNormal.z / normalLength,
+      },
+    };
+  }
+
+  getProjectileExitDistance(collider, origin, direction, maxDistance) {
+    return this.getProjectileExitHit(collider, origin, direction, maxDistance)?.distance ?? null;
   }
   unregisterCollider(collider) {
     if (!collider) return;
