@@ -4,6 +4,7 @@ import { ColliderRegistry } from './ColliderRegistry.js';
 import { PhysicsQueries } from './PhysicsQueries.js';
 import { CharacterPhysics } from './CharacterPhysics.js';
 import { StaticPhysics } from './StaticPhysics.js';
+import { createWorldSafetyFloor } from './WorldSafetyFloor.js';
 
 export class PhysicsWorld {
   constructor() {
@@ -68,6 +69,10 @@ export class PhysicsWorld {
 
   createStaticCylinder(...args) {
     return this.staticPhysics.createStaticCylinder(...args);
+  }
+
+  createWorldSafetyFloor() {
+    return createWorldSafetyFloor(this.staticPhysics);
   }
 
   isSpawnPositionSafe(ecsWorld, position, radius = GAME_CONFIG.PLAYER_RADIUS, height = GAME_CONFIG.PLAYER_HEIGHT, ignoreEntity = null) {
