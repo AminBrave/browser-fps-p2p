@@ -76,8 +76,8 @@ export class ClientGame {
       false,
       this.renderSystem,
       null,
-      this.impactSystem
-      , new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
+      this.impactSystem,
+      new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
     );
     this.renderSystem.setEventSink((event) => this.networkTransport.sendToHost(Protocol.encodeGameEvent(event)));
 
