@@ -10,6 +10,7 @@ import {
 } from '../entities/createBullet.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
+import { applyDamageToHealth, calculateHealthRegen } from '../../game/simulation/combat/HealthModel.js';
 
 export class HealthSystem {
   constructor(physicsWorld, eventSink = null) {
@@ -89,14 +90,15 @@ export class HealthSystem {
         const player = entity.player;
         if (player.isDead) continue;
 
-        const before = player.health;
-        const damage = Math.max(0, Number(event.amount) || 0);
-        player.health = Math.max(0, player.health - damage);
+        const damageResult = applyDamageToHealth(player.health, event.amount);
+        const before = damageResult.previousHealth;
+        const damage = damageResult.damage;
+        player.health = damageResult.health;
         if (damage > 0 && event.attackerId != null) {
           player.lastDamagedBy = event.attackerId;
           player.lastDamagedAt = now;
         }
-        if (player.health <= 0 && before > 0) {
+        if (damageResult.killed) {
           player.isDead = true;
           const attacker = Array.from(ecsWorld.with('player')).find(
             (candidate) => candidate.player?.id === event.attackerId
@@ -146,8 +148,13 @@ export class HealthSystem {
         const delay = Math.max(0, Number(GAME_CONFIG.HEALTH_REGEN?.DELAY_MS) || 3500);
         const rate = Math.max(0, Number(GAME_CONFIG.HEALTH_REGEN?.RATE_PER_SECOND) || 12);
         if (health < maxHealth && now - (Number(player.lastDamagedAt) || 0) >= delay) {
-          const previousHealth = health;
-          const delta = Math.min(maxHealth - health, rate / 60);
+          const delta = calculateHealthRegen({
+            health,
+            maxHealth,
+            elapsedMs: 1000 / 60,
+            delayMs: delay,
+            ratePerSecond: rate,
+          });
           player.health = health + delta;
 
           // Body impacts are driven directly by the player's current health.
