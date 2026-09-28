@@ -1,137 +1,176 @@
-## [Unreleased] / qwen-code — 2026-09-27
-
-### World geometry, normalization and containment
-
-### Rendering and physics alignment
-
-### Vehicle impact rendering and compound hit mapping
-
-- Fixed decal orientation construction to use a Three.js quaternion before converting to Euler; `Euler.setFromUnitVectors()` does not exist and could halt the simulation on the first impact.
-
-- Fixed a combat runtime crash where the impact-decal path referenced the raycast result outside its block; the exact `renderTarget` is now captured with the hit and passed safely to decal creation.
-
-- Fixed car bullet-impact artifacts by mapping every compound collider back to its exact visible mesh part (body, cabin or wheel).
-- Replaced the generic floating impact plane with clipped Three.js `DecalGeometry` when a render target is known, preventing decals from spilling across car edges or adjacent parts.
-- Stabilized decal depth handling with a small surface-normal offset, depth testing and conservative polygon offset instead of the previous aggressive bias.
-
-### Compound world physics
-
-- Fixed the Rapier 0.11.x startup failure caused by calling the unavailable `ColliderDesc.compound()` API.
-- Implemented compound world objects using one fixed Rapier rigid body with multiple child colliders, which is the supported equivalent in this Rapier version.
-- Converted trees to one compound body containing the trunk cylinder and every canopy cone; converted cars to one compound body containing the body, cabin and four correctly rotated wheel cylinders.
-- Refactored single-shape crates, barriers, mountains, boundaries and ground through the same compound-body factory as one-part compounds, keeping one physical-object model across the map.
-- Registered every child collider back to its owning ECS object so bullet raycasts and player collision resolve to the same world entity.
-
-### Car physical model alignment
-
-- Replaced the car's single oversized cuboid collider with a compound Rapier collider containing the rendered body, cabin and four wheel volumes.
-- Kept the complete car collision shape under one fixed rigid body so the entire physical asset rotates exactly with the rendered car.
-- Matched wheel collider orientation to the rendered wheel orientation and kept all collider offsets in the same local ground-root coordinate system.
-- Registered the compound collider as one car entity so player collision, raycast hits and bullet impact decals resolve to the actual car object rather than an unrelated invisible volume.
-
-
-- Fixed normalized box objects disappearing while their Rapier colliders remained active by restoring scene attachment through the shared object factory.
-- Standardized every solid world-object ECS transform to a ground-level root (GROUND_Y), with visible meshes offset locally by their configured dimensions.
-- Fixed trees so trunk/canopy visuals and solid Rapier cylinder/cone colliders share the same radii, heights and local Y offsets.
-- Fixed cars so body, cabin, wheels and the solid collider share one ground-origin definition; corrected the collider height/center to cover the visible vehicle instead of leaving an invisible collision volume on the ground.
-- Converted tree and mountain rendering to local geometry offsets so RenderSystem updates cannot move their visuals away from their colliders.
-- Consolidated crate, tree, car, barrier and mountain placements into declarative entries in src/config/world.js.
-- Added a deterministic RenderSystem invariant that keeps non-boundary solid world objects visible while preserving invisible boundary walls.
-- Added native Rapier cylinder colliders for tree trunks; cone colliders remain aligned with the rendered canopy and mountains.
-
-
-- Added `src/config/world.js` as the single source of truth for ground height, island bounds, boundary dimensions, object sizes, object positions and player spawn points.
-- Normalized world-object placement through shared ground and island-boundary calculations so objects remain inside the playable area and rest on the configured ground plane.
-- Centralized player spawn height from configured player dimensions instead of hard-coded world Y positions.
-- Made floor, crates, trees, cars, barriers, mountains and boundary walls use solid static Rapier colliders; collider-to-entity registration now covers map objects for raycast/impact ownership.
-- Replaced the stepped mountain collider approximation with a native Rapier cone collider aligned to the rendered mountain volume, so players and bullets interact with the same solid shape.
-- Added an invisible safety floor below the island as a last-resort containment layer.
-- Fixed rotated car colliders so their physics orientation matches their rendered orientation.
-- Removed duplicated map-size constants from the general game config.
-
 # Changelog
 
-All notable changes to **browser-fps-p2p** are documented here.
+All notable, high-impact changes to **browser-fps-p2p** are documented here.
 
-## [Unreleased] / qwen-code branch — 2026-09-27
+This changelog intentionally excludes routine formatting, duplicated commits, test-only maintenance, and small implementation churn. Entries are grouped by the user-visible or architectural value of the work.
 
-### Architecture & real-time loop
-- Added a reusable fixed-step `GameLoop` with bounded catch-up and a separate render phase.
-- Host and client simulation now run at the configured tick rate independently of monitor refresh rate.
-- Client prediction is no longer followed by a second physics simulation pass in the same render frame.
-- Client prediction advances Rapier exactly once per fixed tick; reconciliation applies corrected kinematic positions immediately.
-- Remote crouch/prone state is reconstructed from the transmitted 16-bit input mask.
-- Input is sampled once per simulation tick, preventing duplicate/high-refresh input sequences.
+## Versioning
 
-### WebRTC & protocol hardening
-- Peer connections now have idempotent close/error cleanup and guarded sends.
-- Incoming host input is bounded to one pending frame per peer, preventing unbounded queue growth under network pressure.
-- Stale/out-of-order input sequences are ignored.
-- Client input protocol now uses a `u16` mask, preserving crouch/prone bits, and serializes weapon-slot changes.
-- Host snapshots acknowledge each connected client independently rather than using a global maximum sequence.
+The project started this development line at **1.0.0**. The branch now reaches **2.0.0** under Semantic Versioning.
 
-### Client interpolation & lifecycle
-- Remote snapshot interpolation now uses entity-id maps instead of repeated linear searches.
-- Remote kinematic physics proxies are synchronized with interpolated render transforms.
-- Input, interpolation buffers, game loops, and WebRTC transports are explicitly disposed during session shutdown.
+- **MAJOR** — breaking architecture, simulation, protocol, or public internal contracts that require coordinated code changes.
+- **MINOR** — backward-compatible gameplay, rendering, networking, physics, or infrastructure capabilities.
+- **PATCH** — backward-compatible bug fixes, stability fixes, tuning, and correctness corrections.
+- When many commits form one architectural migration, they are counted as one release-level change rather than artificially inflating the version for every commit.
 
-### WebRTC correctness
-- Preserved the PeerManager connection-open callback so host-side player entities are created when a DataConnection becomes ready.
+### Current version: 2.0.0
 
-### Resource lifecycle & rendering
-- Scene shutdown now disposes unique Three.js geometries, materials, textures, renderer lists, and the canvas.
-- Rapier world state and collider/entity mappings are explicitly released on shutdown.
-- Impact decals are registered per ECS world instead of a module-global array, preventing old matches from retaining scene/entity references.
-- Horizon hill geometry/materials are shared across instances to reduce GPU allocations.
-
-### Combat & weapons
-
-### Combat & weapons
-- Hitscan from **weapon muzzle** (not eye-only).
-- **First-shot accuracy**: ray uses crosshair aim before recoil; bloom only on follow-up shots in a burst.
-- **Four weapons**: Pistol (semi), SMG (auto), Shotgun (8 pellets), Rifle (auto) — keys `1`–`4`.
-- Per-weapon **procedural viewmodels**, fire rates, recoil, spread, and **SFX profiles**.
-- Magazine + reserve ammo; reload pulls from reserve; HUD shows `mag / reserve`.
-- Permanent **bullet-hole decals** oriented to **surface normals** (Rapier `castRayAndGetNormal`), max **100** in scene.
-- Tracers + impact flash; host-authoritative damage.
-
-### Movement & stance
-- Camera-relative FPS movement (W/A/S/D aligned with look).
-- **Crouch** (`C`) and **Prone** (`Z`) with speed multipliers; camera eye height changes; no jump while prone.
-- Movement **sway / bob** scales with speed and feeds **weapon sway** and **accuracy penalty** while running.
-- Invisible **boundary walls** prevent falling off the map.
-
-### World & graphics
-- Sunny outdoor arena: grass, paths, crates, barriers.
-- **Trees, cars, mountains** grounded on floor (`y = 0` top) with physics colliders for hits.
-- Blue sky, warm sun, soft shadows, hemisphere lighting.
-
-### Audio
-- Procedural Web Audio: shoot (per weapon), empty click, reload, footsteps (stance-aware), jump, land, impact, hit, death.
-
-### HUD
-- Health, ammo, fire mode, weapon name, slot bar, reload status.
-- **Controls hints** panel (WASD, fire, reload, 1–4, C, Z, Space).
-
-### Netcode / architecture (earlier on branch)
-- Miniplex ECS host/client loops; PeerJS WebRTC.
-- Client prediction, reconciliation, interpolation.
-- Binary protocol snapshots/inputs; numeric peer IDs for entity match.
-- Rapier character controller; fixed physics/Rapier API usage.
-
-### Fixes (selected)
-- Camera must be in scene graph so viewmodel renders.
-- Ammo HUD no longer shows mag/mag on reload.
-- Impact normals flipped to face shooter; polygon offset against z-fighting.
-- Prop placement: crates/trees/cars/mountains sit on ground plane.
+The move to **2.0.0** is driven by the architecture overhaul: simulation rules were extracted behind pure boundaries, networking and physics contracts were formalized, rendering/presentation ownership was separated from ECS simulation, and several internal APIs changed. These are coordinated breaking changes even though the game remains the same product.
 
 ---
 
-## How to run
+## [2.0.0] — Architecture Overhaul
 
-```bash
-npm install
-npm run dev
-```
+### Architecture & simulation boundaries — MAJOR
 
-Host a room in one tab; join with the room ID in another.
+- Reorganized the game around explicit **simulation, networking, physics, ECS composition, and presentation boundaries**.
+- Extracted pure simulation models for movement, weapon state, shot direction, combat damage, health, ballistic tracing, impact seeds, snapshot interpolation, and reconciliation math.
+- Moved rendering responsibilities out of ECS simulation and into dedicated presentation modules.
+- Removed ECS dependencies from pure combat/event models so core rules can be tested without Three.js, DOM, or a running game.
+- Moved map, player, and urban-object composition behind dedicated boundaries instead of mixing world construction with ECS internals.
+- Made weapon dependencies explicit and routed weapon presentation through an adapter/event boundary.
+- Introduced presentation-owned transient effects and impact lifecycle management, keeping visual effects out of simulation ownership.
+- Added architecture boundary tests to prevent accidental re-coupling between ECS, physics, simulation, and rendering.
+
+### Fixed-step simulation & movement — MAJOR
+
+- Added a reusable fixed-step game loop with bounded catch-up and an independent render phase.
+- Made host and client simulation advance at the configured tick rate rather than at display refresh frequency.
+- Ensured client prediction advances physics once per fixed tick.
+- Formalized movement input flags and the FPS movement API, including sprint, crouch, prone, jump, gravity, and stance speed modifiers.
+- Added deterministic movement tests and regression coverage for prediction-facing movement integration.
+
+### Authoritative networking & protocol hardening — MAJOR
+
+- Established explicit networking boundaries around PeerJS/WebRTC transport, game protocol, host authority, prediction, reconciliation, and interpolation.
+- Added binary packet boundary validation and rejection of trailing/invalid payload bytes.
+- Added authoritative client-input validation and bounded pending input queues.
+- Rejected stale/out-of-order input sequences.
+- Changed client input encoding to a 16-bit mask so stance and movement flags survive transport.
+- Serialized weapon-slot changes through the input protocol.
+- Made host acknowledgements per-client instead of relying on a global maximum sequence.
+- Added transport lifecycle boundaries with guarded sends, idempotent close/error handling, explicit peer closure, and connection-error propagation.
+- Preserved the transport connection-open lifecycle required for host-side player creation.
+- Added snapshot interpolation and reconciliation as pure, deterministic models.
+- Added regression tests for protocol security, network models, host networking, prediction/reconciliation, and transport behavior.
+
+### Ballistics & combat — MINOR / high-impact feature set
+
+- Added a dedicated ballistic tracer with distance-aware projectile behavior.
+- Added ballistic drop and distance-based damage falloff.
+- Added per-weapon ballistic tuning, projectile drag, penetration resistance, residual penetration damage loss, and surface-material interaction.
+- Added explicit projectile material metadata to physics colliders and propagated material identity through ray hits.
+- Added material-aware penetration and exact Rapier geometry-based projectile thickness/exit-distance handling.
+- Made ballistic energy drive damage and replicated authoritative entry/exit impact surfaces.
+- Corrected penetration exit normals and replicated them for client impact decals.
+- Hardened impact deduplication and stopped fabricating invalid grazing-angle exit holes.
+- Aligned bullet traces to the **weapon muzzle** while aiming toward the crosshair target rather than tracing only from the camera.
+- Added deterministic shot-direction/impact-seed behavior suitable for host/client agreement.
+
+### Weapons, accuracy & aiming — MINOR
+
+- Built a shared accuracy model used by shot dispersion and the crosshair.
+- Added stance, movement, sprint, and ADS accuracy effects.
+- Added weapon-specific ADS poses and synchronized the firing muzzle with the rendered ADS weapon pose.
+- Added configurable crosshair presentation driven by live weapon accuracy.
+- Added weapon-specific fire/reload presentation events and routed them through the presentation boundary.
+- Added local-only weapon presentation behavior so visual/audio feedback does not leak into authoritative simulation.
+
+### Impact, materials & VFX — MINOR / high-impact rendering work
+
+- Added deterministic, material-specific bullet impact reactions.
+- Added material-aware impact particles and animated impact sparks with drag, gravity, staggered fading, and configured render budgets.
+- Routed weapon surface hits through the centralized ImpactSystem.
+- Separated persistent decals from transient particle/tracer lifecycles.
+- Corrected impact normals for transformed and non-uniformly scaled meshes.
+- Stabilized bullet decals against depth fighting with surface offsets, depth testing, and conservative polygon offset.
+- Mapped compound-collider hits back to the exact visible car part.
+- Replaced generic floating car impact planes with clipped Three.js decals where a render target is available.
+- Fixed impact particle double-transform offsets and simplified impact-particle integration.
+- Added stable player-ID ownership for player impact visuals and cleanup.
+
+### World & physics — MINOR / high-impact correctness
+
+- Added `src/config/world.js` as the declarative source of truth for ground height, island bounds, object dimensions, placements, boundaries, and player spawn positions.
+- Normalized solid world objects around a shared ground-origin convention.
+- Reworked trees, cars, crates, barriers, mountains, paths, ground, and boundary geometry so rendered dimensions and physics dimensions derive from the same definitions.
+- Replaced the unsupported Rapier `ColliderDesc.compound()` path with the supported model: multiple child colliders attached to one fixed rigid body.
+- Converted trees and cars to compound physical objects while retaining a single owning entity.
+- Added collider-to-entity registration so physics, raycasts, impacts, and presentation resolve to the same world object.
+- Added native cone/cylinder geometry for relevant world colliders.
+- Added a physics-aware safety floor and validated spawn locations against actual physics.
+- Added randomized respawns constrained by physics-safe validation.
+- Corrected rendered/physics alignment for rotated cars and other compound assets.
+- Kept Rapier implementation behind physics boundaries rather than exposing it throughout world/ECS code.
+
+### Player health & impact state — MINOR
+
+- Extracted pure health and damage rules from presentation concerns.
+- Added gradual health regeneration with configurable tuning.
+- Tracked player impact marks as gameplay state for proportional cleanup during healing.
+- Synchronized client player-impact presentation with authoritative health.
+- Cleared impact state correctly on full health and respawn.
+- Made player impact ownership stable across host and clients.
+
+### Camera, stance & movement presentation — MINOR
+
+- Added stance-aware camera motion driven by movement speed and acceleration.
+- Added smooth layered running motion and camera shake.
+- Added stance-specific weapon sway and prone crawl motion.
+- Made weapon/viewmodel motion follow stance and movement state without coupling those visual effects to simulation ownership.
+
+### Resource lifecycle & session cleanup — PATCH / stability
+
+- Added explicit disposal of Three.js geometries, materials, textures, renderer resources, scenes, and weapon scenes.
+- Made shared-material disposal safe by avoiding duplicate disposal.
+- Added explicit Rapier/world/collider mapping cleanup on session shutdown.
+- Made presentation collider bindings and transient effects session-scoped.
+- Reduced cross-match retention of ECS entities and scene references.
+- Shared static render resources where appropriate to reduce unnecessary GPU allocations.
+
+### Testing & engineering infrastructure — MINOR
+
+- Consolidated the project onto one `test/` suite and removed the superseded legacy `tests/` suite.
+- Added deterministic Node-based tests covering simulation, combat, networking, physics boundaries, configuration/components, utilities, presentation boundaries, and architecture boundaries.
+- Added network protocol/security regression coverage.
+- Added tests for transport delegation and lifecycle behavior.
+- Added integration tests for determinism and separation between world definitions, ECS, physics, and presentation.
+- Added `npm run test:coverage` and `npm run test:watch`.
+- Added GitHub Actions unit-test/coverage workflow for the `architecture-overhaul` branch.
+- Added `docs/TESTING.md` documenting deterministic testing and regression-test practices.
+
+### Documentation & operational hardening — PATCH
+
+- Documented the networking stack, signaling/ICE/TURN responsibilities, production configuration, and transport/game-handshake boundary.
+- Removed reliance on hard-coded public TURN credentials in source and documented runtime ICE configuration.
+- Added architecture phase documents covering simulation, networking, physics boundaries, and contracts.
+- Corrected README and project documentation to reflect the architecture-overhaul branch and current systems.
+
+---
+
+## Release assessment
+
+### Why 2.0.0 instead of 1.x
+
+The branch contains several changes that alter internal contracts rather than merely adding optional functionality:
+
+1. Simulation APIs were extracted and changed to explicit dependency/configuration boundaries.
+2. ECS ownership was separated from rendering and presentation.
+3. Network transport and protocol responsibilities were formalized and hardened.
+4. Physics and world composition were moved behind explicit boundaries.
+5. Prediction, reconciliation, interpolation, and ballistic rules became independently testable models.
+
+Those changes collectively represent a **major architecture release**, so the appropriate SemVer endpoint is **2.0.0**.
+
+### Not counted individually
+
+The following were intentionally not promoted into separate changelog entries or version bumps:
+
+- formatting/style-only commits;
+- repeated commits implementing the same refactor in stages;
+- test expectation/regex-only adjustments;
+- duplicated legacy-test deletion commits;
+- small tuning changes that do not introduce a new capability;
+- intermediate commits superseded by later fixes.
+
+This keeps the changelog focused on the durable value of the branch rather than commit volume.
