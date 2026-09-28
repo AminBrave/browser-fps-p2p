@@ -46,7 +46,7 @@ export class WeaponPresentation {
       case 'shot': {
         const shot = event.shot;
         if (!shot?.origin || !shot?.end) break;
-        const targetMesh = this.getHitRenderTargetByHandle(event.hitColliderHandle);
+        const targetMesh = event.targetMesh || this.getHitRenderTargetByHandle(event.hitColliderHandle);
         this.createBullet(shot.origin, shot.end, shot.trace?.path || null);
         this.spawnPenetrationImpacts({
           shooterId: shot.shooterId,
