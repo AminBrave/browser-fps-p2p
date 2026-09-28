@@ -50,7 +50,7 @@ export class HostGame {
     window.addEventListener('click', this._audioUnlockHandler);
   }
 
-  async initialize() {
+  async initialize(networkMode = null) {
     validateConfig();
     await this.physicsWorld.init();
 
@@ -94,7 +94,7 @@ export class HostGame {
       this.presentationColliderRegistry
     );
 
-    const hostRoomId = await this.networkTransport.initializeHost();
+    const hostRoomId = await this.networkTransport.initializeHost(null, networkMode);
     this.invitationCode = String(hostRoomId).toUpperCase();
     this.networkTransport.onConnect((id) => this._handleClientConnect(id));
     this.networkTransport.onDisconnect((id) => this._handleClientDisconnect(id));
