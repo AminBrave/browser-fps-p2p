@@ -19,7 +19,6 @@ import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
-import { disposeImpactDecals } from './presentation/impact/ImpactEffects.js';
 import { ImpactSystem } from './presentation/impact/ImpactSystem.js';
 import { PresentationEffectStore } from './presentation/effects/PresentationEffectStore.js';
 import { Protocol } from './network/Protocol.js';
@@ -32,7 +31,7 @@ export class HostGame {
     this.physicsWorld = new PhysicsWorld();
     this.sceneManager = new SceneManager(this.container);
     this.effectStore = new PresentationEffectStore();
-    this.impactSystem = new ImpactSystem(this.ecsWorld, this.sceneManager);
+    this.impactSystem = new ImpactSystem(this.effectStore, this.sceneManager);
     this.presentationColliderRegistry = new PresentationColliderRegistry();
     this.peerManager = new PeerManager();
     this.networkTransport = new PeerTransport(this.peerManager);
@@ -57,7 +56,7 @@ export class HostGame {
 
     this.inputSystem = new InputSystem(this.container);
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
-    this.healthSystem = new HealthSystem(this.physicsWorld, null, new HealthPresentation());
+    this.healthSystem = new HealthSystem(this.physicsWorld, null, new HealthPresentation(this.impactSystem));
     this.renderSystem = new RenderSystem(this.sceneManager);
     this.weaponSystem = new WeaponSystem({
       physicsWorld: this.physicsWorld,
@@ -325,7 +324,6 @@ export class HostGame {
     this.hud.dispose();
     this.impactSystem?.dispose();
     this.effectStore?.dispose();
-    disposeImpactDecals(this.ecsWorld);
     this.presentationColliderRegistry.clear();
     this.sceneManager.dispose();
     this.physicsWorld.dispose();
