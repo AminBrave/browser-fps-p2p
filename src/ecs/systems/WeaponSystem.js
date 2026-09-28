@@ -3,8 +3,6 @@
 import {
   INPUT_FLAGS,
   GAME_CONFIG,
-  FIRE_MODE,
-  COMBAT_CONFIG,
 } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { createBullet, createBloodImpact } from '../entities/createBullet.js';
