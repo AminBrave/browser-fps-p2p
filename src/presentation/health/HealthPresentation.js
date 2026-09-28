@@ -6,14 +6,16 @@ import { audio } from '../../audio/AudioManager.js';
 
 /** Presentation-only boundary for health, death, and respawn visuals/audio. */
 export class HealthPresentation {
-  constructor() {}
-
-  updateImpactMarks(ecsWorld, entity, health, maxHealth) {
-    updatePlayerImpactMarksForHealth(ecsWorld, entity, health, maxHealth);
+  constructor(impactSystem = null) {
+    this.impactSystem = impactSystem;
   }
 
-  clearImpactMarks(ecsWorld, entity, amount = 1) {
-    clearPlayerImpactMarks(ecsWorld, entity, amount);
+  updateImpactMarks(_ecsWorld, entity, health, maxHealth) {
+    this.impactSystem?.updatePlayerImpactMarksForHealth?.(entity?.player?.id ?? entity, health, maxHealth);
+  }
+
+  clearImpactMarks(_ecsWorld, entity, amount = 1) {
+    return this.impactSystem?.clearPlayerImpactMarks?.(entity?.player?.id ?? entity, amount) ?? 0;
   }
 
   onDeath(entity) {
