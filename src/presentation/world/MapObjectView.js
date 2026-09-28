@@ -118,4 +118,22 @@ export class MapObjectView {
     this.addToScene(group);
     return { root: group, targets: presentationTargets };
   }
+
+  streetLight({ position }) {
+    const cfg = WORLD_CONFIG.OBJECTS.STREETLIGHT;
+    const group = new THREE.Group();
+    group.position.set(position.x, position.y, position.z);
+    const metal = new THREE.MeshStandardMaterial({ color: 0x34383c, metalness: 0.75, roughness: 0.35 });
+    const lampMat = new THREE.MeshStandardMaterial({ color: 0xffe7a3, emissive: 0x6b5420, emissiveIntensity: 1.8 });
+    const base = new THREE.Mesh(new THREE.BoxGeometry(cfg.BASE.SIZE.x, cfg.BASE.SIZE.y, cfg.BASE.SIZE.z), metal);
+    base.position.y = cfg.BASE.SIZE.y / 2; base.castShadow = true; base.receiveShadow = true; group.add(base);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(cfg.POLE.RADIUS, cfg.POLE.RADIUS * 1.15, cfg.POLE.HEIGHT, 12), metal);
+    pole.position.y = cfg.POLE.HEIGHT / 2 + cfg.BASE.SIZE.y; pole.castShadow = true; pole.receiveShadow = true; group.add(pole);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(cfg.ARM.RADIUS, cfg.ARM.RADIUS, cfg.ARM.LENGTH, 10), metal);
+    arm.rotation.z = Math.PI / 2; arm.position.set(cfg.ARM.LENGTH / 2, cfg.POLE.HEIGHT + cfg.BASE.SIZE.y - 0.12, 0); arm.castShadow = true; group.add(arm);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 8), lampMat);
+    lamp.position.set(cfg.ARM.LENGTH, cfg.POLE.HEIGHT + cfg.BASE.SIZE.y - 0.12, 0); group.add(lamp);
+    this.addToScene(group);
+    return { root: group, targets: [base, pole, arm, lamp] };
+  }
 }
