@@ -1,4 +1,4 @@
-import { NETWORK_CONFIG } from '../config/index.js';
+import { NETWORK_CONFIG, normalizeNetworkConnectionMode } from '../config/index.js';
 
 /**
  * Build the ICE server list without making TURN a hard dependency.
@@ -13,15 +13,23 @@ import { NETWORK_CONFIG } from '../config/index.js';
  * source is unavailable, the game continues with the candidates already
  * available instead of failing the session.
  */
-export async function resolveIceServers() {
+export async function resolveIceServers(requestedMode = NETWORK_CONFIG.WEBRTC.DEFAULT_CONNECTION_MODE) {
+  const mode = normalizeNetworkConnectionMode(requestedMode);
   const servers = [...NETWORK_CONFIG.WEBRTC.STUN_SERVERS];
   const sources = ['stun'];
+  const isDirect = mode === NETWORK_CONFIG.WEBRTC.CONNECTION_MODES.DIRECT;
+  const isRelay = mode === NETWORK_CONFIG.WEBRTC.CONNECTION_MODES.RELAY || mode === NETWORK_CONFIG.WEBRTC.CONNECTION_MODES.RELAY_TCP_TLS;
+
+  if (isDirect) {
+    return { mode, iceServers: servers, hasTurn: false, source: 'direct-stun-only', sources };
+  }
 
   if (import.meta.env.DEV) {
     return {
-      iceServers: servers,
+      iceServers: isRelay ? [] : servers,
       hasTurn: false,
-      source: 'development-stun-only',
+      mode,
+      source: isRelay ? 'development-no-turn' : 'development-stun-only',
       sources,
     };
   }
@@ -45,18 +53,29 @@ export async function resolveIceServers() {
     }
 
     const payload = await response.json();
-    const turnServers = Array.isArray(payload?.iceServers)
+    let turnServers = Array.isArray(payload?.iceServers)
       ? payload.iceServers.filter((server) => server?.urls)
       : [];
 
-    servers.push(...turnServers);
+    if (mode === NETWORK_CONFIG.WEBRTC.CONNECTION_MODES.RELAY_TCP_TLS) {
+      turnServers = turnServers.map((server) => {
+        const urls = (Array.isArray(server.urls) ? server.urls : [server.urls]).filter((url) => {
+          const value = String(url).toLowerCase();
+          return value.startsWith('turns:') || value.includes('?transport=tcp');
+        });
+        return urls.length ? { ...server, urls } : null;
+      }).filter(Boolean);
+    }
+
+    const iceServers = isRelay ? turnServers : [...servers, ...turnServers];
 
     if (turnServers.length) {
       sources.push(payload?.source || 'turn');
     }
 
     return {
-      iceServers: servers,
+      iceServers,
+      mode,
       hasTurn: turnServers.some((server) =>
         Array.isArray(server?.urls)
           ? server.urls.some((url) => String(url).startsWith('turn'))
@@ -72,9 +91,10 @@ export async function resolveIceServers() {
     );
 
     return {
-      iceServers: servers,
+      iceServers: isRelay ? [] : servers,
+      mode,
       hasTurn: false,
-      source: 'stun-fallback',
+      source: isRelay ? 'turn-unavailable' : 'stun-fallback',
       sources,
       error: error instanceof Error ? error.message : String(error),
     };
