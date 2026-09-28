@@ -259,6 +259,7 @@ export class HostGame {
     const physics = entity.physics;
     for (const collider of physics?.colliders || (physics?.collider ? [physics.collider] : [])) {
       this.physicsWorld.unregisterCollider?.(collider);
+      this.presentationColliderRegistry.unregister(collider);
     }
     if (physics?.rigidBody) {
       this.physicsWorld.world?.removeRigidBody(physics.rigidBody);
@@ -321,6 +322,7 @@ export class HostGame {
     this.hud.dispose();
     this.impactSystem?.dispose();
     disposeImpactDecals(this.ecsWorld);
+    this.presentationColliderRegistry.clear();
     this.sceneManager.dispose();
     this.physicsWorld.dispose();
     this.networkTransport.destroy();
