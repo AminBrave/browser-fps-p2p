@@ -1,4 +1,4 @@
-import { GAME_CONFIG, COMBAT_CONFIG } from '../../config/index.js';
+import { GAME_CONFIG, COMBAT_CONFIG } from '../../../config/index.js';
 
 /**
  * Authoritative projectile trajectory and penetration solver.
