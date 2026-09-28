@@ -1,4 +1,5 @@
 import { GAME_CONFIG, NETWORK_CONFIG } from '../../../config/index.js';
+import { insertSnapshot, sampleSnapshotPair, lerpAngle } from '../../../game/simulation/network/SnapshotTimeline.js';
 
 /**
  * Client-only snapshot interpolation.
@@ -48,16 +49,7 @@ export class InterpolationSystem {
       players: snapshot.players || snapshot.entities || [],
     };
 
-    const last = this.snapshotBuffer[this.snapshotBuffer.length - 1];
-    if (last && timestamp <= last.timestamp) return;
-
-    this.snapshotBuffer.push(normalized);
-    if (this.snapshotBuffer.length > this.maxSnapshots) {
-      this.snapshotBuffer.splice(
-        0,
-        this.snapshotBuffer.length - this.maxSnapshots
-      );
-    }
+    insertSnapshot(this.snapshotBuffer, normalized, this.maxSnapshots);
   }
 
   update(ecsWorld, playerEntities, localEntity, _currentTime) {
@@ -67,17 +59,9 @@ export class InterpolationSystem {
     // arrival jitter is absorbed by interpolation rather than shown as 30 Hz
     // teleports. The local player remains client-predicted.
     const targetTime = (typeof _currentTime === 'number' ? _currentTime : performance.now()) - this.renderDelayMs;
-    let older = this.snapshotBuffer[0];
-    let newer = this.snapshotBuffer[this.snapshotBuffer.length - 1];
-    for (let i = this.snapshotBuffer.length - 1; i >= 0; i--) {
-      if (this.snapshotBuffer[i].timestamp <= targetTime) {
-        older = this.snapshotBuffer[i];
-        newer = this.snapshotBuffer[Math.min(i + 1, this.snapshotBuffer.length - 1)];
-        break;
-      }
-    }
-    const span = Math.max(1, newer.timestamp - older.timestamp);
-    const alpha = Math.max(0, Math.min(1, (targetTime - older.timestamp) / span));
+    const sample = sampleSnapshotPair(this.snapshotBuffer, targetTime);
+    if (!sample) return;
+    const { older, newer, alpha } = sample;
     const olderById = this._indexPlayers(older.players);
     const newerById = this._indexPlayers(newer.players);
 
@@ -139,10 +123,7 @@ export class InterpolationSystem {
   }
 
   _lerpAngle(from, to, alpha) {
-    let delta = (to - from) % (Math.PI * 2);
-    if (delta > Math.PI) delta -= Math.PI * 2;
-    if (delta < -Math.PI) delta += Math.PI * 2;
-    return from + delta * alpha;
+    return lerpAngle(from, to, alpha);
   }
 
   dispose() {
