@@ -3,7 +3,7 @@
 import { HostGame } from './HostGame.js';
 import { ClientGame } from './ClientGame.js';
 import { LobbyUI } from './ui/LobbyUI.js';
-import { NETWORK_CONFIG, UI_CONFIG, setSavedPerformanceProfile } from './config/index.js';
+import { NETWORK_CONFIG, UI_CONFIG, setSavedPerformanceProfile, setSavedNetworkConnectionMode } from './config/index.js';
 
 /**
  * Application Entry Point
@@ -21,8 +21,8 @@ class App {
    */
   init() {
     this.lobbyUI = new LobbyUI({
-      onHostGame: (profile) => this.startHostSession(profile),
-      onJoinGame: (roomId, profile) => this.startClientSession(roomId, profile),
+      onHostGame: (profile, networkMode) => this.startHostSession(profile, networkMode),
+      onJoinGame: (roomId, profile, networkMode) => this.startClientSession(roomId, profile, networkMode),
     });
 
     this.lobbyUI.setStatus('Ready to Host or Join game.', UI_CONFIG.STATUS.READY);
@@ -31,15 +31,16 @@ class App {
   /**
    * Instantiates and runs an Authoritative Host game session.
    */
-  async startHostSession(profile = null) {
+  async startHostSession(profile = null, networkMode = null) {
     if (profile) setSavedPerformanceProfile(profile);
+    if (networkMode) setSavedNetworkConnectionMode(networkMode);
     try {
       this.lobbyUI.setStatus('Initializing Host Session...', UI_CONFIG.STATUS.READY);
 
       const hostGame = new HostGame(document.body);
       this.gameInstance = hostGame;
 
-      const hostRoomId = await hostGame.initialize();
+      const hostRoomId = await hostGame.initialize(networkMode);
 
       this.lobbyUI.showInvitationCode(hostRoomId);
       this.lobbyUI.setStatus('Host Active! Share the 5-character invitation code.', UI_CONFIG.STATUS.SUCCESS);
@@ -61,8 +62,9 @@ class App {
    * 
    * @param {string} roomId - Host WebRTC Peer ID.
    */
-  async startClientSession(roomId, profile = null) {
+  async startClientSession(roomId, profile = null, networkMode = null) {
     if (profile) setSavedPerformanceProfile(profile);
+    if (networkMode) setSavedNetworkConnectionMode(networkMode);
     try {
       const invitationCode = String(roomId || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (invitationCode.length !== NETWORK_CONFIG.INVITATION_CODE.LENGTH) {
@@ -75,7 +77,7 @@ class App {
       const clientGame = new ClientGame(document.body);
       this.gameInstance = clientGame;
 
-      await clientGame.initialize(invitationCode);
+      await clientGame.initialize(invitationCode, networkMode);
 
       this.lobbyUI.setStatus('Connected! Starting session...', UI_CONFIG.STATUS.SUCCESS);
       this.lobbyUI.setVisible(false);
