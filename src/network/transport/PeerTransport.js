@@ -34,6 +34,13 @@ export class PeerTransport {
     return Array.from(this.peerManager.connections?.keys?.() || []);
   }
 
+  closePeer(peerId) {
+    const connection = this.peerManager.connections?.get?.(String(peerId));
+    if (!connection) return false;
+    try { connection.close(); } catch {}
+    return true;
+  }
+
   isConnected(peerId) {
     return !!this.peerManager.connections?.get?.(String(peerId))?.open;
   }
