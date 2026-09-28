@@ -6,6 +6,7 @@ import {
 } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { createImpactSeed } from './ImpactSystem.js';
+import { buildShotEvent } from '../../game/simulation/combat/ShotEventModel.js';
 import { copyWeaponState } from '../components/Weapon.js';
 import { getAccuracyState } from '../../utils/AccuracyModel.js';
 import { sampleShotDirection } from '../../game/simulation/combat/ShotDirection.js';
@@ -194,26 +195,7 @@ export class WeaponSystem {
    * ray query, so walls and hitboxes remain the source of truth.
    */
 
-  _buildShotEvent({ player, weapon, origin, endPos, hit, hitEntity, hitZone, hitNormal, dir, trace, pelletIndex }) {
-    const material = hitEntity?.player ? null : (hit?.material || this.physicsWorld?.getProjectileMaterial?.(hit) || null);
-    const impactSeed = material ? createImpactSeed({ shooterId: player.id, weaponId: weapon.typeId ?? 1, position: endPos, material, sequence: pelletIndex * 32 + (trace.impacts || []).length * 2 + 7 }) : null;
-    return {
-      type: EVENT_TYPES.SHOT, shooterId: player.id, weaponId: weapon.typeId ?? 1,
-      sfx: weapon.sfx || 'pistol', origin, end: endPos, hit: !!hit,
-      hitEntityId: hitEntity?.player?.id ?? null, hitZone: hitZone || null,
-      normal: hitNormal, direction: dir, material, impactSeed,
-      distance: trace.distance, muzzleVelocity: Math.max(1, Number(weapon.muzzleVelocity) || 500),
-      ballisticDrop: 0.5 * (Number(GAME_CONFIG.GRAVITY) || -19.62) * Math.pow(trace.distance / Math.max(1, Number(weapon.muzzleVelocity) || 500), 2),
-      terminalVelocity: trace.velocity || Math.max(1, Number(weapon.muzzleVelocity) || 500),
-      penetrated: trace.penetrated || 0,
-      impacts: (trace.impacts || []).map((impact, index) => ({
-        point: impact.point, exitPoint: impact.exitPoint, normal: impact.normal, exitNormal: impact.exitNormal,
-        material: impact.material, velocityBefore: impact.velocityBefore, velocityAfter: impact.velocityAfter, incomingDirection: dir,
-        entrySeed: createImpactSeed({ shooterId: player.id, weaponId: weapon.typeId ?? 1, position: impact.point, material: impact.material, sequence: pelletIndex * 32 + index * 2 }),
-        exitSeed: createImpactSeed({ shooterId: player.id, weaponId: weapon.typeId ?? 1, position: impact.exitPoint, material: impact.material, sequence: pelletIndex * 32 + index * 2 + 1 }),
-      })), primary: pelletIndex === 0,
-    };
-  }
+
   _fireShot(ecsWorld, entity, now) {
     const player = entity.player;
     const transform = entity.transform;
@@ -294,7 +276,7 @@ export class WeaponSystem {
 
       this.presentation?.createBullet?.(ecsWorld, origin, endPos, trace.path);
 
-      this._emit(this._buildShotEvent({ player, weapon, origin, endPos, hit, hitEntity, hitZone, hitNormal, dir, trace, pelletIndex: p }));
+      this._emit(buildShotEvent({ shooterId: player.id, weapon, origin, end: endPos, hit, hitEntityId: hitEntity?.player?.id ?? null, hitZone, normal: hitNormal, direction: dir, trace, pelletIndex: p }));
 
       // Surface reactions are presentation-only and use the authoritative
       // trace data. Network peers reconstruct the same reaction from the
