@@ -420,10 +420,7 @@ export class PhysicsWorld {
       entity: handle != null ? this.colliderToEntity.get(handle) || null : null,
       renderTarget: handle != null ? this.colliderToRenderTarget.get(handle) || null : null,
       hitZone: handle != null ? this.colliderToHitZone.get(handle) || null : null,
-      material: this.getProjectileMaterial({
-        entity: handle != null ? this.colliderToEntity.get(handle) || null : null,
-        renderTarget: handle != null ? this.colliderToRenderTarget.get(handle) || null : null,
-      }),
+      material: this.getProjectileMaterial({ collider }),
     };
   }
 
@@ -432,6 +429,7 @@ export class PhysicsWorld {
     this.colliderToEntity.clear();
     this.colliderToRenderTarget.clear();
     this.colliderToHitZone.clear();
+    this.colliderToMaterial.clear();
     this.world?.free?.();
     this.world = null;
     this.initialized = false;
