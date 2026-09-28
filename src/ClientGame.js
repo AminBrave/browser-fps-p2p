@@ -69,16 +69,14 @@ export class ClientGame {
 
     this.inputSystem = new InputSystem(this.container);
     this.renderSystem = new RenderSystem(this.sceneManager);
-    this.weaponSystem = new WeaponSystem(
-      this.physicsWorld,
-      this.sceneManager,
-      null,
-      false,
-      this.renderSystem,
-      null,
-      this.impactSystem,
-      new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
-    );
+    this.weaponSystem = new WeaponSystem({
+      physicsWorld: this.physicsWorld,
+      healthSystem: null,
+      isAuthoritative: false,
+      eventSink: null,
+      impactSystem: this.impactSystem,
+      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
+    });
     this.renderSystem.setEventSink((event) => this.networkTransport.sendToHost(Protocol.encodeGameEvent(event)));
 
     this.localPlayerId = await this.networkTransport.initializeClient(hostRoomId);
