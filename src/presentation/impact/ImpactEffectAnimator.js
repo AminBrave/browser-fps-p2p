@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RENDER_CONFIG } from '../../config/index.js';
 
 export class ImpactEffectAnimator {
-  update(effect, dt, now) {
+    _updateEffect(effect, dt, now) {
     const root = effect?.root;
     if (!root) return false;
     const elapsed = Math.max(0, (now - effect.createdAt) / 1000);
@@ -47,9 +47,13 @@ export class ImpactEffectAnimator {
     return true;
   }
 
+  getPlayerImpactMarkRemovalCount(contacts, playerId, fraction = 1) {
+    const amount = THREE.MathUtils.clamp(Number(fraction) || 0, 0, 1);
+    const marks = contacts.filter((entry) => entry?.effect?.metadata?.playerImpactMark && entry.effect.metadata.ownerId === playerId);
+    return Math.min(marks.length, Math.floor(marks.length * amount + 1e-6));
   }
 
-  updatePlayerImpactMarksForHealth(playerId, health, maxHealth) {
+    updatePlayerImpactMarksForHealth(playerId, health, maxHealth) {
     const max = Math.max(1, Number(maxHealth) || 100);
     const current = THREE.MathUtils.clamp(Number(health) || 0, 0, max);
     const healthOpacity = 1 - current / max;
@@ -71,23 +75,4 @@ export class ImpactEffectAnimator {
       });
     }
   }
-
-
-  clearPlayerImpactMarks(playerId, fraction = 1) {
-    const amount = THREE.MathUtils.clamp(Number(fraction) || 0, 0, 1);
-    const marks = this.contacts.filter((entry) =>
-      entry?.effect?.metadata?.playerImpactMark &&
-      entry.effect.metadata.ownerId === playerId
-    );
-    const removeCount = Math.min(marks.length, Math.floor(marks.length * amount + 1e-6));
-    for (let i = 0; i < removeCount; i++) {
-      const entry = marks[i];
-      this.effectStore?.remove?.(entry.effect);
-      const index = this.contacts.indexOf(entry);
-      if (index >= 0) this.contacts.splice(index, 1);
-    }
-    return removeCount;
-  }
-
-
 }
