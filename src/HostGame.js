@@ -61,8 +61,8 @@ export class HostGame {
       true,
       this.renderSystem,
       null,
-      this.impactSystem
-      , new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
+      this.impactSystem,
+      new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
     );
     this.hostNetworkSystem = new HostNetworkSystem(this.networkTransport);
     this.hostNetworkSystem.setJoinHandler((peerId) => {
