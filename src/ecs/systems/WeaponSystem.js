@@ -215,6 +215,8 @@ export class WeaponSystem {
     let elapsed = 0;
     let remainingEnergy = 1;
     let exclude = excludeCollider;
+    let excludedPenetrationCollider = null;
+    let excludedPenetrationUntil = 0;
 
     for (let i = 0; i < maxSteps && travelled < maxRange && remainingEnergy > 0.03; i++) {
       const speed = Math.max(1, Math.hypot(velocity.x, velocity.y, velocity.z));
@@ -240,8 +242,15 @@ export class WeaponSystem {
         y: segment.y / segmentLength,
         z: segment.z / segmentLength,
       };
+      if (excludedPenetrationCollider && travelled >= excludedPenetrationUntil) {
+        excludedPenetrationCollider = null;
+      }
+
+      const queryExclude = excludedPenetrationCollider
+        ? [exclude, excludedPenetrationCollider]
+        : exclude;
       const hit = this.physicsWorld?.castRay
-        ? this.physicsWorld.castRay(position, segmentDirection, segmentLength, exclude)
+        ? this.physicsWorld.castRay(position, segmentDirection, segmentLength, queryExclude)
         : null;
 
       if (!hit) {
@@ -338,11 +347,50 @@ export class WeaponSystem {
         y: segmentDirection.y * residualSpeed,
         z: segmentDirection.z * residualSpeed,
       };
-      position = {
-        x: exitPoint.x + segmentDirection.x * 0.008,
-        y: exitPoint.y + segmentDirection.y * 0.008,
-        z: exitPoint.z + segmentDirection.z * 0.008,
+      const outwardNormal = exitNormal || {
+        x: -segmentDirection.x,
+        y: -segmentDirection.y,
+        z: -segmentDirection.z,
       };
+      const normalLength = Math.hypot(
+        outwardNormal.x,
+        outwardNormal.y,
+        outwardNormal.z
+      ) || 1;
+      const normalizedExitNormal = {
+        x: outwardNormal.x / normalLength,
+        y: outwardNormal.y / normalLength,
+        z: outwardNormal.z / normalLength,
+      };
+      // Move beyond the exit face along its actual outward normal. At a very
+      // shallow grazing angle, advancing only along the projectile direction
+      // can leave the ray numerically inside the same volume and cause the
+      // next segment to generate duplicate entry/exit impacts.
+      const exitClearance = 0.018;
+      position = {
+        x: exitPoint.x + normalizedExitNormal.x * exitClearance + segmentDirection.x * 0.004,
+        y: exitPoint.y + normalizedExitNormal.y * exitClearance + segmentDirection.y * 0.004,
+        z: exitPoint.z + normalizedExitNormal.z * exitClearance + segmentDirection.z * 0.004,
+      };
+
+      const duplicateImpact = impacts.some((impact) => {
+        const dx = impact.point.x - hitPoint.x;
+        const dy = impact.point.y - hitPoint.y;
+        const dz = impact.point.z - hitPoint.z;
+        return dx * dx + dy * dy + dz * dz < 0.012 * 0.012;
+      });
+      if (duplicateImpact) {
+        position = {
+          x: position.x + normalizedExitNormal.x * 0.012,
+          y: position.y + normalizedExitNormal.y * 0.012,
+          z: position.z + normalizedExitNormal.z * 0.012,
+        };
+        excludedPenetrationCollider = hit.collider || null;
+        excludedPenetrationUntil = travelled + 0.05;
+        exclude = null;
+        path.push({ ...position });
+        continue;
+      }
 
       impacts.push({
         point: { ...hitPoint },
@@ -360,6 +408,8 @@ export class WeaponSystem {
         energyRemaining: remainingEnergy,
       });
       exclude = null;
+      excludedPenetrationCollider = hit.collider || null;
+      excludedPenetrationUntil = travelled + 0.05;
       path.push({ ...position });
     }
 
