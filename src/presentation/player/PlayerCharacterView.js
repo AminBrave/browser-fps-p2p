@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { PLAYER_CONFIG, PLAYER_CHARACTER_CONFIG } from '../../config/index.js';
 
-export function createPlayerCharacter({ scene, spawnPos, isLocal, groundedY }) {
+export function createPlayerCharacter({ sceneOrManager, spawnPos, isLocal, groundedY }) {
+  const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
   const teamColor = isLocal ? 0x258cff : 0xe84b4b;
   const darkColor = isLocal ? 0x12365f : 0x4a1515;
   const skinColor = 0xd49a72;
