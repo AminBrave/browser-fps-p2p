@@ -14,7 +14,7 @@ import { getAccuracyState } from '../../utils/AccuracyModel.js';
 import { sampleShotDirection } from '../../game/simulation/combat/ShotDirection.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
-import * as THREE from 'three';
+import { calculateShotDamage } from '../../game/simulation/combat/DamageModel.js';
 
 export class WeaponSystem {
   constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null, eventSink = null, impactSystem = null) {
@@ -463,36 +463,6 @@ export class WeaponSystem {
    *   >1 = retain power longer, then weaken harder near the end
    *   <1 = lose power early
    */
-  _getDamageMultiplier(weapon, distance) {
-    const start = Math.max(0, Number(weapon.damageFalloffStart) || 0);
-    const end = Math.max(
-      start + 0.001,
-      Number(weapon.damageFalloffEnd) || Number(weapon.range) || 100
-    );
-    const minimum = Math.min(1, Math.max(0, Number(weapon.minDamageMultiplier) || 0.5));
-    const curve = Math.max(0.25, Number(weapon.damageFalloffCurve) || 1);
-
-    if (distance <= start) return 1;
-    if (distance >= end) return minimum;
-
-    const normalized = Math.min(1, Math.max(0, (distance - start) / (end - start)));
-    const shaped = Math.pow(normalized, curve);
-    return 1 + (minimum - 1) * shaped;
-  }
-
-  _getHitZoneMultiplier(hitZone) {
-    if (hitZone === 'head') return 2.0;
-    if (
-      hitZone === 'leftArm' ||
-      hitZone === 'rightArm' ||
-      hitZone === 'leftLeg' ||
-      hitZone === 'rightLeg'
-    ) {
-      return 0.65;
-    }
-    return 1.0;
-  }
-
   _fireShot(ecsWorld, entity, now) {
     const player = entity.player;
     const transform = entity.transform;
@@ -715,27 +685,16 @@ export class WeaponSystem {
       }
 
       if (this.isAuthoritative && this.healthSystem && hitEntity?.player && !hitEntity.player.isDead) {
-        const baseDamage = Number(weapon.damage) || 20;
-        const distanceMultiplier = this._getDamageMultiplier(weapon, trace.distance);
-        const hitZoneMultiplier = this._getHitZoneMultiplier(hitZone);
-        // Kinetic energy scales with v². This makes air drag and
-        // penetration physically coherent with damage: a slower projectile
-        // carries less terminal energy, regardless of how it became slower.
-        const velocityRatio = THREE.MathUtils.clamp(
-          (Number(trace.velocity) || 0) / muzzleVelocity,
-          0,
-          1
-        );
-        const kineticEnergyMultiplier = Math.max(0.05, velocityRatio * velocityRatio);
-        const legacyPenetrationPenalty = Math.max(
-          0.1,
-          1 - (Number(weapon.penetrationDamageLoss) || 0) * (trace.penetrated || 0)
-        );
-        const dmg = baseDamage *
-          distanceMultiplier *
-          hitZoneMultiplier *
-          kineticEnergyMultiplier *
-          legacyPenetrationPenalty;
+        // Kinetic energy scales with v². The pure simulation model keeps
+        // damage independent from Three.js and presentation concerns.
+        const dmg = calculateShotDamage({
+          weapon,
+          distance: trace.distance,
+          hitZone,
+          terminalVelocity: trace.velocity,
+          muzzleVelocity,
+          penetrated: trace.penetrated || 0,
+        });
 
         this.healthSystem.applyDamage(hitEntity, dmg, player.id);
         this._emit({
