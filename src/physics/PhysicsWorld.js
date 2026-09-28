@@ -1,14 +1,14 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { GAME_CONFIG, WORLD_CONFIG, PHYSICS_CONFIG, STANCE } from '../config/index.js';
+import { ColliderRegistry } from './ColliderRegistry.js';
+import { PhysicsQueries } from './PhysicsQueries.js';
 
 export class PhysicsWorld {
   constructor() {
     this.world = null;
     this.initialized = false;
-    this.colliderToEntity = new Map();
-    this.colliderToRenderTarget = new Map();
-    this.colliderToHitZone = new Map();
-    this.colliderToMaterial = new Map();
+    this.colliderRegistry = new ColliderRegistry();
+    this.queries = new PhysicsQueries(() => this.world, this.colliderRegistry);
   }
 
   async init() {
@@ -23,101 +23,23 @@ export class PhysicsWorld {
   }
 
   registerColliderEntity(collider, entity, renderTarget = null, hitZone = null, materialType = null) {
-    if (!collider) return;
-    const handle = collider.handle ?? collider;
-    this.colliderToEntity.set(handle, entity);
-    if (renderTarget) this.colliderToRenderTarget.set(handle, renderTarget);
-    if (hitZone) this.colliderToHitZone.set(handle, hitZone);
-    if (materialType) this.colliderToMaterial.set(handle, materialType);
+    this.colliderRegistry.register(collider, entity, renderTarget, hitZone, materialType);
   }
 
   getProjectileMaterial(hit = null) {
-    const collider = hit?.collider;
-    const handle = collider?.handle ?? collider;
-    return (handle != null ? this.colliderToMaterial.get(handle) : null) || 'default';
+    return this.colliderRegistry.getMaterial(hit?.collider);
   }
 
-  /**
-   * Return the exact exit distance through the already-hit Rapier shape.
-   * Rapier's collider-local ray query with solid=false is important here:
-   * the ray starts just inside the material, so Rapier returns the next
-   * boundary instead of treating the shape as an infinitely solid point.
-   */
   getProjectileExitHit(collider, origin, direction, maxDistance) {
-    if (!this.world || !collider || !origin || !direction) return null;
-
-    const len = Math.hypot(direction.x, direction.y, direction.z) || 1;
-    const dir = {
-      x: direction.x / len,
-      y: direction.y / len,
-      z: direction.z / len,
-    };
-    const handle = collider.handle ?? collider;
-    const ray = new RAPIER.Ray(
-      { x: origin.x, y: origin.y, z: origin.z },
-      dir
-    );
-    const limit = Math.max(0.001, Number(maxDistance) || 0.001);
-
-    // The projectile starts just inside the already-hit volume. Query only
-    // that exact collider with solid=false so Rapier returns its exit face,
-    // including the exit surface normal. This is deliberately a physics query
-    // rather than reusing the entry normal or estimating the face from travel
-    // direction.
-    const filterPredicate = (candidate) =>
-      (candidate?.handle ?? candidate) === handle;
-
-    const hit = typeof this.world.castRayAndGetNormal === 'function'
-      ? this.world.castRayAndGetNormal(
-          ray,
-          limit,
-          false,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          filterPredicate
-        )
-      : null;
-
-    if (!hit) {
-      const toi = collider.castRay?.(ray, limit, false);
-      if (!Number.isFinite(toi) || toi < 0) return null;
-      return {
-        distance: toi,
-        normal: null,
-      };
-    }
-
-    const toi = Number(hit.timeOfImpact ?? hit.toi);
-    if (!Number.isFinite(toi) || toi < 0) return null;
-
-    const rawNormal = hit.normal;
-    if (!rawNormal) {
-      return { distance: toi, normal: null };
-    }
-
-    const normalLength = Math.hypot(rawNormal.x, rawNormal.y, rawNormal.z) || 1;
-    return {
-      distance: toi,
-      normal: {
-        x: rawNormal.x / normalLength,
-        y: rawNormal.y / normalLength,
-        z: rawNormal.z / normalLength,
-      },
-    };
+    return this.queries.getProjectileExitHit(collider, origin, direction, maxDistance);
   }
 
   getProjectileExitDistance(collider, origin, direction, maxDistance) {
-    return this.getProjectileExitHit(collider, origin, direction, maxDistance)?.distance ?? null;
+    return this.queries.getProjectileExitHit(collider, origin, direction, maxDistance)?.distance ?? null;
   }
+
   unregisterCollider(collider) {
-    if (!collider) return;
-    const handle = collider.handle ?? collider;
-    this.colliderToEntity.delete(handle);
-    this.colliderToRenderTarget.delete(handle);
-    this.colliderToHitZone.delete(handle);
-    this.colliderToMaterial.delete(handle);
+    this.colliderRegistry.unregister(collider);
   }
 
   createPlayerBody(x, y, z, radius = PHYSICS_CONFIG.DEFAULT_PLAYER_RADIUS, height = PHYSICS_CONFIG.DEFAULT_PLAYER_HEIGHT) {
@@ -397,96 +319,12 @@ export class PhysicsWorld {
   }
 
   castRay(origin, direction, maxDistance = PHYSICS_CONFIG.DEFAULT_RAY_DISTANCE, excludeCollider = null) {
-    if (!this.world) return null;
-    const len = Math.hypot(direction.x, direction.y, direction.z) || 1;
-    const dir = { x: direction.x / len, y: direction.y / len, z: direction.z / len };
-
-    const excluded = new Set();
-    const addExcluded = (value) => {
-      if (!value) return;
-      if (Array.isArray(value) || value instanceof Set) {
-        for (const item of value) addExcluded(item);
-        return;
-      }
-      if (value.colliders) {
-        addExcluded(value.colliders);
-        return;
-      }
-      excluded.add(value.handle ?? value);
-    };
-    addExcluded(excludeCollider);
-
-    const ray = new RAPIER.Ray({ x: origin.x, y: origin.y, z: origin.z }, dir);
-    const filterPredicate = (collider) => {
-      const handle = collider?.handle ?? collider;
-      if (excluded.has(handle)) return false;
-
-      // Movement capsules are physical locomotion envelopes, not bullet
-      // hitboxes. Exclude them at the query level instead of hitting them
-      // first and then advancing the ray from inside the same solid collider.
-      // With solid=true, the old loop could repeatedly return that collider
-      // at toi=0 and never reach the anatomical sensors inside it.
-      const hitEntity = this.colliderToEntity.get(handle) || null;
-      const hitZone = this.colliderToHitZone.get(handle) || null;
-      return !(hitEntity?.player && !hitZone);
-    };
-
-    const hit = typeof this.world.castRayAndGetNormal === 'function'
-      ? this.world.castRayAndGetNormal(
-          ray,
-          maxDistance,
-          true,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          filterPredicate
-        )
-      : this.world.castRay(
-          ray,
-          maxDistance,
-          true,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          filterPredicate
-        );
-
-    if (!hit) return null;
-    const normal = hit.normal
-      ? { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
-      : null;
-    return this._formatHit(origin, dir, hit, normal);
-  }
-
-  _formatHit(origin, dir, hit, normalFromApi) {
-    const toi = hit.timeOfImpact ?? hit.toi ?? 0;
-    const point = { x: origin.x + dir.x * toi, y: origin.y + dir.y * toi, z: origin.z + dir.z * toi };
-    let normal = normalFromApi || hit.normal || { x: -dir.x, y: -dir.y, z: -dir.z };
-    const nLen = Math.hypot(normal.x, normal.y, normal.z) || 1;
-    normal = { x: normal.x / nLen, y: normal.y / nLen, z: normal.z / nLen };
-
-    const collider = hit.collider || null;
-    const handle = collider ? collider.handle ?? collider : null;
-    return {
-      point,
-      normal,
-      toi,
-      collider,
-      entity: handle != null ? this.colliderToEntity.get(handle) || null : null,
-      renderTarget: handle != null ? this.colliderToRenderTarget.get(handle) || null : null,
-      hitZone: handle != null ? this.colliderToHitZone.get(handle) || null : null,
-      material: this.getProjectileMaterial({ collider }),
-    };
+    return this.queries.castRay(origin, direction, maxDistance, excludeCollider);
   }
 
   dispose() {
     if (!this.initialized) return;
-    this.colliderToEntity.clear();
-    this.colliderToRenderTarget.clear();
-    this.colliderToHitZone.clear();
-    this.colliderToMaterial.clear();
+    this.colliderRegistry.clear();
     this.world?.free?.();
     this.world = null;
     this.initialized = false;
