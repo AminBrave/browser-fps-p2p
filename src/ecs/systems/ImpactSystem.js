@@ -332,7 +332,9 @@ export class ImpactSystem {
 
     const particles = new THREE.Group();
     particles.name = 'impactParticles';
-    particles.position.copy(localPoint);
+    // Children are already positioned in the impact group's local space.
+    // Applying localPoint to this container would translate particles twice.
+    particles.position.set(0, 0, 0);
     particles.userData.impactNormal = localNormal.clone();
 
     const speed = Math.max(0, Number(velocityBefore) || 0);
