@@ -9,7 +9,12 @@ The game uses four separate networking layers:
 
 ## Railway deployment
 
-The Railway service runs the built SPA and the server-side `/api/ice` endpoint from the same Node process.
+The repository supports two frontend/API deployment modes:
+
+- **Railway:** `server.js` serves the built SPA and `/api/ice` from one Node process.
+- **Vercel:** Vite serves the `dist/` output and `api/ice.js` provides the same endpoint as a Vercel Function.
+
+The browser networking code is the same in both deployments.
 
 TURN is **optional**. The normal connection path is direct WebRTC plus STUN. If you operate your own TURN server, configure it on Railway with:
 
@@ -43,15 +48,23 @@ For Vercel, configure the same environment variables in the Vercel project setti
 
 ### Signaling
 
-The game uses PeerJS for signaling. Vercel hosting the frontend and `/api/ice` does not automatically provide a dedicated PeerServer for this game. If `VITE_PEER_SERVER_HOST` is not set, PeerJS uses its configured/default signaling behavior. For a minimum-third-party production setup, run your own PeerServer on a persistent host such as Railway and point the Vercel frontend at it:
+The game uses PeerJS for signaling. Vercel and Railway do not turn `server.js` into a persistent PeerServer automatically.
+
+The repository includes `peer-server.js` for a portable self-hosted signaling service. On Railway, create a small second service from this repository and set its start command to:
+
+```text
+npm run start:peer
+```
+
+Railway supplies `PORT`; optionally set `PEER_SERVER_PATH=/peerjs`. Behind Railway's HTTPS proxy, the client should use TLS:
 
 ```text
 VITE_PEER_SERVER_HOST=your-peer-server.example.com
 VITE_PEER_SERVER_PORT=443
-VITE_PEER_SERVER_PATH=/
+VITE_PEER_SERVER_PATH=/peerjs
 ```
 
-This separates static/API hosting from the persistent signaling service and works with both Vercel and Railway deployments.
+If `VITE_PEER_SERVER_HOST` is omitted, PeerJS falls back to PeerJS Cloud. For minimum third-party usage, configure the included self-hosted PeerServer instead. PeerJS documents that its server is signaling infrastructure and that TURN remains a separate concern.
 
 ## Signaling server
 
