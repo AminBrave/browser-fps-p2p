@@ -312,11 +312,20 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
   }
 
   const wheelRotation = { x: 0, y: 0, z: Math.SQRT1_2, w: Math.SQRT1_2 };
+  const windshield = group.children.find((child) => child.name === 'windshield');
+  const rearWindow = group.children.find((child) => child.name === 'rearWindow');
+  const leftWindow = group.children.find((child) => child.name === 'leftWindow');
+  const rightWindow = group.children.find((child) => child.name === 'rightWindow');
+
   const compoundParts = [
-    { desc: RAPIER.ColliderDesc.cuboid(config.BODY.SIZE.x / 2, config.BODY.SIZE.y / 2, config.BODY.SIZE.z / 2), position: { x: 0, y: config.BODY.CENTER_Y, z: 0 }, renderTarget: body },
-    { desc: RAPIER.ColliderDesc.cuboid(0.91, 0.08, 0.45), position: { x: 0, y: 0.79, z: -1.38 }, renderTarget: hood },
-    { desc: RAPIER.ColliderDesc.cuboid(0.91, 0.075, 0.325), position: { x: 0, y: 0.76, z: 1.35 }, renderTarget: trunk },
-    { desc: RAPIER.ColliderDesc.cuboid(config.CABIN.SIZE.x / 2, config.CABIN.SIZE.y / 2, config.CABIN.SIZE.z / 2), position: { x: 0, y: config.CABIN.CENTER_Y, z: config.CABIN.CENTER_Z }, renderTarget: cabin },
+    { desc: RAPIER.ColliderDesc.cuboid(config.BODY.SIZE.x / 2, config.BODY.SIZE.y / 2, config.BODY.SIZE.z / 2), position: { x: 0, y: config.BODY.CENTER_Y, z: 0 }, renderTarget: body, materialType: 'metal' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.91, 0.08, 0.45), position: { x: 0, y: 0.79, z: -1.38 }, renderTarget: hood, materialType: 'metal' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.91, 0.075, 0.325), position: { x: 0, y: 0.76, z: 1.35 }, renderTarget: trunk, materialType: 'metal' },
+    { desc: RAPIER.ColliderDesc.cuboid(config.CABIN.SIZE.x / 2, config.CABIN.SIZE.y / 2, config.CABIN.SIZE.z / 2), position: { x: 0, y: config.CABIN.CENTER_Y, z: config.CABIN.CENTER_Z }, renderTarget: cabin, materialType: 'metal' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.74, 0.19, 0.018), position: { x: 0, y: 1.22, z: -1.01 }, renderTarget: windshield, materialType: 'glass' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.74, 0.18, 0.018), position: { x: 0, y: 1.21, z: 0.72 }, renderTarget: rearWindow, materialType: 'glass' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.018, 0.17, 0.69), position: { x: -0.84, y: 1.21, z: -0.14 }, renderTarget: leftWindow, materialType: 'glass' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.018, 0.17, 0.69), position: { x: 0.84, y: 1.21, z: -0.14 }, renderTarget: rightWindow, materialType: 'glass' },
     ...wheelPositions.map(({ x, z }, index) => ({
       desc: RAPIER.ColliderDesc.cylinder(config.WHEELS.WIDTH / 2, config.WHEELS.RADIUS),
       position: { x, y: config.WHEELS.RADIUS, z },
