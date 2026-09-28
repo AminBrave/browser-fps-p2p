@@ -1,6 +1,10 @@
 // src/ecs/systems/network/ClientReconcileSystem.js
 
-import { STANCE } from '../../../config/index.js';
+import {
+  STANCE,
+  INPUT_FLAGS,
+  PLAYER_CONFIG,
+} from '../../../config/index.js';
 import { applyFpsMovement } from '../../../game/simulation/movement/FpsMovement.js';
 import { calculatePositionError, magnitude, calculateVisualCorrection } from '../../../game/simulation/network/ReconciliationModel.js';
 
@@ -185,14 +189,25 @@ export class ClientReconcileSystem {
 
     if (!physics.velocity) physics.velocity = { x: 0, y: 0, z: 0 };
 
-    physics.isGrounded = applyFpsMovement(
+    physics.isGrounded = applyFpsMovement({
       inputMask,
       yaw,
-      physics.velocity,
-      physics.isGrounded,
+      velocity: physics.velocity,
+      isGrounded: physics.isGrounded,
       dt,
-      stance
-    );
+      stance,
+      inputFlags: INPUT_FLAGS,
+      movementConfig: {
+        speed: PLAYER_CONFIG.SPEED,
+        sprintMultiplier: PLAYER_CONFIG.SPRINT_MULTIPLIER,
+        jumpForce: PLAYER_CONFIG.JUMP_FORCE,
+        gravity: PLAYER_CONFIG.GRAVITY,
+        stanceStand: STANCE.STAND,
+        stanceCrouch: STANCE.CROUCH,
+        stanceProne: STANCE.PRONE,
+        speedMultipliers: PLAYER_CONFIG.SPEED_MULTIPLIERS,
+      },
+    });
 
     if (physics.controller && physics.collider && physics.rigidBody) {
       const movementDelta = {
