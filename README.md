@@ -196,7 +196,7 @@ docs/
 
 - Node.js 20+ recommended.
 - A modern browser with WebRTC, Web Audio, WebGL, and Pointer Lock support.
-- For broad Internet multiplayer coverage, production deployment should provide a functioning TURN service.
+- Direct WebRTC and STUN are sufficient for many networks. TURN is an optional compatibility fallback for restrictive NAT/firewall configurations.
 
 ## Local development
 
@@ -260,9 +260,12 @@ See [docs/TESTING.md](docs/TESTING.md) for the testing rules.
 
 ## Production deployment
 
-The Railway production service builds the Vite frontend and runs `npm start`, which serves both the SPA and the server-side `/api/ice` TURN configuration endpoint. Set `METERED_TURN_CREDENTIAL_URL` and `METERED_TURN_API_KEY` as Railway service variables; these remain server-side.
+The Railway production service builds the Vite frontend and runs `npm start`, which serves both the SPA and the `/api/ice` ICE configuration endpoint.
+
+TURN is optional. For minimum external dependencies, run direct WebRTC + STUN only. For broader connectivity, configure your own TURN server with `TURN_URLS_JSON`, `TURN_USERNAME`, and `TURN_CREDENTIAL`. An external TURN provider can optionally be added with `TURN_CREDENTIAL_URL` and `TURN_API_KEY` as an additional fallback. Keep all TURN credentials server-side.
 
 ## Production networking
+
 
 The application separates:
 
