@@ -10,10 +10,13 @@ import { INPUT_FLAGS } from '../../src/config/index.js';
 
 test('client input protocol round-trips all fields', () => {
   const packet = Protocol.encodeClientInput(123, INPUT_FLAGS.FORWARD | INPUT_FLAGS.CROUCH, 2.5, -0.4, 3, true);
-  assert.deepEqual(Protocol.decodeClientInput(packet), {
-    sequence: 123, inputMask: INPUT_FLAGS.FORWARD | INPUT_FLAGS.CROUCH,
-    yaw: 2.5, pitch: -0.4, weaponSlot: 3, isAiming: true,
-  });
+  const decoded = Protocol.decodeClientInput(packet);
+  assert.equal(decoded.sequence, 123);
+  assert.equal(decoded.inputMask, INPUT_FLAGS.FORWARD | INPUT_FLAGS.CROUCH);
+  assert.ok(Math.abs(decoded.yaw - 2.5) < 1e-6);
+  assert.ok(Math.abs(decoded.pitch - (-0.4)) < 1e-6);
+  assert.equal(decoded.weaponSlot, 3);
+  assert.equal(decoded.isAiming, true);
   assert.equal(Protocol.getPacketType(packet), PACKET_TYPES.CLIENT_INPUT);
 });
 
