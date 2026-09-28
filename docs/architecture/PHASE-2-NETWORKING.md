@@ -60,6 +60,12 @@ Binary decoders now enforce packet type and fixed-size boundaries for fixed pack
 
 This keeps malformed packets from reaching gameplay systems and makes protocol failures deterministic rather than relying on downstream consumers to tolerate invalid data.
 
+## Snapshot timeline
+
+Snapshot interpolation now delegates ordering, bounded history, delayed sampling, and shortest-path angle interpolation to `src/game/simulation/network/SnapshotTimeline.js`. The rendering system remains responsible only for applying the sampled state to presentation entities.
+
+The timeline rejects stale snapshots and bounds history. Sampling uses a render-time delay so packet-arrival jitter does not directly become visual movement jitter.
+
 ## Remaining Phase 2 work
 
 - separate transport from protocol encoding;
