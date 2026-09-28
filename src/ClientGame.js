@@ -214,6 +214,15 @@ export class ClientGame {
     this._flushWeaponPresentationEvents();
   }
 
+  _flushWeaponPresentationEvents() {
+    if (!this.weaponSystem || !this.weaponPresentation) return;
+
+    const events = this.weaponSystem.drainPresentationEvents?.() || [];
+    for (const event of events) {
+      this.weaponPresentation.handleEvent(event);
+    }
+  }
+
   _render(_dt, now, alpha) {
     this.interpolationSystem.update(
       this.ecsWorld,
