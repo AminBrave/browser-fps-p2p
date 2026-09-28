@@ -66,6 +66,7 @@ class App {
     try {
       const invitationCode = String(roomId || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (invitationCode.length !== NETWORK_CONFIG.INVITATION_CODE.LENGTH) {
+        this.lobbyUI.setBusy(false);
         this.lobbyUI.setStatus(`Invitation code must be exactly ${NETWORK_CONFIG.INVITATION_CODE.LENGTH} characters.`, UI_CONFIG.STATUS.ERROR);
         return;
       }
