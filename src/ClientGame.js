@@ -79,7 +79,6 @@ export class ClientGame {
       healthSystem: null,
       isAuthoritative: false,
       eventSink: null,
-      impactSystem: this.impactSystem,
       presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem, colliderRegistry: this.presentationColliderRegistry, effectStore: this.effectStore })
     });
     this.renderSystem.setEventSink((event) => this.networkTransport.sendToHost(Protocol.encodeGameEvent(event)));
@@ -208,6 +207,7 @@ export class ClientGame {
 
     this.networkTransport.sendToHost(Protocol.encodeInput(inputPayload));
     this.weaponSystem.update(this.ecsWorld, performance.now(), dt);
+    this._flushWeaponPresentationEvents();
   }
 
   _render(_dt, now, alpha) {
