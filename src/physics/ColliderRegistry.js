@@ -1,7 +1,7 @@
 /**
  * Collider metadata registry.
  *
- * Keeps gameplay/render bindings out of the Rapier world wrapper. Handles are
+ * Keeps gameplay metadata out of the Rapier world wrapper. Handles are
  * stable keys for the lifetime of a collider.
  */
 export class ColliderRegistry {
