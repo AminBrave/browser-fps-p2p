@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WORLD_CONFIG } from '../../config/index.js';
 
 /** Presentation-only construction for generic static map boxes. */
 export class MapObjectView {
@@ -23,6 +24,8 @@ export class MapObjectView {
     return { root, targets: [mesh] };
   }
 
+  addToScene(object) { this.sceneManager?.scene?.add(object); }
+
   tree({ position }) {
     const config = WORLD_CONFIG.OBJECTS.TREE;
     const group = new THREE.Group();
@@ -39,7 +42,7 @@ export class MapObjectView {
     const targets = [trunk];
     for (let i = 0; i < config.CANOPY.LAYERS; i++) {
       const radius = Math.max(0.05, config.CANOPY.BASE_RADIUS - i * config.CANOPY.RADIUS_STEP);
-      const centerY = config.CANOPY.START_CENTER_Y + i * config.VERTICAL_STEP;
+      const centerY = config.CANOPY.START_CENTER_Y + i * config.CANOPY.VERTICAL_STEP;
       const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, config.CANOPY.HEIGHT, config.CANOPY.RADIAL_SEGMENTS), leafMat);
       cone.position.y = centerY;
       cone.castShadow = true;
