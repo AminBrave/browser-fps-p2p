@@ -21,6 +21,7 @@ export class HostNetworkSystem {
     this.lastReceivedSequence = new Map();
     this.lastProcessedSequence = new Map();
     this.incomingGameEvents = new Map();
+    this.maxGameEventsPerPeer = 32;
     this.serverTick = 0;
     this.lastBroadcastTime = 0;
     this.broadcastIntervalMs = 1000 / Math.max(1, NETWORK_CONFIG.SNAPSHOT_BROADCAST_RATE);
@@ -49,6 +50,10 @@ export class HostNetworkSystem {
         const event = Protocol.decodeGameEvent(dataView);
         if (event?.type === EVENT_TYPES.SFX) {
           const queue = this.incomingGameEvents.get(peerId) || [];
+          if (queue.length >= this.maxGameEventsPerPeer) {
+            this._rejectPeer(peerId, 'game event backlog overflow');
+            return;
+          }
           queue.push(event);
           this.incomingGameEvents.set(peerId, queue);
         }
