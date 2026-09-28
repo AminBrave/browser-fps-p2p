@@ -305,10 +305,9 @@ export class ImpactSystem {
       : point.clone();
 
     let localNormal = n.clone();
-    if (targetMesh?.worldToLocal) {
-      localNormal = targetMesh.worldToLocal(point.clone().addScaledVector(n, 1))
-        .sub(localPoint)
-        .normalize();
+    if (targetMesh?.matrixWorld) {
+      const normalMatrix = new THREE.Matrix3().getNormalMatrix(targetMesh.matrixWorld);
+      localNormal.applyMatrix3(normalMatrix).normalize();
     }
     if (localNormal.lengthSq() < 1e-8) localNormal.set(0, 1, 0);
 
