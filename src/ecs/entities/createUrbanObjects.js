@@ -57,11 +57,10 @@ function addUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec) {
     physicsWorld.registerColliderEntity(
       physics.colliders[i],
       entity,
-      physics.colliderTargets?.[i] || null,
       physics.hitZones?.[i] || null,
       physics.colliderMaterials?.[i] || null
     );
-    const target = physics.colliderTargets?.[i] || null;
+    const target = view.parts[i]?.mesh || null;
     if (target) mapEntities.presentationColliderRegistry?.register(physics.colliders[i], target);
   }
 
