@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SpawnSafety } from '../src/physics/SpawnSafety.js';
 
-const safeGround = {
-  entity: { id: 'floor' },
+const safeGround = { entity: { id: 'floor' } };
+const clearSpaceWithGround = (origin, direction) => {
+  if (direction.y < 0) return safeGround;
+  return null;
 };
 
 function createSafety(castRay, players = []) {
@@ -27,7 +29,7 @@ test('rejects overlapping living players', () => {
 test('ignores the requested entity and dead players', () => {
   const ignored = { player: { isDead: false }, transform: { position: { x: 0, y: 1, z: 0 } } };
   const dead = { player: { isDead: true }, transform: { position: { x: 0, y: 1, z: 0 } } };
-  const safety = createSafety(() => safeGround, [ignored, dead]);
+  const safety = createSafety(clearSpaceWithGround, [ignored, dead]);
   assert.equal(safety.isSafe({ x: 0, y: 1, z: 0 }, { ignoreEntity: ignored }), true);
 });
 
@@ -60,7 +62,7 @@ test('passes a clear position with supporting ground', () => {
   const calls = [];
   const safety = createSafety((origin, direction) => {
     calls.push({ origin, direction });
-    return safeGround;
+    return direction.y < 0 ? safeGround : null;
   });
   assert.equal(safety.isSafe({ x: 0, y: 1, z: 0 }), true);
   assert.ok(calls.length >= 3 * 16 + 2);
