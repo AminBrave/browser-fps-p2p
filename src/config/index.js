@@ -59,3 +59,11 @@ export function validateConfig() {
 }
 
 export { peerIdToNumeric } from './constants.js';
+
+
+export {
+  getSavedNetworkConnectionMode,
+  setSavedNetworkConnectionMode,
+  normalizeNetworkConnectionMode,
+  NETWORK_CONNECTION_MODES,
+} from './networkMode.js';
