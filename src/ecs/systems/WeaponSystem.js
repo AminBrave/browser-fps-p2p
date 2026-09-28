@@ -16,6 +16,7 @@ import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
 import { CombatResolver } from '../../game/simulation/combat/CombatResolver.js';
 import { BallisticsTracer } from '../../game/simulation/combat/BallisticsTracer.js';
+import { canReload, completeReload, shouldFire } from '../../game/simulation/combat/WeaponStateModel.js';
 
 export class WeaponSystem {
   constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null, eventSink = null, impactSystem = null) {
@@ -125,8 +126,8 @@ export class WeaponSystem {
 
       if (!weapon.isReloading) {
         const mag = weapon.magazine ?? 0;
-        const canReload = mag < (weapon.magazineSize || 12) && (weapon.reserveAmmo || 0) > 0;
-        if ((wantReload || (wantShoot && mag <= 0)) && canReload) {
+        const shouldReload = canReload(weapon, wantReload, wantShoot);
+        if (shouldReload) {
           weapon.isReloading = true;
           weapon.reloadStartTime = now;
           weapon.justStartedReload = true;
@@ -145,11 +146,9 @@ export class WeaponSystem {
 
       if (!weapon.isReloading) {
         const mag = weapon.magazine ?? 0;
-        const mode = weapon.fireMode || FIRE_MODE.SEMI;
-        const cooled = now - (weapon.lastFiredTime || 0) >= (weapon.fireRateMs || 200);
-        const shouldFire = mode === FIRE_MODE.AUTO ? wantShoot && cooled : shootPressed && cooled;
+        const shouldFireNow = shouldFire({ weapon, wantShoot, shootPressed, now });
 
-        if (shouldFire) {
+        if (shouldFireNow) {
           if (mag > 0) this._fireShot(ecsWorld, entity, now);
           else if (player.isLocal && shootPressed) audio.playEmptyClick();
         }
@@ -187,16 +186,15 @@ export class WeaponSystem {
   }
 
   _completeReload(weapon) {
-    const size = weapon.magazineSize || 12;
-    const mag = weapon.magazine ?? 0;
-    const need = size - mag;
-    const take = Math.min(need, weapon.reserveAmmo || 0);
-    weapon.magazine = mag + take;
-    weapon.reserveAmmo = (weapon.reserveAmmo || 0) - take;
-    weapon.ammo = weapon.magazine;
-    weapon.currentAmmo = weapon.magazine;
-    weapon.maxAmmo = size;
+    const result = completeReload(weapon);
+    if (!result) return false;
+    weapon.magazine = result.magazine;
+    weapon.reserveAmmo = result.reserveAmmo;
+    weapon.ammo = result.magazine;
+    weapon.currentAmmo = result.magazine;
+    weapon.maxAmmo = weapon.magazineSize || 12;
     weapon.isReloading = false;
+    return true;
   }
 
   /**
