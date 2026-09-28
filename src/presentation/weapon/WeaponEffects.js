@@ -4,13 +4,14 @@ import { audio } from '../../audio/AudioManager.js';
 
 /** Presentation-only effects boundary for weapon results. */
 export class WeaponEffects {
-  constructor({ sceneManager, impactSystem = null } = {}) {
+  constructor({ sceneManager, impactSystem = null, effectStore = null } = {}) {
     this.sceneManager = sceneManager;
     this.impactSystem = impactSystem;
+    this.effectStore = effectStore;
   }
 
-  createBullet(ecsWorld, origin, end, path) {
-    return createBullet(ecsWorld, this.sceneManager, origin, end, path);
+  createBullet(origin, end, path) {
+    return createBullet(this.effectStore, this.sceneManager, origin, end, path);
   }
 
   createBloodImpact(ecsWorld, position, normal, renderTarget, entity) {
