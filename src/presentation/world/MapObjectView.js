@@ -152,4 +152,38 @@ export class MapObjectView {
     this.addToScene(group);
     return { root: group, targets: [body, lid] };
   }
+
+  mountain({ position }) {
+    const config = WORLD_CONFIG.OBJECTS.MOUNTAIN;
+    const group = new THREE.Group();
+    group.position.set(position.x, position.y, position.z);
+    const mesh = new THREE.Mesh(new THREE.ConeGeometry(config.RADIUS, config.HEIGHT, config.SEGMENTS),
+      new THREE.MeshStandardMaterial({ color: WORLD_CONFIG.COLORS.MOUNTAIN, roughness: 1, flatShading: true }));
+    mesh.position.y = config.HEIGHT / 2; mesh.castShadow = true; mesh.receiveShadow = true;
+    group.add(mesh); this.addToScene(group);
+    return { root: group, targets: [mesh] };
+  }
+
+  path({ position, size, thickness, color }) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(size.x, thickness, size.z),
+      new THREE.MeshStandardMaterial({ color, roughness: 1 }));
+    mesh.position.set(position.x, position.y, position.z); mesh.receiveShadow = true;
+    this.addToScene(mesh);
+    return { root: mesh, targets: [mesh] };
+  }
+
+  boundary({ position, size }) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z),
+      new THREE.MeshBasicMaterial({ visible: false }));
+    mesh.position.y = size.y / 2;
+    return { root: mesh, targets: [] };
+  }
+
+  floor({ position, size, color }) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.95 }));
+    mesh.position.set(position.x, position.y, position.z); mesh.receiveShadow = true;
+    this.addToScene(mesh);
+    return { root: mesh, targets: [mesh] };
+  }
 }
