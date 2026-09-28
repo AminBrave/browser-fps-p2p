@@ -56,7 +56,8 @@ export class HostGame {
 
     this.inputSystem = new InputSystem(this.container);
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
-    this.healthSystem = new HealthSystem(this.physicsWorld, null, new HealthPresentation(this.impactSystem));
+    this.healthPresentation = new HealthPresentation(this.impactSystem);
+    this.healthSystem = new HealthSystem(this.physicsWorld);
     this.renderSystem = new RenderSystem(this.sceneManager);
     this.weaponPresentation = new WeaponPresentation({
       sceneManager: this.sceneManager,
@@ -126,6 +127,7 @@ export class HostGame {
     this.weaponSystem.update(this.ecsWorld, performance.now(), dt);
     this._flushWeaponPresentationEvents();
     this.healthSystem.update(this.ecsWorld);
+    this._flushHealthPresentationEvents();
     this.renderSystem.captureFixedState(this.localEntity);
     // Network snapshots are emitted on the fixed tick, after Rapier commits
     // movement, so every snapshot describes an actual authoritative state.
