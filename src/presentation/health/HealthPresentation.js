@@ -6,27 +6,27 @@ export class HealthPresentation {
     this.impactSystem = impactSystem;
   }
 
-  updateImpactMarks(_ecsWorld, entity, health, maxHealth) {
-    this.impactSystem?.updatePlayerImpactMarksForHealth?.(entity?.player?.id ?? entity, health, maxHealth);
+  updateImpactMarks(playerId, health, maxHealth) {
+    this.impactSystem?.updatePlayerImpactMarksForHealth?.(playerId, health, maxHealth);
   }
 
-  clearImpactMarks(_ecsWorld, entity, amount = 1) {
-    return this.impactSystem?.clearPlayerImpactMarks?.(entity?.player?.id ?? entity, amount) ?? 0;
+  clearImpactMarks(playerId, amount = 1) {
+    return this.impactSystem?.clearPlayerImpactMarks?.(playerId, amount) ?? 0;
   }
 
-  onDeath(entity) {
-    if (entity?.renderMesh?.mesh) entity.renderMesh.mesh.visible = false;
-    if (entity?.player?.isLocal) audio.playDeath?.();
+  onDeath({ mesh = null, isLocal = false } = {}) {
+    if (mesh) mesh.visible = false;
+    if (isLocal) audio.playDeath?.();
   }
 
-  onRespawn(entity, spawn) {
-    if (entity?.renderMesh?.mesh) {
-      entity.renderMesh.mesh.position.set(spawn.x, spawn.y, spawn.z);
-      entity.renderMesh.mesh.visible = !entity.player?.isLocal;
+  onRespawn({ mesh = null, pose = null, isLocal = false } = {}, spawn = {}) {
+    if (mesh) {
+      mesh.position.set(spawn.x, spawn.y, spawn.z);
+      mesh.visible = !isLocal;
     }
-    if (entity?.character?.pose) {
-      entity.character.pose.position.y = 0;
-      entity.character.pose.scale.y = 1;
+    if (pose) {
+      pose.position.y = 0;
+      pose.scale.y = 1;
     }
   }
 }
