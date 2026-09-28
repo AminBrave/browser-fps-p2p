@@ -37,5 +37,5 @@ test('world composition lives outside ECS entity modules', () => {
   assert.match(source, /MapObjectView/);
   assert.match(source, /addSolidMapEntity/);
   assert.doesNotMatch(source, /from ['"]three['"]/);
-  assert.doesNotMatch(source, /[@]dimforge\\/rapier3d-compat/);
+  assert.doesNotMatch(source, new RegExp('@dimforge/rapier3d-compat'));
 });
