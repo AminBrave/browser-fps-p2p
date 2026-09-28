@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMERA_CONFIG, RENDER_CONFIG } from '../config/index.js';
+import { CAMERA_CONFIG, RENDER_CONFIG, resolvePerformanceProfile } from '../config/index.js';
 
 function disposeMaterial(material, disposedMaterials) {
   if (!material || disposedMaterials.has(material)) return;
@@ -35,8 +35,9 @@ function disposeSceneResources(scene) {
  * Owns the Three.js scene, camera, renderer and window lifecycle.
  */
 export class SceneManager {
-  constructor(containerElement) {
+  constructor(containerElement, performanceProfile = null) {
     this.container = containerElement || document.body;
+    this.performanceProfile = performanceProfile || resolvePerformanceProfile();
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87ceeb);
@@ -49,7 +50,7 @@ export class SceneManager {
       new THREE.HemisphereLight(0xffffff, 0x555555, 1.8),
       new THREE.DirectionalLight(0xffffff, 1.4)
     );
-    this.scene.fog = new THREE.Fog(0xb8d4e8, 40, 120);
+    this.scene.fog = new THREE.Fog(0xb8d4e8, 40, this.performanceProfile.maxFogDistance);
 
     const aspect = window.innerWidth / Math.max(1, window.innerHeight);
     this.camera = new THREE.PerspectiveCamera(
@@ -62,15 +63,22 @@ export class SceneManager {
     this.scene.add(this.camera);
 
     this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
+      antialias: this.performanceProfile.antialias,
       powerPreference: 'high-performance',
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER_CONFIG.MAX_PIXEL_RATIO));
-    this.renderer.shadowMap.enabled = true;
+    this._applyPixelRatio();
+    this.renderer.shadowMap.enabled = this.performanceProfile.shadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    if (this.performanceProfile.shadows) {
+      const shadowMapSize = this.performanceProfile.shadowMapSize;
+      // The directional light is created below; its map is allocated lazily.
+      this._shadowMapSize = shadowMapSize;
+    }
+    this.renderer.toneMapping = this.performanceProfile.toneMapping
+      ? THREE.ACESFilmicToneMapping
+      : THREE.NoToneMapping;
+    this.renderer.toneMappingExposure = this.performanceProfile.toneMapping ? 1.15 : 1;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.container.appendChild(this.renderer.domElement);
@@ -89,7 +97,8 @@ export class SceneManager {
     const sun = new THREE.DirectionalLight(0xfff4d6, 1.35);
     sun.position.set(30, 50, 20);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    const shadowMapSize = this._shadowMapSize || 1024;
+    sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
     sun.shadow.camera.near = 1;
     sun.shadow.camera.far = 120;
     const d = 45;
@@ -130,6 +139,16 @@ export class SceneManager {
     }
   }
 
+  _applyPixelRatio() {
+    const deviceRatio = Number(window.devicePixelRatio) || 1;
+    const ratio = Math.min(
+      deviceRatio * this.performanceProfile.pixelRatioScale,
+      this.performanceProfile.maxPixelRatio,
+      RENDER_CONFIG.MAX_PIXEL_RATIO
+    );
+    this.renderer.setPixelRatio(Math.max(0.5, ratio));
+  }
+
   _onWindowResize() {
     if (this.disposed) return;
     const width = Math.max(1, window.innerWidth);
@@ -137,20 +156,22 @@ export class SceneManager {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this._applyPixelRatio();
   }
 
   render() {
     if (this.disposed) return;
 
-    // Explicit multi-pass rendering: world first, then viewmodel after
-    // clearing depth. autoClear must be disabled or the second render would
-    // erase the world color buffer.
+    // Keep the viewmodel isolated, but avoid the extra depth clear when there
+    // is no active weapon. This preserves the two-pass design without doing
+    // unnecessary work on frames where the player is dead.
     this.renderer.autoClear = false;
     this.renderer.clear(true, true, true);
     this.renderer.render(this.scene, this.camera);
-    this.renderer.clearDepth();
-    this.renderer.render(this.weaponScene, this.camera);
+    if (this.weaponScene.children.length > 0) {
+      this.renderer.clearDepth();
+      this.renderer.render(this.weaponScene, this.camera);
+    }
     this.renderer.autoClear = true;
   }
 
