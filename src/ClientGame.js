@@ -346,7 +346,7 @@ export class ClientGame {
             this.ecsWorld,
             this.sceneManager,
             impact.exitPoint,
-            impact.normal || event.normal || { x: 0, y: 1, z: 0 }
+            impact.exitNormal || impact.normal || event.normal || { x: 0, y: 1, z: 0 }
           );
         }
       }
