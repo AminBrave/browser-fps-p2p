@@ -65,7 +65,6 @@ function addSolidMapEntity(
   }
 
   const presentationBindings = mapEntities.presentationColliderRegistry;
-  const physicsColliders = physics.colliders || [physics.collider];
   for (let i = 0; i < physicsColliders.length; i++) {
     const target = physics.colliderTargets?.[i] || null;
     if (target) presentationBindings?.register(physicsColliders[i], target);
