@@ -1,5 +1,4 @@
 import { createBullet } from '../effects/TracerEffects.js';
-import { createImpactSeed } from '../../game/simulation/combat/ImpactSeed.js';
 import { audio } from '../../audio/AudioManager.js';
 
 /** Presentation-only effects boundary for weapon results. */
@@ -14,8 +13,8 @@ export class WeaponEffects {
     return createBullet(this.effectStore, this.sceneManager, origin, end, path);
   }
 
-  createBloodImpact(position, normal, renderTarget, entity) {
-    return this.impactSystem?.spawnBloodImpact?.({ position, normal, targetMesh: renderTarget, targetEntity: entity });
+  createBloodImpact(position, normal, renderTarget, ownerId = null) {
+    return this.impactSystem?.spawnBloodImpact?.({ position, normal, targetMesh: renderTarget, ownerId });
   }
 
   spawnPenetrationImpacts({ shooterId, weaponId, direction, impacts = [], sequenceBase = 0 }) {
@@ -27,7 +26,7 @@ export class WeaponEffects {
         incomingDirection: direction,
         velocityBefore: impact.velocityBefore,
         velocityAfter: impact.velocityAfter,
-        seed: createImpactSeed({ shooterId, weaponId, position: impact.point, material: impact.material, sequence: sequenceBase + index * 2 }),
+        seed: impact.entrySeed ?? 0,
         penetrated: true,
       });
       if (impact.exitPoint) {
@@ -38,7 +37,7 @@ export class WeaponEffects {
           incomingDirection: direction,
           velocityBefore: impact.velocityAfter,
           velocityAfter: impact.velocityAfter,
-          seed: createImpactSeed({ shooterId, weaponId, position: impact.exitPoint, material: impact.material, sequence: sequenceBase + index * 2 + 1 }),
+          seed: impact.exitSeed ?? 0,
           exit: true,
           penetrated: true,
         });
@@ -46,11 +45,11 @@ export class WeaponEffects {
     }
   }
 
-  spawnFinalImpact({ position, normal, material, direction, velocityBefore, targetMesh, targetEntity, shooterId, weaponId, sequence = 0 }) {
+  spawnFinalImpact({ position, normal, material, direction, velocityBefore, targetMesh, ownerId = null, shooterId, weaponId, sequence = 0 }) {
     this.impactSystem?.spawnSurfaceImpact({
       position, normal, material, incomingDirection: direction,
-      velocityBefore, velocityAfter: 0, targetMesh, targetEntity,
-      seed: createImpactSeed({ shooterId, weaponId, position, material, sequence }),
+      velocityBefore, velocityAfter: 0, targetMesh, ownerId,
+      seed: 0,
     });
   }
 
