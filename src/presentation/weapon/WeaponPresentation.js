@@ -35,6 +35,40 @@ export class WeaponPresentation {
   spawnPenetrationImpacts(args) { return this.effects.spawnPenetrationImpacts(args); }
   spawnFinalImpact(args) { return this.effects.spawnFinalImpact(args); }
 
+  handleEvent(event, ecsWorld = null) {
+    if (!event) return;
+    switch (event.type) {
+      case 'weaponFired':
+        this.onWeaponFired(event.recoil, event.sfx);
+        break;
+      case 'reloadStart':
+        this.onReloadStart();
+        break;
+      case 'reloadEnd':
+        this.onReloadEnd();
+        break;
+      case 'emptyClick':
+        this.onEmptyClick();
+        break;
+      case 'impact':
+        this.onImpact();
+        break;
+      case 'hit':
+        this.onHit();
+        break;
+      case 'weaponType': {
+        this.setWeaponType(event.typeId);
+        const entity = ecsWorld?.with?.('player')?.find?.(
+          (candidate) => candidate.player?.id === event.playerId
+        );
+        entity?.character?.setWeaponType?.(event.typeId);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   setWeaponType(typeId) {
     this.renderSystem?.weaponViewModel?.setWeaponType?.(typeId);
   }
