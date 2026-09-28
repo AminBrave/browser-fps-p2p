@@ -29,8 +29,8 @@ export class PhysicsWorld {
     if (this.world) this.world.step();
   }
 
-  registerColliderEntity(collider, entity, renderTarget = null, hitZone = null, materialType = null) {
-    this.colliderRegistry.register(collider, entity, renderTarget, hitZone, materialType);
+  registerColliderEntity(collider, entity, hitZone = null, materialType = null) {
+    this.colliderRegistry.register(collider, entity, hitZone, materialType);
   }
 
   getProjectileMaterial(hit = null) {
