@@ -246,6 +246,7 @@ function addParticle(group, type, position, direction, speed, size, color, life,
 
   const material = makeMaterial(color, type === 'smoke' ? 0.22 : 0.92, type === 'spark');
   const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = type;
   mesh.position.copy(position);
   mesh.rotation.set(
     (random() - 0.5) * Math.PI,
