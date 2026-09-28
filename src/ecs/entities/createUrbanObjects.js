@@ -1,71 +1,27 @@
 // src/ecs/entities/createUrbanObjects.js
 //
-// Deterministic civilian/urban props. World definitions are data-only;
-// presentation builds the visible meshes while this module owns ECS/physics
-// registration.
+// World placement orchestration. Urban prop definitions are data-only,
+// rendering is supplied by the presentation view, and ECS/physics assembly
+// is delegated to UrbanPropAssembler.
 
-import RAPIER from '@dimforge/rapier3d-compat';
-import { createTransform } from '../components/Transform.js';
-import { createPhysics } from '../components/Physics.js';
 import { WORLD_CONFIG, generateObjectPlacements } from '../../config/index.js';
 import { URBAN_PROP_LIBRARY } from '../../game/world/UrbanPropDefinitions.js';
 import { createUrbanPropView } from '../../presentation/world/UrbanPropView.js';
+import { addUrbanProp } from './UrbanPropAssembler.js';
 
 function groundY() {
   return WORLD_CONFIG.GROUND_Y;
 }
 
-function primitiveCollider(part) {
-  let desc;
-  if (part.kind === 'box') {
-    desc = RAPIER.ColliderDesc.cuboid(part.size.x / 2, part.size.y / 2, part.size.z / 2);
-  } else if (part.kind === 'cylinder') {
-    desc = RAPIER.ColliderDesc.cylinder(part.height / 2, part.radius);
-  } else if (part.kind === 'cone') {
-    desc = RAPIER.ColliderDesc.cone(part.height / 2, part.radius);
-  } else {
-    desc = RAPIER.ColliderDesc.ball(part.radius);
-  }
-  desc.setTranslation(part.position?.x || 0, part.position?.y || 0, part.position?.z || 0);
-  if (part.rotationQuaternion) desc.setRotation(part.rotationQuaternion);
-  return desc;
-}
-
-function addUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec) {
-  const ground = groundY();
-  const view = createUrbanPropView({ ...spec, groundY: ground }, sceneManager);
-  const parts = spec.parts.map((part, index) => ({
-    desc: primitiveCollider(part),
-    materialType: view.parts[index].materialType,
-  }));
-
-  const physics = physicsWorld.createStaticCompound(spec.x, ground, spec.z, parts, spec.rotationY || 0);
-  const entity = ecsWorld.add({
-    isMap: true,
-    isSolid: true,
-    isUrbanObject: true,
-    urbanType: spec.type,
-    transform: createTransform(spec.x, ground, spec.z, spec.rotationY || 0),
-    physics: {
-      ...createPhysics(physics.body, physics.collider),
-      colliders: physics.colliders,
-    },
-    renderMesh: { mesh: view.root },
-  });
-
-  for (let i = 0; i < physics.colliders.length; i++) {
-    physicsWorld.registerColliderEntity(
-      physics.colliders[i],
-      entity,
-      physics.hitZones?.[i] || null,
-      physics.colliderMaterials?.[i] || null
-    );
-    const target = view.parts[i]?.mesh || null;
-    if (target) mapEntities.presentationColliderRegistry?.register(physics.colliders[i], target);
-  }
-
-  mapEntities.push(entity);
-  return entity;
+function buildUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec) {
+  const view = createUrbanPropView({ ...spec, groundY: groundY() }, sceneManager);
+  return addUrbanProp(
+    ecsWorld,
+    physicsWorld,
+    mapEntities,
+    { ...spec, groundY: groundY() },
+    view
+  );
 }
 
 export function createUrbanObjects(ecsWorld, physicsWorld, sceneManager, mapEntities) {
@@ -79,7 +35,7 @@ export function createUrbanObjects(ecsWorld, physicsWorld, sceneManager, mapEnti
     const safe = Math.max(1, WORLD_CONFIG.MAP.WIDTH / 2 - WORLD_CONFIG.MAP.OBJECT_PADDING);
     return URBAN_PROP_LIBRARY
       .filter((spec) => Math.abs(spec.x) <= safe && Math.abs(spec.z) <= safe)
-      .map((spec) => addUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec));
+      .map((spec) => buildUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec));
   }
 
   const fixedZones = [
