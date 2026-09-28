@@ -19,7 +19,7 @@ import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
-import { disposeImpactDecals } from './ecs/entities/createBullet.js';
+import { disposeImpactDecals } from './presentation/impact/ImpactEffects.js';
 import { ImpactSystem } from './ecs/systems/ImpactSystem.js';
 import { Protocol } from './network/Protocol.js';
 import { createWorldManifest } from './network/WorldSync.js';
