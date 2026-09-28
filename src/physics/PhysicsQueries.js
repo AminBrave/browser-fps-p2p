@@ -102,7 +102,6 @@ export class PhysicsQueries {
       toi,
       collider,
       entity: this.registry.getEntity(collider),
-      renderTarget: this.registry.getRenderTarget(collider),
       hitZone: this.registry.getHitZone(collider),
       material: this.registry.getMaterial(collider),
     };
