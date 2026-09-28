@@ -74,6 +74,7 @@ export class ClientGame {
     this.renderSystem = new RenderSystem(this.sceneManager);
     this.weaponPresentation = new WeaponPresentation({
       sceneManager: this.sceneManager,
+      impactSystem: this.impactSystem,
       renderSystem: this.renderSystem,
       colliderRegistry: this.presentationColliderRegistry,
       effectStore: this.effectStore,
