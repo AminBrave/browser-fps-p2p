@@ -14,6 +14,7 @@ export const COMBAT_CONFIG = Object.freeze({
     concrete: Object.freeze({ resistance: 1.00, maxThickness: 0.42 }),
     stone: Object.freeze({ resistance: 1.15, maxThickness: 0.55 }),
     metal: Object.freeze({ resistance: 1.65, maxThickness: 0.24 }),
+    rubber: Object.freeze({ resistance: 0.65, maxThickness: 0.32 }),
     wood: Object.freeze({ resistance: 0.42, maxThickness: 0.65 }),
     glass: Object.freeze({ resistance: 0.12, maxThickness: 0.10 }),
     foliage: Object.freeze({ resistance: 0.08, maxThickness: 0.22 }),
