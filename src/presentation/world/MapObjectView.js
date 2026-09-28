@@ -136,4 +136,20 @@ export class MapObjectView {
     this.addToScene(group);
     return { root: group, targets: [base, pole, arm, lamp] };
   }
+
+  dumpster({ position }) {
+    const size = WORLD_CONFIG.OBJECTS.DUMPSTER.SIZE;
+    const group = new THREE.Group();
+    group.position.set(position.x, position.y, position.z);
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3f5149, metalness: 0.35, roughness: 0.65 });
+    const lidMat = new THREE.MeshStandardMaterial({ color: 0x26342f, metalness: 0.45, roughness: 0.55 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z), bodyMat);
+    body.position.y = size.y / 2; body.castShadow = true; body.receiveShadow = true; group.add(body);
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(size.x + 0.04, 0.08, size.z + 0.04), lidMat);
+    lid.position.set(0, size.y + 0.04, 0); lid.castShadow = true; group.add(lid);
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.06, 0.08), lidMat);
+    handle.position.set(0, size.y + 0.12, size.z / 2 + 0.04); group.add(handle);
+    this.addToScene(group);
+    return { root: group, targets: [body, lid] };
+  }
 }
