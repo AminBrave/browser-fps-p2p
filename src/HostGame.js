@@ -225,8 +225,7 @@ export class HostGame {
   _announceClientEntity(id, entity) {
     if (!entity || this.announcedClients.has(id)) return;
 
-    const connection = null;
-    if (!connection?.open) return;
+    if (!this.networkTransport.isConnected(id)) return;
 
     // The world definition and spawn are sent once, before gameplay state.
     this.networkTransport.sendTo(id, Protocol.encodeWorldInit(createWorldManifest()));
