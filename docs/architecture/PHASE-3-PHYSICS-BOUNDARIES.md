@@ -70,3 +70,10 @@ The next migration target is to reduce `WeaponSystem`'s presentation responsibil
 Health rules now live in `src/game/simulation/combat/HealthModel.js`. Damage application and regeneration calculations are pure functions; `HealthSystem` remains the ECS orchestration layer for death bookkeeping, kills, respawn, physics resets, impact-mark presentation, audio, and events.
 
 This preserves existing behavior while creating a testable simulation boundary. The next presentation-heavy combat target is weapon presentation/state coupling, not another large subsystem rewrite.
+
+
+## Phase 6 — Weapon state boundary
+
+Weapon fire/reload decisions now live in src/game/simulation/combat/WeaponStateModel.js. The pure model owns cooldown checks, semi/automatic fire decisions, reload eligibility, and ammunition transfer calculations. WeaponSystem remains the ECS orchestration layer for input consumption, weapon switching, ballistics, damage application, rendering, audio, VFX, and network events.
+
+This intentionally extracts rules rather than creating a second weapon system. Presentation and shot orchestration remain the next coupling to reduce.
