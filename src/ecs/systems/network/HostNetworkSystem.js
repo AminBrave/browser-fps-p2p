@@ -15,8 +15,8 @@ function isNewerSequence(next, previous) {
  * frame per authoritative server tick so acknowledgements match replay.
  */
 export class HostNetworkSystem {
-  constructor(peerManager) {
-    this.peerManager = peerManager;
+  constructor(peerTransport) {
+    this.peerTransport = peerTransport;
     this.incomingInputs = new Map();
     this.lastReceivedSequence = new Map();
     this.lastProcessedSequence = new Map();
@@ -27,7 +27,7 @@ export class HostNetworkSystem {
 
     this.onJoinRequest = null;
 
-    this.peerManager.onData((peerId, dataView) => {
+    this.peerTransport.onData((peerId, dataView) => {
       if (dataView.byteLength < 1) return;
 
       const packetType = dataView.getUint8(0);
@@ -159,15 +159,12 @@ export class HostNetworkSystem {
       });
     }
 
-    for (const [peerId, conn] of this.peerManager.connections) {
-      if (!conn?.open) continue;
+    for (const peerId of this.peerTransport.getPeerIds()) {
+      if (!this.peerTransport.isConnected(peerId)) continue;
 
-      const peerEntity = players.find(
-        (entity) => entity.player?.peerId === peerId
-      );
       const ackSequence = this.lastProcessedSequence.get(peerId) ?? 0;
 
-      this.peerManager.sendTo(
+      this.peerTransport.sendTo(
         peerId,
         Protocol.encodeWorldSnapshot(
           this.serverTick,
@@ -182,7 +179,7 @@ export class HostNetworkSystem {
     console.warn('[Network] Rejecting peer:', peerId, reason);
     this.removePeer(peerId);
     try {
-      this.peerManager.connections.get(peerId)?.close();
+      null?.close();
     } catch {}
   }
 
@@ -198,7 +195,7 @@ export class HostNetworkSystem {
 
   emitGameEvent(event) {
     const packet = Protocol.encodeGameEvent(event);
-    this.peerManager.broadcast(packet);
+    this.peerTransport.broadcast(packet);
   }
 
   removePeer(peerId) {
