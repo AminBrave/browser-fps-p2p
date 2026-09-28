@@ -29,7 +29,7 @@ export class ImpactSystem {
     const effect = this.effectStore?.add?.({
       root: group,
       durationMs: 0,
-      metadata: { type: 'impact', material, ownerId: targetEntity?.player?.id ?? null, playerImpactMark: !!targetEntity?.player },
+      metadata: { type: 'impact', material, ownerId: options.ownerId ?? targetEntity?.player?.id ?? null, playerImpactMark: options.ownerId != null || !!targetEntity?.player },
       update: ({ dt, now, effect: currentEffect }) => this.animator.update(currentEffect, dt, now),
       dispose: ({ root }) => { root?.parent?.remove?.(root); disposeObject3D(root); },
     });
@@ -40,7 +40,7 @@ export class ImpactSystem {
   }
 
   spawnBloodImpact(options = {}) {
-    const { position, targetEntity = null } = options;
+    const { position, targetEntity = null, ownerId = targetEntity?.player?.id ?? null } = options;
     if (!position) return null;
     const group = this.visualFactory.createBloodImpact(options);
     if (!group) return null;
@@ -48,7 +48,7 @@ export class ImpactSystem {
     const effect = this.effectStore?.add?.({
       root: group,
       durationMs: 0,
-      metadata: { type: 'bloodImpact', playerImpactMark: !!targetEntity?.player, ownerId },
+      metadata: { type: 'bloodImpact', playerImpactMark: ownerId != null, ownerId },
       update: () => true,
       dispose: ({ root }) => { root?.parent?.remove?.(root); disposeObject3D(root); },
     });
@@ -72,9 +72,9 @@ export class ImpactSystem {
     for (const entry of this.contacts.filter((entry) => entry?.effect?.metadata?.playerImpactMark && entry.effect.metadata.ownerId === playerId).slice(0, removeCount)) {
       this.effectStore?.remove?.(entry.effect);
       const index = this.contacts.indexOf(entry);
-      if (index >= 0) this.contacts.splice(index, 1);
+      if (index >= 0) { this.contacts.splice(index, 1); removed += 1; }
     }
-    return removeCount;
+    return removed;
   }
 
   getPlayerImpactMarkCount(playerId) {
