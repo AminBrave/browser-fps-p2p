@@ -11,6 +11,7 @@ import { InputSystem } from './ecs/systems/InputSystem.js';
 import { PhysicsSystem } from './ecs/systems/PhysicsSystem.js';
 import { HealthSystem } from './ecs/systems/HealthSystem.js';
 import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
+import { WeaponPresentation } from './presentation/weapon/WeaponPresentation.js';
 import { RenderSystem } from './ecs/systems/RenderSystem.js';
 import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
 import { GameLoop } from './core/GameLoop.js';
@@ -61,6 +62,7 @@ export class HostGame {
       this.renderSystem,
       null,
       this.impactSystem
+      , new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
     );
     this.hostNetworkSystem = new HostNetworkSystem(this.networkTransport);
     this.hostNetworkSystem.setJoinHandler((peerId) => {
