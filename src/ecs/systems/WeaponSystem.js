@@ -65,32 +65,88 @@ export class WeaponSystem {
     const input = entity.input;
     const yaw = Number(input?.yaw ?? entity.transform?.rotation?.yaw ?? 0);
     const pitch = Number(input?.pitch) || 0;
+    const weaponId = Number(entity.weapon?.typeId) || 1;
+
+    // Keep the simulation muzzle in the same camera-local transform as the
+    // rendered WeaponViewModel. In particular, ADS changes the weapon root
+    // position/rotation/scale; using the old fixed muzzle offset here makes
+    // the shot originate from the hip-fire muzzle while the visible gun has
+    // already moved into the sight position.
+    const aimPose = input?.isAiming
+      ? ({
+          1: { x: 0.03, y: -0.18, z: -0.58, pitch: 0.02, yaw: 0.02, roll: 0 },
+          2: { x: 0.025, y: -0.17, z: -0.60, pitch: 0.015, yaw: 0.018, roll: 0 },
+          3: { x: 0.02, y: -0.16, z: -0.62, pitch: 0.01, yaw: 0.015, roll: 0 },
+          4: { x: 0.018, y: -0.17, z: -0.61, pitch: 0.012, yaw: 0.012, roll: 0 },
+        }[weaponId] || { x: 0.03, y: -0.18, z: -0.58, pitch: 0.02, yaw: 0.02, roll: 0 })
+      : { x: 0.22, y: -0.22, z: -0.48, pitch: 0.1, yaw: 0.18, roll: 0.06 };
+
+    const weaponModelScale =
+      weaponId === 1 ? 1.35 :
+      weaponId === 2 ? 1.25 :
+      weaponId === 3 ? 1.2 :
+      1.2;
+    const weaponRootScale = input?.isAiming ? 0.92 : 1;
+
+    // muzzleLocal values from WeaponViewModel, expressed in the individual
+    // weapon model's local space.
+    const muzzleLocal = {
+      1: { x: 0, y: 0.05, z: -0.32 },
+      2: { x: 0, y: 0.04, z: -0.50 },
+      3: { x: 0, y: 0.04, z: -0.50 },
+      4: { x: 0, y: 0.05, z: -0.62 },
+    }[weaponId] || { x: 0, y: 0.05, z: -0.32 };
+
+    let lx = muzzleLocal.x * weaponModelScale * weaponRootScale;
+    let ly = muzzleLocal.y * weaponModelScale * weaponRootScale;
+    let lz = muzzleLocal.z * weaponModelScale * weaponRootScale;
+
+    // Apply the same root Euler rotation order used by Three.js (XYZ).
+    const sx = Math.sin(aimPose.pitch), cx = Math.cos(aimPose.pitch);
+    const sy = Math.sin(aimPose.yaw), cy = Math.cos(aimPose.yaw);
+    const sz = Math.sin(aimPose.roll), cz = Math.cos(aimPose.roll);
+
+    // Rx
+    let y1 = ly * cx - lz * sx;
+    let z1 = ly * sx + lz * cx;
+    let x1 = lx;
+    // Ry
+    let x2 = x1 * cy + z1 * sy;
+    let z2 = -x1 * sy + z1 * cy;
+    let y2 = y1;
+    // Rz
+    const x3 = x2 * cz - y2 * sz;
+    const y3 = x2 * sz + y2 * cz;
+    const z3 = z2;
+
+    const cameraLocal = {
+      x: aimPose.x + x3,
+      y: aimPose.y + y3,
+      z: aimPose.z + z3,
+    };
+
     const cosPitch = Math.cos(pitch);
-    const forward = {
+    const sinPitch = Math.sin(pitch);
+    const cameraForward = {
       x: -Math.sin(yaw) * cosPitch,
-      y: Math.sin(pitch),
+      y: sinPitch,
       z: -Math.cos(yaw) * cosPitch,
     };
-    const right = {
+    const cameraRight = {
       x: Math.cos(yaw),
       y: 0,
       z: -Math.sin(yaw),
     };
-
-    // Match the visual weapon's camera-local muzzle placement. The render
-    // weapon sits roughly 0.22 m right of the camera and 0.80-0.95 m forward;
-    // the exact barrel length varies by weapon. Keep the simulation origin at
-    // the actual barrel mouth rather than at the player's body/camera.
-    const muzzleForward = entity.weapon?.typeId === 4 ? 0.98
-      : entity.weapon?.typeId === 1 ? 0.80
-      : 0.98;
-    const muzzleSide = 0.22;
-    const muzzleDown = 0.17;
+    const cameraUp = {
+      x: cameraRight.y * cameraForward.z - cameraRight.z * cameraForward.y,
+      y: cameraRight.z * cameraForward.x - cameraRight.x * cameraForward.z,
+      z: cameraRight.x * cameraForward.y - cameraRight.y * cameraForward.x,
+    };
 
     return {
-      x: eye.x + right.x * muzzleSide + forward.x * muzzleForward,
-      y: eye.y + forward.y * muzzleForward - muzzleDown,
-      z: eye.z + right.z * muzzleSide + forward.z * muzzleForward,
+      x: eye.x + cameraRight.x * cameraLocal.x + cameraUp.x * cameraLocal.y + cameraForward.x * (-cameraLocal.z),
+      y: eye.y + cameraRight.y * cameraLocal.x + cameraUp.y * cameraLocal.y + cameraForward.y * (-cameraLocal.z),
+      z: eye.z + cameraRight.z * cameraLocal.x + cameraUp.z * cameraLocal.y + cameraForward.z * (-cameraLocal.z),
     };
   }
 
