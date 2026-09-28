@@ -1,7 +1,3 @@
-import {
-  clearPlayerImpactMarks,
-  updatePlayerImpactMarksForHealth,
-} from '../impact/ImpactEffects.js';
 import { audio } from '../../audio/AudioManager.js';
 
 /** Presentation-only boundary for health, death, and respawn visuals/audio. */
