@@ -96,3 +96,8 @@ This makes composition errors visible at construction time and completes the wea
 ## Phase 9 — Shot result construction
 
 `WeaponSystem` now isolates authoritative SHOT packet construction in `_buildShotEvent()`. The method converts a trace and plain shot context into the network event payload, keeping the main firing loop focused on simulation orchestration and side effects. The next refinement is to move this pure packet mapping into the simulation/network boundary and add direct tests for its serialization contract.
+
+
+## Phase 10 — Pure shot event model
+
+SHOT event construction now lives in `src/game/simulation/combat/ShotEventModel.js` as a pure function. `WeaponSystem` supplies already-resolved hit/material data instead of asking the physics implementation for fallback metadata during packet construction. This establishes a clean simulation-to-network data boundary and makes the packet mapping directly testable without ECS or physics.
