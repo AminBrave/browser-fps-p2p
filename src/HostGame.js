@@ -16,6 +16,7 @@ import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
 import { disposeImpactDecals } from './ecs/entities/createBullet.js';
+import { ImpactSystem } from './ecs/systems/ImpactSystem.js';
 import { Protocol } from './network/Protocol.js';
 import { createWorldManifest } from './network/WorldSync.js';
 
@@ -25,6 +26,7 @@ export class HostGame {
     this.ecsWorld = new World();
     this.physicsWorld = new PhysicsWorld();
     this.sceneManager = new SceneManager(this.container);
+    this.impactSystem = new ImpactSystem(this.ecsWorld, this.sceneManager);
     this.peerManager = new PeerManager();
     this.hud = new HUD();
 
@@ -54,7 +56,9 @@ export class HostGame {
       this.sceneManager,
       this.healthSystem,
       true,
-      this.renderSystem
+      this.renderSystem,
+      null,
+      this.impactSystem
     );
     this.hostNetworkSystem = new HostNetworkSystem(this.peerManager);
     this.hostNetworkSystem.setJoinHandler((peerId) => {
@@ -309,6 +313,7 @@ export class HostGame {
     this.inputSystem?.dispose();
     this.renderSystem?.dispose();
     this.hud.dispose();
+    this.impactSystem?.dispose();
     disposeImpactDecals(this.ecsWorld);
     this.sceneManager.dispose();
     this.physicsWorld.dispose();
