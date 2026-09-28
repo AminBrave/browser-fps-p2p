@@ -296,13 +296,11 @@ function createMap(ecsWorld, physicsWorld, sceneManager, presentationColliderReg
 
   // Build the render surface before constructing the collider so the
   // presentation registry can bind the exact mesh target for bullet impact decals.
-  const floorView.root = new THREE.Mesh(
-    new THREE.BoxGeometry(WIDTH, FLOOR_THICKNESS, LENGTH),
-    new THREE.MeshStandardMaterial({
-      color: WORLD_CONFIG.COLORS.GROUND,
-      roughness: 0.95,
-    })
-  );
+  const floorView = new MapObjectView(sceneManager).floor({
+    position: { x: 0, y: groundY() - FLOOR_THICKNESS / 2, z: 0 },
+    size: { x: WIDTH, y: FLOOR_THICKNESS, z: LENGTH },
+    color: WORLD_CONFIG.COLORS.GROUND,
+  });
   const floorPhysics = physicsWorld.createStaticBox(
     0,
     groundY() - FLOOR_THICKNESS / 2,
