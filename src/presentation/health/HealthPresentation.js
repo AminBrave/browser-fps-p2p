@@ -1,7 +1,7 @@
 import {
   clearPlayerImpactMarks,
   updatePlayerImpactMarksForHealth,
-} from '../../ecs/entities/createBullet.js';
+} from '../impact/ImpactEffects.js';
 import { audio } from '../../audio/AudioManager.js';
 
 /** Presentation-only boundary for health, death, and respawn visuals/audio. */
