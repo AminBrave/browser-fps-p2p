@@ -17,7 +17,7 @@ export class WeaponEffects {
     return createBloodImpact(ecsWorld, this.sceneManager, position, normal, renderTarget, entity);
   }
 
-  spawnPenetrationImpacts({ shooterId, weaponId, direction, impacts = [] }) {
+  spawnPenetrationImpacts({ shooterId, weaponId, direction, impacts = [], sequenceBase = 0 }) {
     for (const [index, impact] of impacts.entries()) {
       this.impactSystem?.spawnSurfaceImpact({
         position: impact.point,
@@ -26,7 +26,7 @@ export class WeaponEffects {
         incomingDirection: direction,
         velocityBefore: impact.velocityBefore,
         velocityAfter: impact.velocityAfter,
-        seed: createImpactSeed({ shooterId, weaponId, position: impact.point, material: impact.material, sequence: index * 2 }),
+        seed: createImpactSeed({ shooterId, weaponId, position: impact.point, material: impact.material, sequence: sequenceBase + index * 2 }),
         penetrated: true,
       });
       if (impact.exitPoint) {
@@ -37,7 +37,7 @@ export class WeaponEffects {
           incomingDirection: direction,
           velocityBefore: impact.velocityAfter,
           velocityAfter: impact.velocityAfter,
-          seed: createImpactSeed({ shooterId, weaponId, position: impact.exitPoint, material: impact.material, sequence: index * 2 + 1 }),
+          seed: createImpactSeed({ shooterId, weaponId, position: impact.exitPoint, material: impact.material, sequence: sequenceBase + index * 2 + 1 }),
           exit: true,
           penetrated: true,
         });
