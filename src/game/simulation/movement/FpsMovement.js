@@ -16,15 +16,14 @@ export function applyFpsMovement({
   stance,
   inputFlags,
   movementConfig,
-  hasFlag,
 }) {
   let forward = 0;
   let strafe = 0;
 
-  if (hasFlag(inputMask, inputFlags.FORWARD)) forward += 1;
-  if (hasFlag(inputMask, inputFlags.BACKWARD)) forward -= 1;
-  if (hasFlag(inputMask, inputFlags.RIGHT)) strafe += 1;
-  if (hasFlag(inputMask, inputFlags.LEFT)) strafe -= 1;
+  if (((inputMask & inputFlags.FORWARD) !== 0)) forward += 1;
+  if (((inputMask & inputFlags.BACKWARD) !== 0)) forward -= 1;
+  if (((inputMask & inputFlags.RIGHT) !== 0)) strafe += 1;
+  if (((inputMask & inputFlags.LEFT) !== 0)) strafe -= 1;
 
   const len = Math.hypot(forward, strafe);
   if (len > 0) {
@@ -41,8 +40,8 @@ export function applyFpsMovement({
 
   let speed = movementConfig.speed;
   const sprinting =
-    hasFlag(inputMask, inputFlags.SPRINT) &&
-    hasFlag(inputMask, inputFlags.FORWARD) &&
+    ((inputMask & inputFlags.SPRINT) !== 0) &&
+    ((inputMask & inputFlags.FORWARD) !== 0) &&
     stance === movementConfig.stanceStand;
 
   if (sprinting) speed *= movementConfig.sprintMultiplier;
@@ -59,7 +58,7 @@ export function applyFpsMovement({
 
   if (isGrounded) {
     velocity.y = -0.1;
-    if (canJump && hasFlag(inputMask, inputFlags.JUMP)) {
+    if (canJump && ((inputMask & inputFlags.JUMP) !== 0)) {
       velocity.y = movementConfig.jumpForce;
       return false;
     }
