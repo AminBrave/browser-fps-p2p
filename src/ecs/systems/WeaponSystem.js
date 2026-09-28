@@ -8,7 +8,7 @@ import { hasFlag } from '../../utils/BitFlags.js';
 import { buildShotEvent } from '../../game/simulation/combat/ShotEventModel.js';
 import { copyWeaponState } from '../components/Weapon.js';
 import { getAccuracyState } from '../../utils/AccuracyModel.js';
-import { sampleShotDirection } from '../../game/simulation/combat/ShotDirection.js';
+import { sampleDirectionAroundVector } from '../../game/simulation/combat/ShotDirection.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
 import { CombatResolver } from '../../game/simulation/combat/CombatResolver.js';
 import { BallisticsTracer } from '../../game/simulation/combat/BallisticsTracer.js';
@@ -48,17 +48,85 @@ export class WeaponSystem {
     return events;
   }
 
-  _getMuzzleWorldPosition(entity) {
+  _getEyeWorldPosition(entity) {
     const transform = entity.transform;
     const input = entity.input;
-    const yaw = Number(input?.yaw ?? transform?.rotation?.yaw ?? 0);
     const stance = input?.stance ?? 0;
     const eyeOffset = stance === 2 ? 0.10 : stance === 1 ? 0.45 : 0.73;
-    const forward = { x: -Math.sin(yaw), y: 0, z: -Math.cos(yaw) };
-    const right = { x: Math.cos(yaw), y: 0, z: -Math.sin(yaw) };
-    const side = 0.22, forwardDistance = 0.48;
-    const y = (transform?.position?.y ?? 0) + eyeOffset - 0.55;
-    return { x: (transform?.position?.x ?? 0) + right.x * side + forward.x * forwardDistance, y, z: (transform?.position?.z ?? 0) + right.z * side + forward.z * forwardDistance };
+    return {
+      x: Number(transform?.position?.x) || 0,
+      y: (Number(transform?.position?.y) || 0) + eyeOffset,
+      z: Number(transform?.position?.z) || 0,
+    };
+  }
+
+  _getMuzzleWorldPosition(entity) {
+    const eye = this._getEyeWorldPosition(entity);
+    const input = entity.input;
+    const yaw = Number(input?.yaw ?? entity.transform?.rotation?.yaw ?? 0);
+    const pitch = Number(input?.pitch) || 0;
+    const cosPitch = Math.cos(pitch);
+    const forward = {
+      x: -Math.sin(yaw) * cosPitch,
+      y: Math.sin(pitch),
+      z: -Math.cos(yaw) * cosPitch,
+    };
+    const right = {
+      x: Math.cos(yaw),
+      y: 0,
+      z: -Math.sin(yaw),
+    };
+
+    // Match the visual weapon's camera-local muzzle placement. The render
+    // weapon sits roughly 0.22 m right of the camera and 0.80-0.95 m forward;
+    // the exact barrel length varies by weapon. Keep the simulation origin at
+    // the actual barrel mouth rather than at the player's body/camera.
+    const muzzleForward = entity.weapon?.typeId === 4 ? 0.98
+      : entity.weapon?.typeId === 1 ? 0.80
+      : 0.98;
+    const muzzleSide = 0.22;
+    const muzzleDown = 0.17;
+
+    return {
+      x: eye.x + right.x * muzzleSide + forward.x * muzzleForward,
+      y: eye.y + forward.y * muzzleForward - muzzleDown,
+      z: eye.z + right.z * muzzleSide + forward.z * muzzleForward,
+    };
+  }
+
+  _getCrosshairAimPoint(entity, maxRange, exclude) {
+    const eye = this._getEyeWorldPosition(entity);
+    const input = entity.input;
+    const yaw = Number(input?.yaw) || 0;
+    const pitch = Number(input?.pitch) || 0;
+    const cosPitch = Math.cos(pitch);
+    const direction = {
+      x: -Math.sin(yaw) * cosPitch,
+      y: Math.sin(pitch),
+      z: -Math.cos(yaw) * cosPitch,
+    };
+
+    const hit = this.physicsWorld?.castRay?.(
+      eye,
+      direction,
+      maxRange,
+      exclude
+    );
+
+    if (hit) {
+      const distance = Math.max(0, Math.min(maxRange, Number(hit.toi) || 0));
+      return {
+        x: eye.x + direction.x * distance,
+        y: eye.y + direction.y * distance,
+        z: eye.z + direction.z * distance,
+      };
+    }
+
+    return {
+      x: eye.x + direction.x * maxRange,
+      y: eye.y + direction.y * maxRange,
+      z: eye.z + direction.z * maxRange,
+    };
   }
 
   update(ecsWorld, nowMs = performance.now(), dt = 1 / 60) {
@@ -242,9 +310,24 @@ export class WeaponSystem {
     const origin = this._getMuzzleWorldPosition(entity);
 
     for (let p = 0; p < pelletCount; p++) {
-      const dir = sampleShotDirection({
-        yaw: aimYaw,
-        pitch: aimPitch,
+      // Resolve the crosshair against the world first, then launch from the
+      // actual muzzle toward that point. This removes the classic FPS muzzle
+      // parallax bug where the projectile path is parallel to, but offset from,
+      // the crosshair ray.
+      const aimPoint = this._getCrosshairAimPoint(entity, range, exclude);
+      const muzzleToAim = {
+        x: aimPoint.x - origin.x,
+        y: aimPoint.y - origin.y,
+        z: aimPoint.z - origin.z,
+      };
+      const muzzleDistance = Math.hypot(muzzleToAim.x, muzzleToAim.y, muzzleToAim.z) || 1;
+      const baseDirection = {
+        x: muzzleToAim.x / muzzleDistance,
+        y: muzzleToAim.y / muzzleDistance,
+        z: muzzleToAim.z / muzzleDistance,
+      };
+      const dir = sampleDirectionAroundVector({
+        direction: baseDirection,
         spread: effectiveSpread,
       });
 
