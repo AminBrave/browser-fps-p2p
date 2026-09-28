@@ -5,6 +5,7 @@ import { PhysicsQueries } from './PhysicsQueries.js';
 import { CharacterPhysics } from './CharacterPhysics.js';
 import { StaticPhysics } from './StaticPhysics.js';
 import { createWorldSafetyFloor } from './WorldSafetyFloor.js';
+import { SpawnSafety } from './SpawnSafety.js';
 
 export class PhysicsWorld {
   constructor() {
@@ -14,6 +15,10 @@ export class PhysicsWorld {
     this.queries = new PhysicsQueries(() => this.world, this.colliderRegistry);
     this.characterPhysics = new CharacterPhysics(() => this.world);
     this.staticPhysics = new StaticPhysics(() => this.world);
+    this.spawnSafety = new SpawnSafety({
+      castRay: (...args) => this.castRay(...args),
+      getPlayers: () => this._spawnSafetyPlayers || [],
+    });
   }
 
   async init() {
@@ -78,76 +83,12 @@ export class PhysicsWorld {
   isSpawnPositionSafe(ecsWorld, position, radius = GAME_CONFIG.PLAYER_RADIUS, height = GAME_CONFIG.PLAYER_HEIGHT, ignoreEntity = null) {
     if (!this.world || !position) return false;
 
-    const map = WORLD_CONFIG.MAP;
-    const padding = 0.12;
-    const halfHeight = height / 2;
-    const x = Number(position.x) || 0;
-    const y = Number(position.y) || 0;
-    const z = Number(position.z) || 0;
-
-    // Keep the entire player envelope inside the playable map.
-    if (x - radius - padding < -map.WIDTH / 2 ||
-        x + radius + padding > map.WIDTH / 2 ||
-        z - radius - padding < -map.LENGTH / 2 ||
-        z + radius + padding > map.LENGTH / 2) {
-      return false;
+    this._spawnSafetyPlayers = ecsWorld?.with?.('player', 'transform') || [];
+    try {
+      return this.spawnSafety.isSafe(position, { radius, height, ignoreEntity });
+    } finally {
+      this._spawnSafetyPlayers = null;
     }
-
-    // Other living players are gameplay blockers even though player movement
-    // capsules intentionally do not collide with each other in Rapier.
-    for (const other of ecsWorld?.with?.('player', 'transform') || []) {
-      if (other === ignoreEntity || other.player?.isDead) continue;
-      const p = other.transform?.position;
-      if (!p) continue;
-      const dx = p.x - x;
-      const dz = p.z - z;
-      const minDistance = radius + (Number(GAME_CONFIG.PLAYER_RADIUS) || radius) + padding;
-      const verticalOverlap =
-        y - halfHeight < p.y + halfHeight &&
-        y + halfHeight > p.y - halfHeight;
-      if (verticalOverlap && dx * dx + dz * dz < minDistance * minDistance) {
-        return false;
-      }
-    }
-
-    // Probe the candidate envelope radially at multiple heights. A point can
-    // be clear at the feet but still put the head/torso inside a tall object.
-    const probeHeights = [y - halfHeight * 0.72, y, y + halfHeight * 0.72];
-    const directions = 16;
-    const probeDistance = radius + padding;
-    for (const probeY of probeHeights) {
-      for (let i = 0; i < directions; i++) {
-        const angle = (i / directions) * Math.PI * 2;
-        const hit = this.castRay(
-          { x, y: probeY, z },
-          { x: Math.cos(angle), y: 0, z: Math.sin(angle) },
-          probeDistance,
-          ignoreEntity?.physics?.colliders || null
-        );
-        if (hit?.entity && hit.entity !== ignoreEntity) return false;
-      }
-    }
-
-    // Require a nearby supporting surface below the capsule. This rejects
-    // random points in mid-air while still allowing elevated platforms.
-    const groundHit = this.castRay(
-      { x, y: y + 0.05, z },
-      { x: 0, y: -1, z: 0 },
-      height + 0.35,
-      ignoreEntity?.physics?.colliders || null
-    );
-    if (!groundHit || groundHit.entity?.player) return false;
-
-    // Ensure there is head clearance above the spawn point.
-    const ceilingHit = this.castRay(
-      { x, y, z },
-      { x: 0, y: 1, z: 0 },
-      halfHeight + padding,
-      ignoreEntity?.physics?.colliders || null
-    );
-    if (ceilingHit?.entity && ceilingHit.entity !== ignoreEntity) return false;
-
-    return true;
   }
 
   castRay(origin, direction, maxDistance = PHYSICS_CONFIG.DEFAULT_RAY_DISTANCE, excludeCollider = null) {
