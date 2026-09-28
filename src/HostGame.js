@@ -20,7 +20,7 @@ import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
 import { disposeImpactDecals } from './presentation/impact/ImpactEffects.js';
-import { ImpactSystem } from './ecs/systems/ImpactSystem.js';
+import { ImpactSystem } from './presentation/impact/ImpactSystem.js';
 import { Protocol } from './network/Protocol.js';
 import { createWorldManifest } from './network/WorldSync.js';
 
