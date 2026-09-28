@@ -15,6 +15,7 @@ export class SpawnSafety {
     radius = GAME_CONFIG.PLAYER_RADIUS,
     height = GAME_CONFIG.PLAYER_HEIGHT,
     ignoreEntity = null,
+    players = this.getPlayers(),
   } = {}) {
     if (!position) return false;
 
@@ -32,7 +33,7 @@ export class SpawnSafety {
       return false;
     }
 
-    for (const other of this.getPlayers()) {
+    for (const other of players || []) {
       if (other === ignoreEntity || other.player?.isDead) continue;
       const p = other.transform?.position;
       if (!p) continue;
