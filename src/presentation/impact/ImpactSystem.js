@@ -44,7 +44,6 @@ export class ImpactSystem {
     if (!position) return null;
     const group = this.visualFactory.createBloodImpact(options);
     if (!group) return null;
-    const ownerId = targetEntity?.player?.id ?? null;
     const effect = this.effectStore?.add?.({
       root: group,
       durationMs: 0,
