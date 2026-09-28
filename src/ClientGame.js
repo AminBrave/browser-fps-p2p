@@ -329,6 +329,28 @@ export class ClientGame {
       if (!origin || !end) return;
       createBullet(this.ecsWorld, this.sceneManager, origin, end);
 
+      // Reconstruct every material penetration entry/exit mark first.
+      // These are world-space decals because the authoritative event carries
+      // the exact Rapier contact positions; no client-side ballistic trace is
+      // needed (or trusted).
+      for (const impact of event.impacts || []) {
+        if (!impact?.point) continue;
+        createImpactDecal(
+          this.ecsWorld,
+          this.sceneManager,
+          impact.point,
+          impact.normal || event.normal || { x: 0, y: 1, z: 0 }
+        );
+        if (impact.exitPoint) {
+          createImpactDecal(
+            this.ecsWorld,
+            this.sceneManager,
+            impact.exitPoint,
+            impact.normal || event.normal || { x: 0, y: 1, z: 0 }
+          );
+        }
+      }
+
       if (event.hit && event.hitEntityId != null) {
         const target = this.playerById.get(event.hitEntityId);
         const zone = event.hitZone || 'torso';
