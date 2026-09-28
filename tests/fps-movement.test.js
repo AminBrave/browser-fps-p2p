@@ -47,8 +47,7 @@ const simulate = (inputMask, options = {}) => {
     dt: options.dt ?? 1 / 60,
     stance: options.stance ?? STANCE.STAND,
     inputFlags: INPUT_FLAGS,
-    movementConfig: MOVEMENT_CONFIG,
-    hasFlag,
+    movementConfig: MOVEMENT_CONFIG
   });
   return { velocity, grounded };
 };
