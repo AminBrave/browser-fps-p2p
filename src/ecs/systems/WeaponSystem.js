@@ -12,6 +12,7 @@ import { copyWeaponState } from '../components/Weapon.js';
 import { getAccuracyState } from '../../utils/AccuracyModel.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
+import * as THREE from 'three';
 
 export class WeaponSystem {
   constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null, eventSink = null) {
@@ -528,21 +529,53 @@ export class WeaponSystem {
         ballisticDrop: 0.5 * (Number(GAME_CONFIG.GRAVITY) || -19.62) * Math.pow(trace.distance / muzzleVelocity, 2),
         terminalVelocity: trace.velocity || muzzleVelocity,
         penetrated: trace.penetrated || 0,
+        impacts: (trace.impacts || []).map((impact) => ({
+          point: impact.point,
+          exitPoint: impact.exitPoint,
+          normal: impact.normal,
+          material: impact.material,
+          velocityBefore: impact.velocityBefore,
+          velocityAfter: impact.velocityAfter,
+        })),
         primary: p === 0,
       });
 
-      if (didHit) {
-        const isPlayerHit = !!hitEntity?.player;
+      // Every ballistic surface contact gets a persistent impact mark.
+      // Penetrated surfaces are rendered immediately on the authoritative host;
+      // their contact data is also sent in SHOT so remote clients reconstruct
+      // exactly the same entry/exit marks.
+      for (const impact of trace.impacts || []) {
         createImpactDecal(
           ecsWorld,
           this.sceneManager,
-          endPos,
-          hitNormal,
-          hitRenderTarget,
-          hitEntity
+          impact.point,
+          impact.normal || hitNormal,
+          null,
+          null
         );
+        createImpactDecal(
+          ecsWorld,
+          this.sceneManager,
+          impact.exitPoint,
+          impact.normal || hitNormal,
+          null,
+          null
+        );
+      }
+
+      if (didHit) {
+        const isPlayerHit = !!hitEntity?.player;
         if (isPlayerHit) {
           createBloodImpact(
+            ecsWorld,
+            this.sceneManager,
+            endPos,
+            hitNormal,
+            hitRenderTarget,
+            hitEntity
+          );
+        } else {
+          createImpactDecal(
             ecsWorld,
             this.sceneManager,
             endPos,
@@ -558,11 +591,24 @@ export class WeaponSystem {
         const baseDamage = Number(weapon.damage) || 20;
         const distanceMultiplier = this._getDamageMultiplier(weapon, trace.distance);
         const hitZoneMultiplier = this._getHitZoneMultiplier(hitZone);
-        const penetrationDamageMultiplier = Math.pow(
-          Math.max(0, 1 - (Number(weapon.penetrationDamageLoss) || 0) * (trace.penetrated || 0)),
+        // Kinetic energy scales with v². This makes air drag and
+        // penetration physically coherent with damage: a slower projectile
+        // carries less terminal energy, regardless of how it became slower.
+        const velocityRatio = THREE.MathUtils.clamp(
+          (Number(trace.velocity) || 0) / muzzleVelocity,
+          0,
           1
         );
-        const dmg = baseDamage * distanceMultiplier * hitZoneMultiplier * penetrationDamageMultiplier;
+        const kineticEnergyMultiplier = Math.max(0.05, velocityRatio * velocityRatio);
+        const legacyPenetrationPenalty = Math.max(
+          0.1,
+          1 - (Number(weapon.penetrationDamageLoss) || 0) * (trace.penetrated || 0)
+        );
+        const dmg = baseDamage *
+          distanceMultiplier *
+          hitZoneMultiplier *
+          kineticEnergyMultiplier *
+          legacyPenetrationPenalty;
 
         this.healthSystem.applyDamage(hitEntity, dmg, player.id);
         this._emit({
