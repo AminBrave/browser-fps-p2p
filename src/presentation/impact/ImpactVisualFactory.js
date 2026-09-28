@@ -390,4 +390,4 @@ export function disposeObject3D(root) {
   });
 }
 
-export { MATERIAL_PRESETS, disposeObject3D };
+export { MATERIAL_PRESETS };
