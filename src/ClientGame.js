@@ -12,6 +12,7 @@ import { createMap } from './ecs/entities/createMap.js';
 import { InputSystem } from './ecs/systems/InputSystem.js';
 import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
 import { WeaponPresentation } from './presentation/weapon/WeaponPresentation.js';
+import { PresentationColliderRegistry } from './presentation/world/PresentationColliderRegistry.js';
 import { RenderSystem } from './ecs/systems/RenderSystem.js';
 import { ClientPredictSystem } from './ecs/systems/network/ClientPredictSystem.js';
 import { ClientReconcileSystem } from './ecs/systems/network/ClientReconcileSystem.js';
@@ -31,6 +32,7 @@ export class ClientGame {
     this.physicsWorld = new PhysicsWorld();
     this.sceneManager = new SceneManager(this.container);
     this.impactSystem = new ImpactSystem(this.ecsWorld, this.sceneManager);
+    this.presentationColliderRegistry = new PresentationColliderRegistry();
     this.peerManager = new PeerManager();
     this.networkTransport = new PeerTransport(this.peerManager);
     this.hud = new HUD();
@@ -75,7 +77,7 @@ export class ClientGame {
       isAuthoritative: false,
       eventSink: null,
       impactSystem: this.impactSystem,
-      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
+      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem, colliderRegistry: this.presentationColliderRegistry })
     });
     this.renderSystem.setEventSink((event) => this.networkTransport.sendToHost(Protocol.encodeGameEvent(event)));
 
@@ -120,7 +122,7 @@ export class ClientGame {
     );
     this.interpolationSystem = new InterpolationSystem();
 
-    createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
+    createMap(this.ecsWorld, this.physicsWorld, this.sceneManager, this.presentationColliderRegistry);
 
     const spawn = this._spawnPosition || {
       ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[1 % WORLD_CONFIG.PLAYER.SPAWN_POINTS.length],
