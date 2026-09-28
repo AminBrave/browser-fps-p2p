@@ -63,7 +63,6 @@ export class HostGame {
       healthSystem: this.healthSystem,
       isAuthoritative: true,
       eventSink: null,
-      impactSystem: this.impactSystem,
       presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem, colliderRegistry: this.presentationColliderRegistry, effectStore: this.effectStore })
     });
     this.hostNetworkSystem = new HostNetworkSystem(this.networkTransport);
@@ -120,11 +119,21 @@ export class HostGame {
 
     this.physicsSystem.update(this.ecsWorld, dt);
     this.weaponSystem.update(this.ecsWorld, performance.now(), dt);
+    this._flushWeaponPresentationEvents();
     this.healthSystem.update(this.ecsWorld);
     this.renderSystem.captureFixedState(this.localEntity);
     // Network snapshots are emitted on the fixed tick, after Rapier commits
     // movement, so every snapshot describes an actual authoritative state.
     this.hostNetworkSystem.postUpdate(this.ecsWorld, performance.now());
+  }
+
+
+  _flushWeaponPresentationEvents() {
+    const presentation = this.weaponSystem?.presentation;
+    if (!presentation) return;
+    for (const event of this.weaponSystem.drainPresentationEvents()) {
+      presentation.handleEvent(event, this.ecsWorld);
+    }
   }
 
   _render(dt, now) {
