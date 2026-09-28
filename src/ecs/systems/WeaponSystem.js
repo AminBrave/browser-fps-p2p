@@ -291,14 +291,16 @@ export class WeaponSystem {
         y: hitPoint.y + segmentDirection.y * 0.006,
         z: hitPoint.z + segmentDirection.z * 0.006,
       };
-      const exitDistance = this.physicsWorld?.getProjectileExitDistance
-        ? this.physicsWorld.getProjectileExitDistance(
+      const exitHit = this.physicsWorld?.getProjectileExitHit
+        ? this.physicsWorld.getProjectileExitHit(
             hit.collider,
             exitOrigin,
             segmentDirection,
             thicknessLimit + 0.02
           )
         : null;
+      const exitDistance = exitHit?.distance ?? null;
+      const exitNormal = exitHit?.normal || null;
       const thickness = exitDistance != null
         ? Math.max(0.02, Math.min(thicknessLimit, exitDistance))
         : thicknessLimit;
@@ -346,6 +348,11 @@ export class WeaponSystem {
         point: { ...hitPoint },
         exitPoint: { ...exitPoint },
         normal: hit.normal,
+        exitNormal: exitNormal || {
+          x: -segmentDirection.x,
+          y: -segmentDirection.y,
+          z: -segmentDirection.z,
+        },
         material,
         thickness,
         velocityBefore: hitSpeed,
@@ -533,6 +540,7 @@ export class WeaponSystem {
           point: impact.point,
           exitPoint: impact.exitPoint,
           normal: impact.normal,
+          exitNormal: impact.exitNormal,
           material: impact.material,
           velocityBefore: impact.velocityBefore,
           velocityAfter: impact.velocityAfter,
@@ -557,7 +565,7 @@ export class WeaponSystem {
           ecsWorld,
           this.sceneManager,
           impact.exitPoint,
-          impact.normal || hitNormal,
+          impact.exitNormal || impact.normal || hitNormal,
           null,
           null
         );
