@@ -25,7 +25,7 @@ test('ballistics trace stops at a player hit', () => {
   const result = tracer.trace({ x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: -1 }, 500, 20, null, { airDrag: 0, penetrationPower: 1 });
   assert.equal(result.hit.entity, player);
   assert.equal(result.impacts.length, 0);
-  assert.equal(result.point.z, -1);
+  assert.ok(Math.abs(result.point.z - (-1)) < 1e-6);
 });
 
 test('ballistics records a penetrated surface when exit energy permits', () => {
