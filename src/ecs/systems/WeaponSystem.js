@@ -5,19 +5,17 @@ import {
   GAME_CONFIG,
 } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
-import { createBullet, createBloodImpact } from '../entities/createBullet.js';
 import { createImpactSeed } from './ImpactSystem.js';
 import { copyWeaponState } from '../components/Weapon.js';
 import { getAccuracyState } from '../../utils/AccuracyModel.js';
 import { sampleShotDirection } from '../../game/simulation/combat/ShotDirection.js';
-import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
 import { CombatResolver } from '../../game/simulation/combat/CombatResolver.js';
 import { BallisticsTracer } from '../../game/simulation/combat/BallisticsTracer.js';
 import { canReload, completeReload, shouldFire } from '../../game/simulation/combat/WeaponStateModel.js';
 
 export class WeaponSystem {
-  constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null, eventSink = null, impactSystem = null) {
+  constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null, eventSink = null, impactSystem = null, presentation = null) {
     this.physicsWorld = physicsWorld;
     this.sceneManager = sceneManager;
     this.healthSystem = healthSystem;
@@ -25,6 +23,7 @@ export class WeaponSystem {
     this.renderSystem = renderSystem;
     this.eventSink = eventSink;
     this.impactSystem = impactSystem;
+    this.presentation = presentation;
     this.combatResolver = new CombatResolver();
     this.ballisticsTracer = new BallisticsTracer({
       castRay: (...args) => this.physicsWorld?.castRay?.(...args) || null,
@@ -45,8 +44,9 @@ export class WeaponSystem {
     const player = entity.player;
     const transform = entity.transform;
     const input = entity.input;
-    if (player?.isLocal && this.renderSystem?.weaponViewModel?.getMuzzleWorldPosition) {
-      return this.renderSystem.weaponViewModel.getMuzzleWorldPosition();
+    if (player?.isLocal) {
+      const muzzle = this.presentation?.getMuzzleWorldPosition?.();
+      if (muzzle) return muzzle;
     }
 
     const yaw = Number(input?.yaw ?? transform?.rotation?.yaw ?? 0);
@@ -107,7 +107,7 @@ export class WeaponSystem {
         if (now - weapon.reloadStartTime >= (weapon.reloadTimeMs || 1600)) {
           this._completeReload(weapon);
           weapon.justReloaded = true;
-          if (player.isLocal) audio.playReloadEnd();
+          if (player.isLocal) this.presentation?.onReloadEnd?.();
           this._emit({
             type: EVENT_TYPES.SFX,
             sfx: 'reloadEnd',
@@ -130,8 +130,7 @@ export class WeaponSystem {
           weapon.reloadStartTime = now;
           weapon.justStartedReload = true;
           if (player.isLocal) {
-            audio.playReloadStart();
-            this.renderSystem?.weaponViewModel?.onReloadStart?.();
+            this.presentation?.onReloadStart?.();
           }
           this._emit({
             type: EVENT_TYPES.SFX,
@@ -148,7 +147,7 @@ export class WeaponSystem {
 
         if (shouldFireNow) {
           if (mag > 0) this._fireShot(ecsWorld, entity, now);
-          else if (player.isLocal && shootPressed) audio.playEmptyClick();
+          else if (player.isLocal && shootPressed) this.presentation?.onEmptyClick?.();
         }
       }
     }
@@ -160,7 +159,7 @@ export class WeaponSystem {
     if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= slots.length) return false;
     if (entity.loadout.active === slotIndex) {
       if (entity.player?.isLocal) {
-        this.renderSystem?.weaponViewModel?.setWeaponType?.(entity.weapon.typeId);
+        this.presentation?.setWeaponType?.(entity.weapon.typeId);
       }
       return false;
     }
@@ -177,7 +176,7 @@ export class WeaponSystem {
     entity.weapon.shootHeldPrev = false;
 
     if (entity.player?.isLocal) {
-      this.renderSystem?.weaponViewModel?.setWeaponType?.(entity.weapon.typeId);
+      this.presentation?.setWeaponType?.(entity.weapon.typeId);
     }
     entity.character?.setWeaponType?.(entity.weapon.typeId);
     return true;
@@ -241,8 +240,7 @@ export class WeaponSystem {
     weapon.justFired = true;
 
     if (player.isLocal) {
-      audio.playShoot(weapon.sfx || 'pistol');
-      this.renderSystem?.weaponViewModel?.onFired?.(0.1 + (weapon.recoilPitch || 0) * 2);
+      this.presentation?.onWeaponFired?.(0.1 + (weapon.recoilPitch || 0) * 2, weapon.sfx || 'pistol');
     }
 
     const pelletCount = Math.max(1, weapon.pelletCount || 1);
@@ -279,13 +277,7 @@ export class WeaponSystem {
       const hitZone = hit?.hitZone || null;
       const didHit = !!hit;
 
-      createBullet(
-        ecsWorld,
-        this.sceneManager,
-        origin,
-        endPos,
-        trace.path
-      );
+      this.presentation?.createBullet?.(ecsWorld, origin, endPos, trace.path);
 
       this._emit({
         type: EVENT_TYPES.SHOT,
@@ -387,13 +379,8 @@ export class WeaponSystem {
       if (didHit) {
         const isPlayerHit = !!hitEntity?.player;
         if (isPlayerHit) {
-          createBloodImpact(
-            ecsWorld,
-            this.sceneManager,
-            endPos,
-            hitNormal,
-            hitRenderTarget,
-            hitEntity
+          this.presentation?.createBloodImpact?.(
+            ecsWorld, endPos, hitNormal, hitRenderTarget, hitEntity
           );
         } else {
           const finalMaterial =
@@ -418,7 +405,7 @@ export class WeaponSystem {
             }),
           });
         }
-        if (player.isLocal && p === 0) audio.playImpact();
+        if (player.isLocal && p === 0) this.presentation?.onImpact?.();
       }
 
       if (this.isAuthoritative && this.healthSystem && hitEntity?.player && !hitEntity.player.isDead) {
@@ -449,7 +436,7 @@ export class WeaponSystem {
           targetId: hitEntity.player.id,
           position: endPos,
         });
-        if (player.isLocal && p === 0) audio.playHit();
+        if (player.isLocal && p === 0) this.presentation?.onHit?.();
       }
     }
 
