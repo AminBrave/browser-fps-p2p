@@ -1,7 +1,6 @@
 // src/utils/Movement.js
 
 import { PLAYER_CONFIG, INPUT_FLAGS, STANCE } from '../config/index.js';
-import { hasFlag } from './BitFlags.js';
 import {
   applyFpsMovement as applyPureFpsMovement,
   moveIntensity as calculateMoveIntensity,
@@ -33,7 +32,7 @@ export function applyFpsMovement(inputMask, yaw, velocity, isGrounded, dt, stanc
     dt,
     stance,
     inputFlags: INPUT_FLAGS,
-    movementConfig: MOVEMENT_CONFIG
+    movementConfig: MOVEMENT_CONFIG,
   });
 }
 
