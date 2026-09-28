@@ -26,6 +26,15 @@ const MAT = {
 function groundY() { return WORLD_CONFIG.GROUND_Y; }
 function addToScene(sceneManager, object) { sceneManager?.scene?.add(object); }
 
+function projectileMaterialType(material) {
+  if (material === MAT.glass) return 'glass';
+  if (material === MAT.wood) return 'wood';
+  if (material === MAT.rubber) return 'rubber';
+  if (material === MAT.concrete || material === MAT.darkConcrete) return 'concrete';
+  if (material === MAT.metal || material === MAT.galvanized || material === MAT.painted || material === MAT.yellow || material === MAT.red) return 'metal';
+  return 'default';
+}
+
 function primitiveMesh(part) {
   let geometry;
   if (part.kind === 'box') {
@@ -71,7 +80,7 @@ function addUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec) {
   const parts = spec.parts.map((part) => {
     const mesh = primitiveMesh(part);
     root.add(mesh);
-    return { desc: primitiveCollider(part), renderTarget: mesh };
+    return { desc: primitiveCollider(part), renderTarget: mesh, materialType: projectileMaterialType(part.material) };
   });
 
   addToScene(sceneManager, root);
@@ -93,7 +102,9 @@ function addUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec) {
     physicsWorld.registerColliderEntity(
       physics.colliders[i],
       entity,
-      physics.colliderTargets?.[i] || null
+      physics.colliderTargets?.[i] || null,
+      physics.hitZones?.[i] || null,
+      physics.colliderMaterials?.[i] || null
     );
   }
   mapEntities.push(entity);
