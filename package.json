@@ -10,7 +10,8 @@
     "test": "node --test",
     "test:coverage": "node --test --experimental-test-coverage",
     "test:watch": "node --test --watch",
-    "start": "node server.js"
+    "start": "node server.js",
+    "start:peer": "node peer-server.js"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.11.2",
