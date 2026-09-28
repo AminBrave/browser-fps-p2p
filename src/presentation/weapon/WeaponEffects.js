@@ -1,4 +1,4 @@
-import { createBullet, createBloodImpact } from '../impact/ImpactEffects.js';
+import { createBullet } from '../impact/ImpactEffects.js';
 import { createImpactSeed } from '../../game/simulation/combat/ImpactSeed.js';
 import { audio } from '../../audio/AudioManager.js';
 
@@ -14,8 +14,8 @@ export class WeaponEffects {
     return createBullet(this.effectStore, this.sceneManager, origin, end, path);
   }
 
-  createBloodImpact(ecsWorld, position, normal, renderTarget, entity) {
-    return createBloodImpact(ecsWorld, this.sceneManager, position, normal, renderTarget, entity);
+  createBloodImpact(position, normal, renderTarget, entity) {
+    return this.impactSystem?.spawnBloodImpact?.({ position, normal, targetMesh: renderTarget, targetEntity: entity });
   }
 
   spawnPenetrationImpacts({ shooterId, weaponId, direction, impacts = [], sequenceBase = 0 }) {
