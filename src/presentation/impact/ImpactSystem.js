@@ -1,475 +1,14 @@
-import * as THREE from 'three';
-import { createImpactSeed } from '../../game/simulation/combat/ImpactSeed.js';
-import { RENDER_CONFIG } from '../../config/index.js';
-
-const MATERIAL_PRESETS = Object.freeze({
-  metal: Object.freeze({
-    mark: 0x17120d,
-    markOpacity: 0.9,
-    markRadius: 0.055,
-    sparkCount: 16,
-    debrisCount: 2,
-    dustCount: 1,
-    smokeCount: 1,
-    sparkColor: 0xffa51f,
-    secondaryColor: 0xffe7a1,
-    particleSize: 0.025,
-    particleSpeed: 3.2,
-    particleSpread: 1.0,
-    gravity: 4.0,
-    drag: 1.8,
-    life: 0.34,
-    kind: 'spark',
-  }),
-  concrete: Object.freeze({
-    mark: 0x2b2925,
-    markOpacity: 0.72,
-    markRadius: 0.075,
-    sparkCount: 1,
-    debrisCount: 7,
-    dustCount: 15,
-    smokeCount: 3,
-    sparkColor: 0xffd27a,
-    secondaryColor: 0x8b857b,
-    particleSize: 0.045,
-    particleSpeed: 2.2,
-    particleSpread: 0.9,
-    gravity: 6.5,
-    drag: 1.4,
-    life: 0.72,
-    kind: 'dust',
-  }),
-  stone: Object.freeze({
-    mark: 0x25221e,
-    markOpacity: 0.7,
-    markRadius: 0.07,
-    sparkCount: 1,
-    debrisCount: 8,
-    dustCount: 12,
-    smokeCount: 2,
-    sparkColor: 0xffc56b,
-    secondaryColor: 0x77716a,
-    particleSize: 0.048,
-    particleSpeed: 2.5,
-    particleSpread: 0.95,
-    gravity: 7.0,
-    drag: 1.5,
-    life: 0.8,
-    kind: 'dust',
-  }),
-  wood: Object.freeze({
-    mark: 0x24150d,
-    markOpacity: 0.82,
-    markRadius: 0.065,
-    sparkCount: 1,
-    debrisCount: 9,
-    dustCount: 5,
-    smokeCount: 2,
-    sparkColor: 0xffc16a,
-    secondaryColor: 0x9b6032,
-    particleSize: 0.035,
-    particleSpeed: 2.8,
-    particleSpread: 0.8,
-    gravity: 8.5,
-    drag: 1.3,
-    life: 0.7,
-    kind: 'splinter',
-  }),
-  glass: Object.freeze({
-    mark: 0x0e2730,
-    markOpacity: 0.3,
-    markRadius: 0.08,
-    sparkCount: 4,
-    debrisCount: 12,
-    dustCount: 0,
-    smokeCount: 0,
-    sparkColor: 0xe9fbff,
-    secondaryColor: 0x8ed7e8,
-    particleSize: 0.018,
-    particleSpeed: 3.8,
-    particleSpread: 1.05,
-    gravity: 7.0,
-    drag: 0.8,
-    life: 0.9,
-    kind: 'shard',
-  }),
-  dirt: Object.freeze({
-    mark: 0x5a3e24,
-    markOpacity: 0.55,
-    markRadius: 0.11,
-    sparkCount: 0,
-    debrisCount: 6,
-    dustCount: 18,
-    smokeCount: 4,
-    sparkColor: 0xc8a36b,
-    secondaryColor: 0x7b5937,
-    particleSize: 0.055,
-    particleSpeed: 2.0,
-    particleSpread: 1.1,
-    gravity: 5.0,
-    drag: 1.8,
-    life: 0.9,
-    kind: 'dust',
-  }),
-  rubber: Object.freeze({
-    mark: 0x111111,
-    markOpacity: 0.72,
-    markRadius: 0.06,
-    sparkCount: 0,
-    debrisCount: 7,
-    dustCount: 2,
-    smokeCount: 4,
-    sparkColor: 0xff8a34,
-    secondaryColor: 0x252525,
-    particleSize: 0.042,
-    particleSpeed: 2.4,
-    particleSpread: 0.9,
-    gravity: 5.8,
-    drag: 1.5,
-    life: 0.75,
-    kind: 'chunk',
-  }),
-  foliage: Object.freeze({
-    mark: 0x2f3a19,
-    markOpacity: 0.35,
-    markRadius: 0.07,
-    sparkCount: 0,
-    debrisCount: 10,
-    dustCount: 3,
-    smokeCount: 1,
-    sparkColor: 0xb4d86b,
-    secondaryColor: 0x526c2c,
-    particleSize: 0.035,
-    particleSpeed: 2.0,
-    particleSpread: 1.2,
-    gravity: 4.5,
-    drag: 1.1,
-    life: 0.8,
-    kind: 'leaf',
-  }),
-  default: Object.freeze({
-    mark: 0x211b17,
-    markOpacity: 0.78,
-    markRadius: 0.06,
-    sparkCount: 2,
-    debrisCount: 3,
-    dustCount: 3,
-    smokeCount: 1,
-    sparkColor: 0xffb04a,
-    secondaryColor: 0x77706a,
-    particleSize: 0.035,
-    particleSpeed: 2.3,
-    particleSpread: 0.95,
-    gravity: 6.0,
-    drag: 1.5,
-    life: 0.55,
-    kind: 'debris',
-  }),
-});
+import { ImpactVisualFactory } from './ImpactVisualFactory.js';
+import { ImpactEffectAnimator } from './ImpactEffectAnimator.js';
 
 const MAX_ACTIVE = Math.max(32, Number(RENDER_CONFIG.MAX_IMPACT_REACTIONS) || 96);
-const MAX_PARTICLES_PER_IMPACT = Math.max(12, Number(RENDER_CONFIG.MAX_IMPACT_PARTICLES_PER_REACTION) || 28);
-
-function hashSeed(seed) {
-  let h = Number(seed) >>> 0;
-  if (!h) h = 0x9e3779b9;
-  h ^= h >>> 16;
-  h = Math.imul(h, 0x7feb352d);
-  h ^= h >>> 15;
-  h = Math.imul(h, 0x846ca68b);
-  h ^= h >>> 16;
-  return h >>> 0;
-}
-
-function seededRandom(seed) {
-  let state = hashSeed(seed);
-  return () => {
-    state = (Math.imul(state ^ (state >>> 15), 1 | state) + 0x6d2b79f5) | 0;
-    let t = Math.imul(state ^ (state >>> 7), 61 | state);
-    t ^= t + Math.imul(t ^ (t >>> 14), 15 | t);
-    return ((t ^ (t >>> 13)) >>> 0) / 4294967296;
-  };
-}
-
-function safeNormal(normal) {
-  const n = new THREE.Vector3(
-    Number(normal?.x) || 0,
-    Number(normal?.y) || 0,
-    Number(normal?.z) || 0
-  );
-  return n.lengthSq() > 1e-8 ? n.normalize() : new THREE.Vector3(0, 1, 0);
-}
-
-function basisFromNormal(normal) {
-  const tangent = new THREE.Vector3()
-    .crossVectors(
-      Math.abs(normal.y) < 0.92 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0),
-      normal
-    )
-    .normalize();
-  return {
-    tangent,
-    bitangent: new THREE.Vector3().crossVectors(normal, tangent).normalize(),
-  };
-}
-
-function disposeObject3D(root) {
-  root?.traverse?.((child) => {
-    child.geometry?.dispose?.();
-    const material = child.material;
-    if (Array.isArray(material)) material.forEach((m) => m?.dispose?.());
-    else material?.dispose?.();
-  });
-}
-
-function makeMaterial(color, opacity = 1, additive = false) {
-  return new THREE.MeshBasicMaterial({
-    color,
-    transparent: opacity < 1 || additive,
-    opacity,
-    depthTest: true,
-    depthWrite: false,
-    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-  });
-}
-
-function addParticle(group, type, position, direction, speed, size, color, life, gravity, drag, random) {
-  let geometry;
-  if (type === 'dust' || type === 'smoke') {
-    geometry = new THREE.SphereGeometry(size, type === 'smoke' ? 7 : 5, type === 'smoke' ? 5 : 4);
-  } else if (type === 'shard' || type === 'splinter') {
-    geometry = new THREE.BoxGeometry(size * 0.35, size * 0.55, size * (type === 'shard' ? 2.8 : 4.5));
-  } else {
-    geometry = new THREE.BoxGeometry(size, size, size * (type === 'spark' ? 5.5 : 2.2));
-  }
-
-  const material = makeMaterial(color, type === 'smoke' ? 0.22 : 0.92, type === 'spark');
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.name = type;
-  mesh.position.copy(position);
-  mesh.rotation.set(
-    (random() - 0.5) * Math.PI,
-    (random() - 0.5) * Math.PI,
-    random() * Math.PI * 2
-  );
-  mesh.userData.velocity = direction.clone().multiplyScalar(speed);
-  mesh.userData.gravity = gravity;
-  mesh.userData.drag = drag;
-  mesh.userData.age = -(random() * 0.035);
-  mesh.userData.life = life * (0.72 + random() * 0.55);
-  mesh.userData.baseOpacity = material.opacity;
-  mesh.userData.baseScale = 0.75 + random() * 0.7;
-  mesh.userData.angularVelocity = {
-    x: (random() - 0.5) * 16,
-    y: (random() - 0.5) * 16,
-    z: (random() - 0.5) * 16,
-  };
-  group.add(mesh);
-}
 
 export class ImpactSystem {
   constructor(effectStore, sceneManager) {
     this.effectStore = effectStore;
-    this.scene = sceneManager?.scene || sceneManager || null;
+    this.visualFactory = new ImpactVisualFactory(sceneManager);
+    this.animator = new ImpactEffectAnimator();
     this.contacts = [];
-  }
-
-  spawnSurfaceImpact({
-    position,
-    normal,
-    material = 'default',
-    incomingDirection = null,
-    velocityBefore = 0,
-    velocityAfter = 0,
-    targetMesh = null,
-    targetEntity = null,
-    seed = 0,
-    exit = false,
-    penetrated = false,
-  } = {}) {
-    if (!position) return null;
-
-    const scene = this.scene;
-    const preset = MATERIAL_PRESETS[material] || MATERIAL_PRESETS.default;
-    const n = safeNormal(normal);
-    const point = new THREE.Vector3(
-      Number(position.x) || 0,
-      Number(position.y) || 0,
-      Number(position.z) || 0
-    ).addScaledVector(n, 0.003);
-
-    if (targetMesh?.updateWorldMatrix) targetMesh.updateWorldMatrix(true, false);
-
-    const localPoint = targetMesh?.worldToLocal
-      ? targetMesh.worldToLocal(point.clone())
-      : point.clone();
-
-    let localNormal = n.clone();
-    if (targetMesh?.matrixWorld) {
-      const normalMatrix = new THREE.Matrix3().getNormalMatrix(targetMesh.matrixWorld);
-      localNormal.applyMatrix3(normalMatrix).normalize();
-    }
-    if (localNormal.lengthSq() < 1e-8) localNormal.set(0, 1, 0);
-
-    const key = this._contactKey(point, n, targetEntity, material);
-    const contacts = this.contacts;
-    const duplicate = contacts.find((entry) =>
-      entry.key === key &&
-      performance.now() - entry.time < 80
-    );
-    if (duplicate) return duplicate.entity;
-
-    const group = new THREE.Group();
-    group.name = 'bulletImpact';
-    group.renderOrder = 1000;
-    group.userData.impactMaterial = material;
-    group.userData.impactNormal = { x: n.x, y: n.y, z: n.z };
-
-    this._addMark(group, localPoint, localNormal, preset, material, exit);
-    if (material === 'glass') {
-      this._addGlassCracks(group, localPoint, localNormal, preset, seed);
-    }
-
-    const particles = new THREE.Group();
-    particles.name = 'impactParticles';
-    // Children are already positioned in the impact group's local space.
-    // Applying localPoint to this container would translate particles twice.
-    particles.position.set(0, 0, 0);
-    particles.userData.impactNormal = localNormal.clone();
-
-    const speed = Math.max(0, Number(velocityBefore) || 0);
-    const residual = Math.max(0, Number(velocityAfter) || 0);
-    const energy01 = THREE.MathUtils.clamp(
-      speed > 0 ? speed / 650 : 0.35,
-      0.12,
-      1
-    );
-    const scale = 0.65 + energy01 * 0.85;
-    const rng = seededRandom(seed);
-    const basis = basisFromNormal(localNormal);
-
-    const incoming = incomingDirection
-      ? new THREE.Vector3(
-          Number(incomingDirection.x) || 0,
-          Number(incomingDirection.y) || 0,
-          Number(incomingDirection.z) || 0
-        )
-      : localNormal.clone();
-    if (incoming.lengthSq() < 1e-8) incoming.copy(localNormal);
-    if (targetMesh?.worldToLocal) {
-      const worldPoint = point.clone();
-      const worldDirPoint = worldPoint.clone().add(incoming);
-      const lp = targetMesh.worldToLocal(worldPoint);
-      const ldp = targetMesh.worldToLocal(worldDirPoint);
-      incoming.copy(ldp.sub(lp).normalize());
-    } else {
-      incoming.normalize();
-    }
-
-    const normalComponent = Math.max(0.05, Math.abs(incoming.dot(localNormal)));
-    const tangentComponent = Math.sqrt(Math.max(0, 1 - normalComponent * normalComponent));
-    const grazingBoost = 0.8 + tangentComponent * 1.25;
-
-    const totalCount = Math.min(
-      MAX_PARTICLES_PER_IMPACT,
-      Math.ceil(
-        (preset.sparkCount + preset.debrisCount + preset.dustCount + preset.smokeCount) *
-        scale
-      )
-    );
-
-    const counts = {
-      spark: Math.min(preset.sparkCount, totalCount),
-      debris: Math.min(preset.debrisCount, Math.max(0, totalCount - preset.sparkCount)),
-      dust: Math.min(preset.dustCount, Math.max(0, totalCount - preset.sparkCount - preset.debrisCount)),
-      smoke: Math.min(preset.smokeCount, Math.max(0, totalCount - preset.sparkCount - preset.debrisCount - preset.dustCount)),
-    };
-
-    const spawn = (type, count, color, speedMultiplier, sizeMultiplier, lifeMultiplier) => {
-      for (let i = 0; i < count; i++) {
-        const a = rng() * Math.PI * 2;
-        const radial = Math.sqrt(rng());
-        const normalBias = 0.25 + rng() * 0.9;
-        const tangentBias = (0.35 + rng() * 0.95) * grazingBoost;
-        const direction = localNormal.clone()
-          .multiplyScalar(normalBias)
-          .addScaledVector(basis.tangent, Math.cos(a) * radial * tangentBias)
-          .addScaledVector(basis.bitangent, Math.sin(a) * radial * tangentBias)
-          .normalize();
-
-        const offset = 0.012 + radial * 0.035;
-        const spawnPosition = localPoint.clone()
-          .addScaledVector(localNormal, offset)
-          .addScaledVector(basis.tangent, Math.cos(a) * radial * 0.045)
-          .addScaledVector(basis.bitangent, Math.sin(a) * radial * 0.045);
-
-        const particleSpeed = preset.particleSpeed * scale * speedMultiplier *
-          (0.72 + rng() * 0.8) * (type === 'spark' ? 1.0 + tangentComponent * 1.6 : 1);
-        const size = preset.particleSize * sizeMultiplier * (0.7 + rng() * 0.65);
-
-        addParticle(
-          particles,
-          type,
-          spawnPosition,
-          direction,
-          particleSpeed,
-          size,
-          color,
-          preset.life * lifeMultiplier,
-          preset.gravity,
-          preset.drag,
-          rng
-        );
-      }
-    };
-
-    spawn('spark', counts.spark, preset.sparkColor, 1.0, 1.0, 0.8);
-    spawn(preset.kind === 'splinter' ? 'splinter' : preset.kind === 'shard' ? 'shard' : 'debris',
-      counts.debris, preset.secondaryColor, 1.0, 1.0, 1.0);
-    spawn('dust', counts.dust, preset.secondaryColor, 0.7, 1.45, 1.15);
-    spawn('smoke', counts.smoke, preset.secondaryColor, 0.55, 2.2, 1.35);
-
-    group.add(particles);
-
-    const flash = new THREE.Mesh(
-      new THREE.SphereGeometry(material === 'metal' ? 0.035 : 0.022, 6, 5),
-      makeMaterial(preset.sparkColor, material === 'glass' ? 0.7 : 0.85, true)
-    );
-    flash.name = 'impactFlash';
-    flash.position.copy(localPoint);
-    flash.userData.life = material === 'metal' ? 0.075 : 0.045;
-    flash.userData.baseOpacity = flash.material.opacity;
-    group.add(flash);
-
-    if (targetMesh) targetMesh.add(group);
-    else scene?.add?.(group);
-
-    const now = performance.now();
-    const effect = this.effectStore?.add?.({
-      root: group,
-      durationMs: 0,
-      metadata: {
-        type: 'impact',
-        material,
-        ownerId: targetEntity?.player?.id ?? null,
-        playerImpactMark: !!targetEntity?.player,
-      },
-      update: ({ dt, now: effectNow, effect: currentEffect }) =>
-        this._updateEffect(currentEffect, dt, effectNow),
-      dispose: ({ root }) => {
-        root?.parent?.remove?.(root);
-        disposeObject3D(root);
-      },
-    });
-    if (!effect) return null;
-
-    contacts.push({ key, time: now, effect });
-    while (contacts.length > MAX_ACTIVE) {
-      const old = contacts.shift();
-      this.effectStore?.remove?.(old?.effect);
-    }
-
-    return effect;
   }
 
   _contactKey(point, normal, targetEntity, material) {
@@ -558,151 +97,85 @@ export class ImpactSystem {
     group.add(lines);
   }
 
-  spawnBloodImpact({ position, normal, targetMesh = null, targetEntity = null } = {}) {
+
+  spawnSurfaceImpact(options = {}) {
+    const {
+      position, normal, material = 'default', targetMesh = null, targetEntity = null,
+    } = options;
     if (!position) return null;
-    const n = safeNormal(normal);
-    const point = new THREE.Vector3(Number(position.x) || 0, Number(position.y) || 0, Number(position.z) || 0).addScaledVector(n, 0.003);
-    if (targetMesh?.updateWorldMatrix) targetMesh.updateWorldMatrix(true, false);
-    const localPoint = targetMesh?.worldToLocal ? targetMesh.worldToLocal(point.clone()) : point.clone();
-    let localNormal = n.clone();
-    if (targetMesh?.worldToLocal) {
-      localNormal = targetMesh.worldToLocal(point.clone().addScaledVector(n, 1)).sub(localPoint).normalize();
-    }
-    const group = new THREE.Group();
-    group.name = 'bloodImpact';
-    group.renderOrder = 21;
-    const stain = new THREE.Mesh(new THREE.CircleGeometry(0.055, 16), new THREE.MeshBasicMaterial({
-      color: 0x8f1010, transparent: true, opacity: 0.88, side: THREE.DoubleSide,
-      depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
-    }));
-    stain.position.copy(localPoint);
-    stain.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), localNormal);
-    group.add(stain);
-    const tangent = new THREE.Vector3().crossVectors(
-      Math.abs(localNormal.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0),
-      localNormal
-    ).normalize();
-    const bitangent = new THREE.Vector3().crossVectors(localNormal, tangent).normalize();
-    for (let i = 0; i < 5; i++) {
-      const a = i * Math.PI * 2 / 5;
-      const drop = new THREE.Mesh(
-        new THREE.SphereGeometry(0.008 + i * 0.001, 5, 4),
-        new THREE.MeshBasicMaterial({ color: 0x8f1010, transparent: true, opacity: 0.8, depthTest: true, depthWrite: false })
-      );
-      drop.position.copy(localPoint).addScaledVector(tangent, Math.cos(a) * 0.015).addScaledVector(bitangent, Math.sin(a) * 0.015).addScaledVector(localNormal, 0.006);
-      group.add(drop);
-    }
-    if (targetMesh) targetMesh.add(group); else this.scene?.add?.(group);
+    const point = { x: Number(position.x) || 0, y: Number(position.y) || 0, z: Number(position.z) || 0 };
+    const key = this._contactKey(point, normal, targetEntity, material);
+    const duplicate = this.contacts.find((entry) => entry.key === key && performance.now() - entry.time < 80);
+    if (duplicate) return duplicate.effect;
+    const group = this.visualFactory.createSurfaceImpact(options);
+    if (!group) return null;
+    const effect = this.effectStore?.add?.({
+      root: group,
+      durationMs: 0,
+      metadata: { type: 'impact', material, ownerId: targetEntity?.player?.id ?? null, playerImpactMark: !!targetEntity?.player },
+      update: ({ dt, now, effect: currentEffect }) => this.animator.update(currentEffect, dt, now),
+      dispose: ({ root }) => { root?.parent?.remove?.(root); this._disposeObject3D(root); },
+    });
+    if (!effect) return null;
+    this.contacts.push({ key, time: performance.now(), effect });
+    this._trimContacts();
+    return effect;
+  }
+
+  spawnBloodImpact(options = {}) {
+    const { position, targetEntity = null } = options;
+    if (!position) return null;
+    const group = this.visualFactory.createBloodImpact(options);
+    if (!group) return null;
     const ownerId = targetEntity?.player?.id ?? null;
     const effect = this.effectStore?.add?.({
       root: group,
       durationMs: 0,
       metadata: { type: 'bloodImpact', playerImpactMark: !!targetEntity?.player, ownerId },
       update: () => true,
-      dispose: ({ root }) => { root?.parent?.remove?.(root); disposeObject3D(root); },
+      dispose: ({ root }) => { root?.parent?.remove?.(root); this._disposeObject3D(root); },
     });
     if (!effect) return null;
-    this.contacts.push({ key: 'blood:' + String(ownerId) + ':' + Math.round(point.x * 80) + ':' + Math.round(point.y * 80) + ':' + Math.round(point.z * 80), time: performance.now(), effect });
-    while (this.contacts.length > MAX_ACTIVE) this.effectStore?.remove?.(this.contacts.shift()?.effect);
+    this.contacts.push({ key: 'blood:' + String(ownerId) + ':' + Math.round(position.x * 80) + ':' + Math.round(position.y * 80) + ':' + Math.round(position.z * 80), time: performance.now(), effect });
+    this._trimContacts();
     return effect;
   }
 
-  _updateEffect(effect, dt, now) {
-    const root = effect?.root;
-    if (!root) return false;
-    const elapsed = Math.max(0, (now - effect.createdAt) / 1000);
-    const particles = root.getObjectByName?.('impactParticles');
-    if (particles) {
-      particles.children.forEach((particle) => {
-        const age = elapsed + (Number(particle.userData?.age) || 0);
-        const life = Math.max(0.05, Number(particle.userData?.life) || 0.5);
-        if (age <= 0 || age >= life) { particle.visible = false; return; }
-        particle.visible = true;
-        const velocity = particle.userData?.velocity;
-        if (velocity) {
-          const drag = Math.max(0, Number(particle.userData?.drag) || 0);
-          velocity.multiplyScalar(Math.exp(-drag * Math.max(0, dt)));
-          velocity.y -= (Number(particle.userData?.gravity) || 0) * Math.max(0, dt);
-          particle.position.addScaledVector(velocity, Math.max(0, dt));
-        }
-        const angularVelocity = particle.userData?.angularVelocity;
-        if (angularVelocity) {
-          particle.rotation.x += angularVelocity.x * dt;
-          particle.rotation.y += angularVelocity.y * dt;
-          particle.rotation.z += angularVelocity.z * dt;
-          angularVelocity.x *= 0.965; angularVelocity.y *= 0.965; angularVelocity.z *= 0.965;
-        }
-        const fade = THREE.MathUtils.clamp(age / life, 0, 1);
-        const fadeStart = particle.name === 'smoke' ? 0.18 : 0.55;
-        const fadeT = THREE.MathUtils.clamp((fade - fadeStart) / Math.max(0.001, 1 - fadeStart), 0, 1);
-        if (particle.material) particle.material.opacity =
-          (Number(particle.userData?.baseOpacity) || 1) *
-          (1 - Math.pow(fadeT, particle.name === 'smoke' ? 1.15 : 1.8));
-      });
-    }
-    const flash = root.getObjectByName?.('impactFlash');
-    if (flash) {
-      const t = THREE.MathUtils.clamp(
-        1 - (effect.createdAt + 80 - now) / Math.max(1, Number(RENDER_CONFIG.IMPACT_FLASH.BULLET_MS) || 90),
-        0, 1
-      );
-      flash.visible = now < effect.createdAt + 80;
-      if (flash.material) flash.material.opacity = (Number(flash.userData?.baseOpacity) || 1) * (1 - t);
-    }
-    return true;
+  _trimContacts() {
+    while (this.contacts.length > MAX_ACTIVE) this.effectStore?.remove?.(this.contacts.shift()?.effect);
+  }
+
+  _disposeObject3D(root) {
+    root?.traverse?.((child) => {
+      child.geometry?.dispose?.();
+      const material = child.material;
+      if (Array.isArray(material)) material.forEach((m) => m?.dispose?.());
+      else material?.dispose?.();
+    });
   }
 
   updatePlayerImpactMarksForHealth(playerId, health, maxHealth) {
-    const max = Math.max(1, Number(maxHealth) || 100);
-    const current = THREE.MathUtils.clamp(Number(health) || 0, 0, max);
-    const healthOpacity = 1 - current / max;
-    for (const entry of this.contacts) {
-      const metadata = entry?.effect?.metadata;
-      if (!metadata?.playerImpactMark || metadata.ownerId !== playerId) continue;
-      const mesh = entry.effect.root;
-      if (!mesh) continue;
-      mesh.visible = healthOpacity > 0;
-      mesh.traverse?.((child) => {
-        const material = child.material;
-        if (!material) return;
-        const materials = Array.isArray(material) ? material : [material];
-        for (const mat of materials) {
-          if (mat.userData.impactBaseOpacity == null) mat.userData.impactBaseOpacity = mat.opacity ?? 1;
-          mat.opacity = mat.userData.impactBaseOpacity * healthOpacity;
-          mat.transparent = true; mat.needsUpdate = true;
-        }
-      });
-    }
+    this.animator.updatePlayerImpactMarksForHealth(this.contacts, playerId, health, maxHealth);
   }
 
   clearPlayerImpactMarks(playerId, fraction = 1) {
-    const amount = THREE.MathUtils.clamp(Number(fraction) || 0, 0, 1);
-    const marks = this.contacts.filter((entry) =>
-      entry?.effect?.metadata?.playerImpactMark &&
-      entry.effect.metadata.ownerId === playerId
-    );
-    const removeCount = Math.min(marks.length, Math.floor(marks.length * amount + 1e-6));
-    for (let i = 0; i < removeCount; i++) {
-      const entry = marks[i];
+    const removeCount = this.animator.getPlayerImpactMarkRemovalCount(this.contacts, playerId, fraction);
+    let removed = 0;
+    for (const entry of this.contacts.filter((entry) => entry?.effect?.metadata?.playerImpactMark && entry.effect.metadata.ownerId === playerId).slice(0, removeCount)) {
       this.effectStore?.remove?.(entry.effect);
       const index = this.contacts.indexOf(entry);
       if (index >= 0) this.contacts.splice(index, 1);
+      removed++;
     }
-    return removeCount;
+    return removed;
   }
 
   getPlayerImpactMarkCount(playerId) {
-    return this.contacts.filter((entry) =>
-      entry?.effect?.metadata?.playerImpactMark &&
-      entry.effect.metadata.ownerId === playerId &&
-      entry.effect.root
-    ).length;
+    return this.contacts.filter((entry) => entry?.effect?.metadata?.playerImpactMark && entry.effect.metadata.ownerId === playerId && entry.effect.root).length;
   }
 
   dispose() {
     for (const entry of this.contacts) this.effectStore?.remove?.(entry.effect);
     this.contacts.length = 0;
-  }}
-
-
-export { MATERIAL_PRESETS };
+  }
+}
