@@ -277,9 +277,14 @@ export class ImpactVisualFactory {
     if (targetMesh?.updateWorldMatrix) targetMesh.updateWorldMatrix(true, false);
     const localPoint = targetMesh?.worldToLocal ? targetMesh.worldToLocal(point.clone()) : point.clone();
     let localNormal = n.clone();
-    if (targetMesh?.matrixWorld) {
-      const normalMatrix = new THREE.Matrix3().getNormalMatrix(targetMesh.matrixWorld);
-      localNormal.applyMatrix3(normalMatrix).normalize();
+    if (targetMesh?.worldToLocal) {
+      // Convert the world-space normal into the decal parent's local space
+      // by transforming two points. This remains correct for rotated and
+      // non-uniformly scaled meshes; applying getNormalMatrix(matrixWorld)
+      // here would transform in the opposite direction.
+      const localNormalPoint = targetMesh.worldToLocal(point.clone());
+      const localNormalTip = targetMesh.worldToLocal(point.clone().add(n));
+      localNormal.copy(localNormalTip.sub(localNormalPoint)).normalize();
     }
     if (localNormal.lengthSq() < 1e-8) localNormal.set(0, 1, 0);
 
