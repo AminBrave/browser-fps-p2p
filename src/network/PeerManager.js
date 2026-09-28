@@ -24,6 +24,7 @@ export class PeerManager {
     this.onConnectCallback = null;
     this.onDisconnectCallback = null;
     this.onStateCallback = null;
+    this.onErrorCallback = null;
     this.destroyed = false;
   }
 
@@ -257,6 +258,7 @@ export class PeerManager {
     connection.on('close', onEnd);
     connection.on('error', (error) => {
       console.warn('[Network] Data connection error', peerId, error);
+      this.onErrorCallback?.(error, peerId);
       onEnd();
     });
 
@@ -489,6 +491,7 @@ export class PeerManager {
   onDisconnect(callback) { this.onDisconnectCallback = callback; }
   onPeerDisconnect(callback) { this.onDisconnect(callback); }
   onStateChange(callback) { this.onStateCallback = callback; }
+  onError(callback) { this.onErrorCallback = callback; }
 
   destroy() {
     if (this.destroyed) return;
@@ -507,6 +510,7 @@ export class PeerManager {
     this.onConnectCallback = null;
     this.onDisconnectCallback = null;
     this.onStateCallback = null;
+    this.onErrorCallback = null;
     this._setState(STATE.CLOSED);
   }
 }
