@@ -232,10 +232,10 @@ export class PhysicsWorld {
     };
   }
 
-  createStaticCone(x, y, z, radius, height, rotationY = 0, renderTarget = null) {
+  createStaticCone(x, y, z, radius, height, rotationY = 0, renderTarget = null, materialType = null) {
     return this.createStaticCompound(
       x, y, z,
-      [{ desc: RAPIER.ColliderDesc.cone(height / 2, radius), renderTarget }],
+      [{ desc: RAPIER.ColliderDesc.cone(height / 2, radius), renderTarget, materialType }],
       rotationY
     );
   }
