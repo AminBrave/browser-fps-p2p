@@ -23,12 +23,20 @@ export const NETWORK_CONFIG = Object.freeze({
   }),
 
   WEBRTC: Object.freeze({
+    CONNECTION_MODES: Object.freeze({
+      AUTO: 'auto',
+      DIRECT: 'direct',
+      RELAY: 'relay',
+      RELAY_TCP_TLS: 'relay-tcp-tls',
+    }),
+    CONNECTION_MODE_STORAGE_KEY: 'p2p-fps-network-mode',
     STUN_SERVERS: Object.freeze([
       Object.freeze({ urls: 'stun:stun.l.google.com:19302' }),
       Object.freeze({ urls: 'stun:stun1.l.google.com:19302' }),
       Object.freeze({ urls: 'stun:stun2.l.google.com:19302' }),
     ]),
     ICE_TRANSPORT_POLICY: 'all',
+    DEFAULT_CONNECTION_MODE: 'auto',
     SDP_SEMANTICS: 'unified-plan',
     SIGNALING_TIMEOUT_MS: 10000,
     DATA_CONNECTION_TIMEOUT_MS: 30000,
