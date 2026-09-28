@@ -14,7 +14,7 @@ import { getAccuracyState } from '../../utils/AccuracyModel.js';
 import { sampleShotDirection } from '../../game/simulation/combat/ShotDirection.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
-import { calculateShotDamage } from '../../game/simulation/combat/DamageModel.js';
+import { CombatResolver } from '../../game/simulation/combat/CombatResolver.js';
 import { BallisticsTracer } from '../../game/simulation/combat/BallisticsTracer.js';
 
 export class WeaponSystem {
@@ -26,6 +26,7 @@ export class WeaponSystem {
     this.renderSystem = renderSystem;
     this.eventSink = eventSink;
     this.impactSystem = impactSystem;
+    this.combatResolver = new CombatResolver();
     this.ballisticsTracer = new BallisticsTracer({
       castRay: (...args) => this.physicsWorld?.castRay?.(...args) || null,
       getProjectileMaterial: (...args) => this.physicsWorld?.getProjectileMaterial?.(...args) || 'default',
@@ -427,7 +428,9 @@ export class WeaponSystem {
       if (this.isAuthoritative && this.healthSystem && hitEntity?.player && !hitEntity.player.isDead) {
         // Kinetic energy scales with v². The pure simulation model keeps
         // damage independent from Three.js and presentation concerns.
-        const dmg = calculateShotDamage({
+        const damageEvent = this.combatResolver.resolvePlayerHit({
+          attackerId: player.id,
+          targetEntity: hitEntity,
           weapon,
           distance: trace.distance,
           hitZone,
@@ -436,7 +439,13 @@ export class WeaponSystem {
           penetrated: trace.penetrated || 0,
         });
 
-        this.healthSystem.applyDamage(hitEntity, dmg, player.id);
+        if (damageEvent) {
+          this.healthSystem.applyDamage(
+            damageEvent.targetEntity,
+            damageEvent.amount,
+            damageEvent.attackerId
+          );
+        }
         this._emit({
           type: EVENT_TYPES.SFX,
           sfx: 'hit',
