@@ -161,7 +161,6 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
   });
 
   const presentationTargets = [trunk];
-  const presentationTargets = [body, hood, trunk, cabin, windshield, rearWindow, leftWindow, rightWindow, ...wheelMeshes];
   const compoundParts = [
     {
       desc: RAPIER.ColliderDesc.cylinder(
@@ -324,6 +323,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
   const leftWindow = group.children.find((child) => child.name === 'leftWindow');
   const rightWindow = group.children.find((child) => child.name === 'rightWindow');
 
+  const presentationTargets = [body, hood, trunk, cabin, windshield, rearWindow, leftWindow, rightWindow, ...wheelMeshes];
   const compoundParts = [
     { desc: RAPIER.ColliderDesc.cuboid(config.BODY.SIZE.x / 2, config.BODY.SIZE.y / 2, config.BODY.SIZE.z / 2), position: { x: 0, y: config.BODY.CENTER_Y, z: 0 }, materialType: 'metal' },
     { desc: RAPIER.ColliderDesc.cuboid(0.91, 0.08, 0.45), position: { x: 0, y: 0.79, z: -1.38 }, materialType: 'metal' },
@@ -337,7 +337,6 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
       desc: RAPIER.ColliderDesc.cylinder(config.WHEELS.WIDTH / 2, config.WHEELS.RADIUS),
       position: { x, y: config.WHEELS.RADIUS, z },
       rotation: wheelRotation,
-      renderTarget: wheelMeshes[index],
       materialType: 'rubber',
     })),
   ];
@@ -352,6 +351,7 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
     mesh: group,
     name: 'car',
     rotationY: placement.rotationY || 0,
+    presentationTargets,
   });
 }
 function addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
@@ -382,10 +382,10 @@ function addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, place
 
   const presentationTargets = [base, pole, arm, lamp];
   const parts = [
-    { desc: RAPIER.ColliderDesc.cuboid(cfg.BASE.SIZE.x/2, cfg.BASE.SIZE.y/2, cfg.BASE.SIZE.z/2), position:{x:0,y:cfg.BASE.SIZE.y/2,z:0}, renderTarget:base, materialType:'metal' },
-    { desc: RAPIER.ColliderDesc.cylinder(cfg.POLE.HEIGHT/2, cfg.POLE.RADIUS), position:{x:0,y:cfg.POLE.HEIGHT/2+cfg.BASE.SIZE.y,z:0}, renderTarget:pole, materialType:'metal' },
-    { desc: RAPIER.ColliderDesc.cylinder(cfg.ARM.LENGTH/2, cfg.ARM.RADIUS), position:{x:cfg.ARM.LENGTH/2,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, rotation:{x:0,y:0,z:Math.SQRT1_2,w:Math.SQRT1_2}, renderTarget:arm, materialType:'metal' },
-    { desc: RAPIER.ColliderDesc.ball(0.14), position:{x:cfg.ARM.LENGTH,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, renderTarget:lamp, materialType:'glass' },
+    { desc: RAPIER.ColliderDesc.cuboid(cfg.BASE.SIZE.x/2, cfg.BASE.SIZE.y/2, cfg.BASE.SIZE.z/2), position:{x:0,y:cfg.BASE.SIZE.y/2,z:0}, materialType:'metal' },
+    { desc: RAPIER.ColliderDesc.cylinder(cfg.POLE.HEIGHT/2, cfg.POLE.RADIUS), position:{x:0,y:cfg.POLE.HEIGHT/2+cfg.BASE.SIZE.y,z:0}, materialType:'metal' },
+    { desc: RAPIER.ColliderDesc.cylinder(cfg.ARM.LENGTH/2, cfg.ARM.RADIUS), position:{x:cfg.ARM.LENGTH/2,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, rotation:{x:0,y:0,z:Math.SQRT1_2,w:Math.SQRT1_2}, materialType:'metal' },
+    { desc: RAPIER.ColliderDesc.ball(0.14), position:{x:cfg.ARM.LENGTH,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, materialType:'glass' },
   ];
   const physics = physicsWorld.createStaticCompound(safe.x, groundY(), safe.z, parts);
   addToScene(sceneManager, group);
@@ -414,7 +414,7 @@ function addDumpster(ecsWorld, physicsWorld, sceneManager, mapEntities, placemen
   ];
   const physics=physicsWorld.createStaticCompound(safe.x,groundY(),safe.z,parts);
   addToScene(sceneManager,group);
-  return addSolidMapEntity(ecsWorld,physicsWorld,mapEntities,{position:{x:safe.x,y:groundY(),z:safe.z},physics,mesh:group,name:'dumpster'});
+  return addSolidMapEntity(ecsWorld,physicsWorld,mapEntities,{position:{x:safe.x,y:groundY(),z:safe.z},physics,mesh:group,name:'dumpster',presentationTargets});
 }
 
 function addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities) {
@@ -516,6 +516,7 @@ function addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position
     mesh: group,
     name: 'mountain',
     materialType: 'stone',
+    presentationTargets: [mesh],
   });
 }
 
@@ -552,6 +553,7 @@ function addPath(ecsWorld, physicsWorld, sceneManager, mapEntities) {
       mesh: path,
       name: 'path',
       materialType: 'concrete',
+      presentationTargets: [path],
     });
   }
 }
@@ -562,7 +564,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager, presentationColl
   const { WIDTH, LENGTH, FLOOR_THICKNESS } = WORLD_CONFIG.MAP;
 
   // Build the render surface before constructing the collider so the
-  // collider can retain the exact mesh target for bullet impact decals.
+  // presentation registry can bind the exact mesh target for bullet impact decals.
   const floorMesh = new THREE.Mesh(
     new THREE.BoxGeometry(WIDTH, FLOOR_THICKNESS, LENGTH),
     new THREE.MeshStandardMaterial({
@@ -589,6 +591,7 @@ export function createMap(ecsWorld, physicsWorld, sceneManager, presentationColl
     mesh: floorMesh,
     name: 'ground',
     materialType: 'dirt',
+    presentationTargets: [floorMesh],
   });
   addToScene(sceneManager, floorMesh);
 
