@@ -108,7 +108,7 @@ export class LobbyUI {
       if (this.busy) return;
       const roomId = this.roomIdInput?.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || '';
       if (!roomId) return;
-      this._setBusy(true);
+      this.setBusy(true);
       this.callbacks?.onJoinGame?.(roomId, this.getPerformanceProfile());
     });
 
