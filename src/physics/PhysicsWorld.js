@@ -36,6 +36,24 @@ export class PhysicsWorld {
     const handle = collider?.handle ?? collider;
     return (handle != null ? this.colliderToMaterial.get(handle) : null) || 'default';
   }
+
+  /**
+   * Return the exact exit distance through the already-hit Rapier shape.
+   * Rapier's collider-local ray query with solid=false is important here:
+   * the ray starts just inside the material, so Rapier returns the next
+   * boundary instead of treating the shape as an infinitely solid point.
+   */
+  getProjectileExitDistance(collider, origin, direction, maxDistance) {
+    if (!collider?.castRay || !origin || !direction) return null;
+    const len = Math.hypot(direction.x, direction.y, direction.z) || 1;
+    const dir = { x: direction.x / len, y: direction.y / len, z: direction.z / len };
+    const ray = new RAPIER.Ray(
+      { x: origin.x, y: origin.y, z: origin.z },
+      dir
+    );
+    const toi = collider.castRay(ray, Math.max(0.001, maxDistance), false);
+    return Number.isFinite(toi) && toi >= 0 ? toi : null;
+  }
   unregisterCollider(collider) {
     if (!collider) return;
     const handle = collider.handle ?? collider;
