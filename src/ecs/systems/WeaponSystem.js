@@ -7,7 +7,8 @@ import {
   COMBAT_CONFIG,
 } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
-import { createBullet, createImpactDecal, createBloodImpact } from '../entities/createBullet.js';
+import { createBullet, createBloodImpact } from '../entities/createBullet.js';
+import { createImpactSeed } from './ImpactSystem.js';
 import { copyWeaponState } from '../components/Weapon.js';
 import { getAccuracyState } from '../../utils/AccuracyModel.js';
 import { audio } from '../../audio/AudioManager.js';
@@ -15,13 +16,14 @@ import { EVENT_TYPES } from '../../network/PacketTypes.js';
 import * as THREE from 'three';
 
 export class WeaponSystem {
-  constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null, eventSink = null) {
+  constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null, eventSink = null, impactSystem = null) {
     this.physicsWorld = physicsWorld;
     this.sceneManager = sceneManager;
     this.healthSystem = healthSystem;
     this.isAuthoritative = isAuthoritative;
     this.renderSystem = renderSystem;
     this.eventSink = eventSink;
+    this.impactSystem = impactSystem;
   }
 
   setEventSink(eventSink) {
@@ -610,7 +612,7 @@ export class WeaponSystem {
         ballisticDrop: 0.5 * (Number(GAME_CONFIG.GRAVITY) || -19.62) * Math.pow(trace.distance / muzzleVelocity, 2),
         terminalVelocity: trace.velocity || muzzleVelocity,
         penetrated: trace.penetrated || 0,
-        impacts: (trace.impacts || []).map((impact) => ({
+        impacts: (trace.impacts || []).map((impact, index) => ({
           point: impact.point,
           exitPoint: impact.exitPoint,
           normal: impact.normal,
@@ -618,31 +620,64 @@ export class WeaponSystem {
           material: impact.material,
           velocityBefore: impact.velocityBefore,
           velocityAfter: impact.velocityAfter,
+          incomingDirection: dir,
+          entrySeed: createImpactSeed({
+            shooterId: player.id,
+            weaponId: weapon.typeId ?? 1,
+            position: impact.point,
+            material: impact.material,
+            sequence: p * 32 + index * 2,
+          }),
+          exitSeed: createImpactSeed({
+            shooterId: player.id,
+            weaponId: weapon.typeId ?? 1,
+            position: impact.exitPoint,
+            material: impact.material,
+            sequence: p * 32 + index * 2 + 1,
+          }),
         })),
         primary: p === 0,
       });
 
-      // Every ballistic surface contact gets a persistent impact mark.
-      // Penetrated surfaces are rendered immediately on the authoritative host;
-      // their contact data is also sent in SHOT so remote clients reconstruct
-      // exactly the same entry/exit marks.
-      for (const impact of trace.impacts || []) {
-        createImpactDecal(
-          ecsWorld,
-          this.sceneManager,
-          impact.point,
-          impact.normal || hitNormal,
-          null,
-          null
-        );
-        createImpactDecal(
-          ecsWorld,
-          this.sceneManager,
-          impact.exitPoint,
-          impact.exitNormal || impact.normal || hitNormal,
-          null,
-          null
-        );
+      // Surface reactions are presentation-only and use the authoritative
+      // trace data. Network peers reconstruct the same reaction from the
+      // deterministic seeds carried by SHOT.
+      for (const [index, impact] of (trace.impacts || []).entries()) {
+        this.impactSystem?.spawnSurfaceImpact({
+          position: impact.point,
+          normal: impact.normal || hitNormal,
+          material: impact.material,
+          incomingDirection: dir,
+          velocityBefore: impact.velocityBefore,
+          velocityAfter: impact.velocityAfter,
+          seed: createImpactSeed({
+            shooterId: player.id,
+            weaponId: weapon.typeId ?? 1,
+            position: impact.point,
+            material: impact.material,
+            sequence: p * 32 + index * 2,
+          }),
+          penetrated: true,
+        });
+        if (impact.exitPoint) {
+          this.impactSystem?.spawnSurfaceImpact({
+            position: impact.exitPoint,
+            normal: impact.exitNormal || impact.normal || hitNormal,
+            material: impact.material,
+            incomingDirection: dir,
+            velocityBefore: impact.velocityAfter,
+            velocityAfter: impact.velocityAfter,
+            seed: createImpactSeed({
+              shooterId: player.id,
+              weaponId: weapon.typeId ?? 1,
+              position: impact.exitPoint,
+              material: impact.material,
+              sequence: p * 32 + index * 2 + 1,
+            }),
+            exit: true,
+            penetrated: true,
+          });
+        }
       }
 
       if (didHit) {
@@ -657,14 +692,27 @@ export class WeaponSystem {
             hitEntity
           );
         } else {
-          createImpactDecal(
-            ecsWorld,
-            this.sceneManager,
-            endPos,
-            hitNormal,
-            hitRenderTarget,
-            hitEntity
-          );
+          const finalMaterial =
+            hit?.material ||
+            this.physicsWorld?.getProjectileMaterial?.(hit) ||
+            'default';
+          this.impactSystem?.spawnSurfaceImpact({
+            position: endPos,
+            normal: hitNormal,
+            material: finalMaterial,
+            incomingDirection: dir,
+            velocityBefore: trace.velocity || muzzleVelocity,
+            velocityAfter: 0,
+            targetMesh: hitRenderTarget,
+            targetEntity: hitEntity,
+            seed: createImpactSeed({
+              shooterId: player.id,
+              weaponId: weapon.typeId ?? 1,
+              position: endPos,
+              material: finalMaterial,
+              sequence: p * 32 + (trace.impacts || []).length * 2 + 7,
+            }),
+          });
         }
         if (player.isLocal && p === 0) audio.playImpact();
       }
