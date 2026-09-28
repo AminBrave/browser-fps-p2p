@@ -11,6 +11,7 @@ import { createPlayer } from './ecs/entities/createPlayer.js';
 import { createMap } from './ecs/entities/createMap.js';
 import { InputSystem } from './ecs/systems/InputSystem.js';
 import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
+import { WeaponPresentation } from './presentation/weapon/WeaponPresentation.js';
 import { RenderSystem } from './ecs/systems/RenderSystem.js';
 import { ClientPredictSystem } from './ecs/systems/network/ClientPredictSystem.js';
 import { ClientReconcileSystem } from './ecs/systems/network/ClientReconcileSystem.js';
@@ -76,6 +77,7 @@ export class ClientGame {
       this.renderSystem,
       null,
       this.impactSystem
+      , new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
     );
     this.renderSystem.setEventSink((event) => this.networkTransport.sendToHost(Protocol.encodeGameEvent(event)));
 
