@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { createTransform } from '../../ecs/components/Transform.js';
 import { GAME_CONFIG, RENDER_CONFIG } from '../../config/index.js';
 
 // Scope decal ownership to an ECS world. A module-global array would retain
@@ -19,7 +18,7 @@ function disposeObject3D(root) {
 }
 
 export function createBullet(
-  ecsWorld,
+  effectStore,
   sceneOrManager,
   startPos,
   endPos,
@@ -29,6 +28,7 @@ export function createBullet(
   const points = Array.isArray(trajectoryPoints) && trajectoryPoints.length >= 2
     ? trajectoryPoints
     : [startPos, endPos];
+
   const geometry = new THREE.BufferGeometry().setFromPoints(
     points.map((point) => new THREE.Vector3(point.x, point.y, point.z))
   );
@@ -42,12 +42,17 @@ export function createBullet(
   lineMesh.renderOrder = 10;
   scene?.add?.(lineMesh);
 
-  return ecsWorld.add({
-    isBullet: true,
-    transform: createTransform(startPos.x, startPos.y, startPos.z),
-    renderMesh: { mesh: lineMesh },
-    lifespan: { createdAt: performance.now(), durationMs: 60 },
-  });
+  return effectStore?.add?.({
+    root: lineMesh,
+    durationMs: 60,
+    update: ({ progress }) => {
+      material.opacity = 0.95 * (1 - progress);
+    },
+    dispose: () => {
+      lineMesh.parent?.remove?.(lineMesh);
+      disposeObject3D(lineMesh);
+    },
+  }) || null;
 }
 
 export function createImpactDecal(
