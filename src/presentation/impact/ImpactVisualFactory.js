@@ -378,4 +378,16 @@ export class ImpactVisualFactory {
   }
 }
 
+
+export function disposeObject3D(root) {
+  if (!root) return;
+  root.traverse?.((object) => {
+    object.geometry?.dispose?.();
+    const material = object.material;
+    if (!material) return;
+    const materials = Array.isArray(material) ? material : [material];
+    for (const entry of materials) entry?.dispose?.();
+  });
+}
+
 export { MATERIAL_PRESETS, disposeObject3D };
