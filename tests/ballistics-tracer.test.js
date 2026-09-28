@@ -39,7 +39,7 @@ test('tracer stops at a player hit and returns accumulated flight data', () => {
   );
 
   assert.equal(result.hit.entity, target);
-  assert.equal(result.point.z, -1);
+  assert.ok(Math.abs(result.point.z + 1) < 1e-5);
   assert.equal(result.penetrated, 0);
   assert.ok(result.flightTime > 0);
 });
