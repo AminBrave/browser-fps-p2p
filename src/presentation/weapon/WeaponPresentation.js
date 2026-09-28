@@ -43,7 +43,7 @@ export class WeaponPresentation {
     return this.effects.createBullet(origin, end, path);
   }
 
-  createBloodImpact(ecsWorld, position, normal, renderTarget, entity) {
-    return this.effects.createBloodImpact(ecsWorld, position, normal, renderTarget, entity);
+  createBloodImpact(position, normal, renderTarget, entity) {
+    return this.effects.createBloodImpact(position, normal, renderTarget, entity);
   }
 }
