@@ -28,7 +28,11 @@ export class Protocol {
 
   static decodeJoinRequest(data) {
     const view = asDataView(data);
-    if (!view || view.byteLength < PROTOCOL_CONFIG.JOIN_REQUEST_SIZE) return null;
+    if (
+      !view ||
+      view.byteLength !== PROTOCOL_CONFIG.JOIN_REQUEST_SIZE ||
+      view.getUint8(0) !== PACKET_TYPES.JOIN_REQUEST
+    ) return null;
     return {
       protocolVersion: view.getUint16(1, true),
     };
@@ -48,7 +52,11 @@ export class Protocol {
 
   static decodeJoinAccept(data) {
     const view = asDataView(data);
-    if (!view || view.byteLength < 6) return null;
+    if (
+      !view ||
+      view.byteLength !== PROTOCOL_CONFIG.JOIN_ACCEPT_SIZE ||
+      view.getUint8(0) !== PACKET_TYPES.JOIN_ACCEPT
+    ) return null;
     return {
       playerId: view.getUint8(1),
       entityId: view.getUint32(2, true),
@@ -125,7 +133,11 @@ export class Protocol {
 
   static decodeClientInput(data) {
     const view = asDataView(data);
-    if (!view || view.byteLength < CLIENT_INPUT_SIZE) return null;
+    if (
+      !view ||
+      view.byteLength !== CLIENT_INPUT_SIZE ||
+      view.getUint8(0) !== PACKET_TYPES.CLIENT_INPUT
+    ) return null;
 
     return {
       sequence: view.getUint32(1, true),
@@ -244,12 +256,16 @@ export class Protocol {
 
   static decodeWorldSnapshot(data) {
     const view = asDataView(data);
-    if (!view || view.byteLength < SNAPSHOT_HEADER_SIZE) return null;
+    if (
+      !view ||
+      view.byteLength < SNAPSHOT_HEADER_SIZE ||
+      view.getUint8(0) !== PACKET_TYPES.WORLD_SNAPSHOT
+    ) return null;
 
     const entityCount = view.getUint8(9);
     const expectedLength =
       SNAPSHOT_HEADER_SIZE + entityCount * SNAPSHOT_ENTITY_SIZE;
-    if (view.byteLength < expectedLength) return null;
+    if (view.byteLength !== expectedLength) return null;
 
     const entities = new Array(entityCount);
     for (let i = 0; i < entityCount; i++) {
@@ -303,7 +319,7 @@ export class Protocol {
       lastProcessedSequence: lastAckedSeq,
       entities,
       players: entities,
-      timestamp: performance.now(),
+      timestamp: typeof performance !== 'undefined' ? performance.now() : Date.now(),
     };
   }
 
