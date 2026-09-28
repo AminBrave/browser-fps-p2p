@@ -54,16 +54,14 @@ export class HostGame {
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
     this.healthSystem = new HealthSystem(this.physicsWorld);
     this.renderSystem = new RenderSystem(this.sceneManager);
-    this.weaponSystem = new WeaponSystem(
-      this.physicsWorld,
-      this.sceneManager,
-      this.healthSystem,
-      true,
-      this.renderSystem,
-      null,
-      this.impactSystem,
-      new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
-    );
+    this.weaponSystem = new WeaponSystem({
+      physicsWorld: this.physicsWorld,
+      healthSystem: this.healthSystem,
+      isAuthoritative: true,
+      eventSink: null,
+      impactSystem: this.impactSystem,
+      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
+    });
     this.hostNetworkSystem = new HostNetworkSystem(this.networkTransport);
     this.hostNetworkSystem.setJoinHandler((peerId) => {
       const entity = this._ensureClientEntity(peerId);
