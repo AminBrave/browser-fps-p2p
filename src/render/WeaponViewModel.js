@@ -1,7 +1,7 @@
 // src/render/WeaponViewModel.js
 
 import * as THREE from 'three';
-import { RENDER_CONFIG } from '../config/index.js';
+import { RENDER_CONFIG, resolvePerformanceProfile } from '../config/index.js';
 
 /**
  * Distinct procedural viewmodels for Pistol / SMG / Shotgun / Rifle.
@@ -10,6 +10,7 @@ export class WeaponViewModel {
   constructor(camera, viewModelScene = null) {
     this.camera = camera;
     this.viewModelScene = viewModelScene;
+    this.performanceProfile = resolvePerformanceProfile();
     this.anchor = new THREE.Group();
     this.anchor.name = 'WeaponViewModelAnchor';
     this.root = new THREE.Group();
@@ -414,8 +415,10 @@ export class WeaponViewModel {
       effect.visible = true;
       const light = effect.userData.light;
       light.position.set(0, 0, 0);
-      light.intensity = RENDER_CONFIG.MUZZLE_FLASH.LIGHT_INTENSITY;
-      light.visible = true;
+      light.intensity = this.performanceProfile.muzzleLights
+        ? RENDER_CONFIG.MUZZLE_FLASH.LIGHT_INTENSITY
+        : 0;
+      light.visible = this.performanceProfile.muzzleLights;
     }
     if (active?.userData?.flash?.material) active.userData.flash.material.opacity = 1;
   }
@@ -484,10 +487,10 @@ export class WeaponViewModel {
         // The light is part of the viewmodel scene, so it illuminates the
         // receiver/barrel without affecting the world scene. Fade it with the
         // same envelope as the visible flash.
-        effect.userData.light.intensity =
-          RENDER_CONFIG.MUZZLE_FLASH.LIGHT_INTENSITY *
-          Math.pow(t, 0.65);
-        effect.userData.light.visible = t > 0.01;
+        effect.userData.light.intensity = this.performanceProfile.muzzleLights
+          ? RENDER_CONFIG.MUZZLE_FLASH.LIGHT_INTENSITY * Math.pow(t, 0.65)
+          : 0;
+        effect.userData.light.visible = this.performanceProfile.muzzleLights && t > 0.01;
       } else {
         effect.visible = false;
         effect.userData.light.intensity = 0;
