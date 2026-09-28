@@ -16,6 +16,7 @@ export class PeerManager {
     this.peer = null;
     this.connections = new Map();
     this.isHost = false;
+    this.networkMode = networkMode;
     this.hostPeerId = null;
     this.invitationCode = null;
     this.state = STATE.IDLE;
@@ -69,7 +70,7 @@ export class PeerManager {
     return this.initHost(customRoomId, networkMode);
   }
 
-  async initClient(hostPeerId) {
+  async initClient(hostPeerId, networkMode = NETWORK_CONFIG.WEBRTC.DEFAULT_CONNECTION_MODE) {
     this._resetForInitialization();
     this.isHost = false;
     this.hostPeerId = PeerManager.normalizePeerId(hostPeerId);
@@ -77,7 +78,7 @@ export class PeerManager {
     if (!this.hostPeerId) throw new Error('Host invitation code is required');
 
     this._setState(STATE.SIGNALING);
-    this.iceInfo = await resolveIceServers();
+    this.iceInfo = await resolveIceServers(this.networkMode);
 
     let peer = null;
     let connection = null;
@@ -138,8 +139,8 @@ export class PeerManager {
     }
   }
 
-  initializeClient(hostPeerId) {
-    return this.initClient(hostPeerId);
+  initializeClient(hostPeerId, networkMode = NETWORK_CONFIG.WEBRTC.DEFAULT_CONNECTION_MODE) {
+    return this.initClient(hostPeerId, networkMode);
   }
 
   static normalizePeerId(value) {
@@ -160,7 +161,7 @@ export class PeerManager {
       pingInterval: NETWORK_CONFIG.SIGNALING.PING_INTERVAL_MS,
       config: {
         iceServers,
-        iceTransportPolicy: NETWORK_CONFIG.WEBRTC.ICE_TRANSPORT_POLICY,
+        iceTransportPolicy: this._getIceTransportPolicy(),
         sdpSemantics: NETWORK_CONFIG.WEBRTC.SDP_SEMANTICS,
       },
     };
@@ -176,6 +177,12 @@ export class PeerManager {
     }
 
     return options;
+  }
+
+  _getIceTransportPolicy() {
+    if (this.networkMode === NETWORK_CONFIG.WEBRTC.CONNECTION_MODES.DIRECT) return 'all';
+    if (this.networkMode === NETWORK_CONFIG.WEBRTC.CONNECTION_MODES.RELAY || this.networkMode === NETWORK_CONFIG.WEBRTC.CONNECTION_MODES.RELAY_TCP_TLS) return 'relay';
+    return NETWORK_CONFIG.WEBRTC.ICE_TRANSPORT_POLICY;
   }
 
   async _openPeer(id) {
