@@ -7,6 +7,7 @@ import { WeaponViewModel } from '../../render/WeaponViewModel.js';
 import { moveIntensity } from '../../game/simulation/movement/FpsMovement.js';
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
+import { resolvePerformanceProfile } from '../../config/index.js';
 
 export class RenderSystem {
   constructor(sceneOrManager, camera = null) {
@@ -49,6 +50,10 @@ export class RenderSystem {
       runY: 0,
     };
     this._aimFov = CAMERA_CONFIG.FOV;
+    this.performanceProfile = this.sceneManager?.performanceProfile || resolvePerformanceProfile();
+    this._remoteVisualAccumulator = 0;
+    this._cameraWorldQuaternion = new THREE.Quaternion();
+    this._parentWorldQuaternion = new THREE.Quaternion();
   }
 
   setEventSink(eventSink) {
@@ -98,6 +103,11 @@ export class RenderSystem {
 
     const dt = Math.min(RENDER_CONFIG.MAX_RENDER_DELTA_SECONDS, (now - this._lastTime) / 1000);
     this._lastTime = now;
+    this._remoteVisualAccumulator += Math.max(0, dt);
+    const remoteVisualInterval = 1 / Math.max(1, this.performanceProfile.remoteVisualHz || 60);
+    const updateRemoteVisuals = this._remoteVisualAccumulator >= remoteVisualInterval;
+    if (updateRemoteVisuals) this._remoteVisualAccumulator %= remoteVisualInterval;
+    if (this.camera) this.camera.getWorldQuaternion(this._cameraWorldQuaternion);
 
     let localEntity = localEntityArg?.transform ? localEntityArg : null;
 
@@ -106,13 +116,7 @@ export class RenderSystem {
       const renderMesh = entity.renderMesh;
 
       if (!transform || !renderMesh?.mesh) continue;
-      if (entity.isMap && !entity.isBoundary) {
-        // World objects are owned by the ECS render transform. Keep their
-        // visible state deterministic so physics cannot remain active while
-        // the corresponding visual root is accidentally hidden.
-        renderMesh.mesh.visible = true;
-      }
-      if (entity.player?.isLocal) {
+            if (entity.player?.isLocal) {
         renderMesh.mesh.visible = false;
         continue;
       }
@@ -126,7 +130,7 @@ export class RenderSystem {
       const yaw = transform.rotation?.yaw ?? transform.rotation?.y ?? 0;
       if (renderMesh.mesh.rotation) renderMesh.mesh.rotation.y = yaw;
 
-      if (entity.player && !entity.player.isLocal && entity.character) {
+      if (entity.player && !entity.player.isLocal && entity.character && updateRemoteVisuals) {
         entity.character.updateVisuals({
           stance: entity.input?.stance ?? entity.player.remoteStance ?? STANCE.STAND,
           pitch: entity.input?.pitch ?? entity.player.remotePitch ?? 0,
@@ -139,12 +143,9 @@ export class RenderSystem {
         );
         const healthBar = entity.character.parts.healthBar;
         if (healthBar && this.camera) {
-          const cameraWorldQuaternion = new THREE.Quaternion();
-          const parentWorldQuaternion = new THREE.Quaternion();
-          this.camera.getWorldQuaternion(cameraWorldQuaternion);
-          renderMesh.mesh.getWorldQuaternion(parentWorldQuaternion);
-          parentWorldQuaternion.invert();
-          healthBar.quaternion.copy(parentWorldQuaternion).multiply(cameraWorldQuaternion);
+          renderMesh.mesh.getWorldQuaternion(this._parentWorldQuaternion);
+          this._parentWorldQuaternion.invert();
+          healthBar.quaternion.copy(this._parentWorldQuaternion).multiply(this._cameraWorldQuaternion);
         }
       }
     }
