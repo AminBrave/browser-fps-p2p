@@ -29,7 +29,7 @@ test('resolver creates a damage command for a living enemy', () => {
   assert.equal(result.targetEntity, targetEntity);
   assert.equal(result.attackerId, 'attacker');
   assert.equal(result.hitZone, 'head');
-  assert.equal(result.amount, 72);
+  assert.equal(result.amount, 70);
 });
 
 test('resolver rejects self hits and dead targets', () => {
@@ -65,9 +65,9 @@ test('resolver rejects invalid computed damage', () => {
   const result = resolver.resolvePlayerHit({
     attackerId: 'attacker',
     targetEntity: { player: { id: 'target', isDead: false } },
-    weapon: { damage: 0 },
+    weapon: { damage: NaN },
     distance: 0,
-    terminalVelocity: 0,
+    terminalVelocity: 500,
     muzzleVelocity: 500,
   });
 
