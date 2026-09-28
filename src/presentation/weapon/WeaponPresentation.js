@@ -2,10 +2,6 @@ import { WeaponEffects } from './WeaponEffects.js';
 import { audio } from '../../audio/AudioManager.js';
 import { PresentationColliderRegistry } from '../world/PresentationColliderRegistry.js';
 
-/**
- * Presentation adapter for weapon effects. Gameplay systems call this small
- * boundary instead of importing Three.js-facing factories or audio directly.
- */
 export class WeaponPresentation {
   constructor({ sceneManager, renderSystem = null, impactSystem = null, colliderRegistry = null } = {}) {
     this.sceneManager = sceneManager;
@@ -19,7 +15,7 @@ export class WeaponPresentation {
   }
 
   getHitRenderTarget(hit, entity = null) {
-    return this.colliderRegistry.getTarget(hit?.collider) || entity?.renderMesh?.mesh || hit?.renderTarget || null;
+    return this.colliderRegistry.getTarget(hit?.collider) || entity?.renderMesh?.mesh || null;
   }
 
   onWeaponFired(recoil, sfx = 'pistol') {
