@@ -206,8 +206,8 @@ function makeMaterial(color, opacity = 1, additive = false) {
     side: THREE.DoubleSide,
     blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
     polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
   });
 }
 
@@ -273,7 +273,7 @@ export class ImpactVisualFactory {
     if (!position) return null;
     const preset = MATERIAL_PRESETS[material] || MATERIAL_PRESETS.default;
     const n = safeNormal(normal);
-    const point = new THREE.Vector3(Number(position.x) || 0, Number(position.y) || 0, Number(position.z) || 0).addScaledVector(n, 0.003);
+    const point = new THREE.Vector3(Number(position.x) || 0, Number(position.y) || 0, Number(position.z) || 0).addScaledVector(n, 0.006);
     if (targetMesh?.updateWorldMatrix) targetMesh.updateWorldMatrix(true, false);
     const localPoint = targetMesh?.worldToLocal ? targetMesh.worldToLocal(point.clone()) : point.clone();
     let localNormal = n.clone();
@@ -458,7 +458,11 @@ export class ImpactVisualFactory {
         color: 0xd9f9ff,
         transparent: true,
         opacity: 0.62,
+        depthTest: true,
         depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
       })
     );
     lines.name = 'glassCracks';
