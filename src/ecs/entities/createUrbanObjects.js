@@ -36,7 +36,6 @@ function addUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec) {
   const view = createUrbanPropView({ ...spec, groundY: ground }, sceneManager);
   const parts = spec.parts.map((part, index) => ({
     desc: primitiveCollider(part),
-    renderTarget: view.parts[index].mesh,
     materialType: view.parts[index].materialType,
   }));
 
