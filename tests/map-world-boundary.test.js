@@ -28,7 +28,7 @@ test('physics world exposes primitive collider construction through StaticPhysic
 test('map definitions are independent of ECS, physics, and presentation', () => {
   const source = fs.readFileSync(path.join(root, 'src/game/world/MapDefinitions.js'), 'utf8');
   assert.doesNotMatch(source, /from ['"]three['"]/);
-  assert.doesNotMatch(source, /[@]dimforge\\/rapier3d-compat/);
+  assert.doesNotMatch(source, /@dimforge\\\/rapier3d-compat/);
   assert.doesNotMatch(source, /src\\\/(ecs|physics|presentation)/);
 });
 
