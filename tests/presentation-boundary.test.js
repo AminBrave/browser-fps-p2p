@@ -64,3 +64,15 @@ test('impact presentation is split into construction, animation, and orchestrati
   assert.match(system, /ImpactVisualFactory/);
   assert.match(system, /ImpactEffectAnimator/);
 });
+
+
+test('health presentation boundary does not accept ECS world/entity arguments', () => {
+  const presentation = read('src/presentation/health/HealthPresentation.js');
+  const system = read('src/ecs/systems/HealthSystem.js');
+  assert.doesNotMatch(presentation, /_ecsWorld/);
+  assert.doesNotMatch(presentation, /entity\?\.player/);
+  assert.match(presentation, /updateImpactMarks\(playerId, health, maxHealth\)/);
+  assert.match(presentation, /onDeath\(\{ mesh = null, isLocal = false \}/);
+  assert.doesNotMatch(system, /updateImpactMarks\?\.\(ecsWorld/);
+  assert.doesNotMatch(system, /clearImpactMarks\?\.\(ecsWorld/);
+});
