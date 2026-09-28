@@ -55,7 +55,7 @@ test('impact presentation is split into construction, animation, and orchestrati
   const system = read('src/presentation/impact/ImpactSystem.js');
   assert.match(factory, /from ['"]three['"]/);
   assert.match(factory, /createSurfaceImpact/);
-  assert.match(animator, /update\(/);
+  assert.match(animator, /_updateEffect\(/);
   assert.match(animator, /updatePlayerImpactMarksForHealth/);
   assert.doesNotMatch(factory, /effectStore/);
   assert.doesNotMatch(animator, /spawnSurfaceImpact|new THREE\.(Group|Mesh)/);
