@@ -54,6 +54,12 @@ Tests cover the pure input validation boundary. End-to-end network behavior stil
 
 These must not be conflated: the first is a historical simulation comparison, while the second preserves the player's current prediction when the server correction is applied.
 
+## Protocol boundary
+
+Binary decoders now enforce packet type and fixed-size boundaries for fixed packets. Variable JSON packets require their declared payload length to exactly match the received packet length. Snapshot decoding rejects truncated or trailing bytes.
+
+This keeps malformed packets from reaching gameplay systems and makes protocol failures deterministic rather than relying on downstream consumers to tolerate invalid data.
+
 ## Remaining Phase 2 work
 
 - separate transport from protocol encoding;
