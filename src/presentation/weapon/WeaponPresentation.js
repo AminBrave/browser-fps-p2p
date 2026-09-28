@@ -14,8 +14,8 @@ export class WeaponPresentation {
     return this.renderSystem?.weaponViewModel?.getMuzzleWorldPosition?.() || null;
   }
 
-  getHitRenderTarget(hit, entity = null) {
-    return this.colliderRegistry.getTarget(hit?.collider) || entity?.renderMesh?.mesh || null;
+  getHitRenderTargetByHandle(handle) {
+    return this.colliderRegistry.getTarget(handle);
   }
 
   onWeaponFired(recoil, sfx = 'pistol') {
@@ -35,37 +35,51 @@ export class WeaponPresentation {
   spawnPenetrationImpacts(args) { return this.effects.spawnPenetrationImpacts(args); }
   spawnFinalImpact(args) { return this.effects.spawnFinalImpact(args); }
 
-  handleEvent(event, ecsWorld = null) {
+  handleEvent(event) {
     if (!event) return;
     switch (event.type) {
-      case 'weaponFired':
-        this.onWeaponFired(event.recoil, event.sfx);
-        break;
-      case 'reloadStart':
-        this.onReloadStart();
-        break;
-      case 'reloadEnd':
-        this.onReloadEnd();
-        break;
-      case 'emptyClick':
-        this.onEmptyClick();
-        break;
-      case 'impact':
-        this.onImpact();
-        break;
-      case 'hit':
-        this.onHit();
-        break;
-      case 'weaponType': {
-        if (event.isLocal) this.setWeaponType(event.typeId);
-        const entity = ecsWorld?.with?.('player')?.find?.(
-          (candidate) => candidate.player?.id === event.playerId
-        );
-        entity?.character?.setWeaponType?.(event.typeId);
+      case 'weaponFired': this.onWeaponFired(event.recoil, event.sfx); break;
+      case 'reloadStart': this.onReloadStart(); break;
+      case 'reloadEnd': this.onReloadEnd(); break;
+      case 'emptyClick': this.onEmptyClick(); break;
+      case 'weaponType': this.setWeaponType(event.typeId); break;
+      case 'shot': {
+        const shot = event.shot;
+        if (!shot?.origin || !shot?.end) break;
+        const targetMesh = this.getHitRenderTargetByHandle(event.hitColliderHandle);
+        this.createBullet(shot.origin, shot.end, shot.trace?.path || null);
+        this.spawnPenetrationImpacts({
+          shooterId: shot.shooterId,
+          weaponId: shot.weaponId ?? 1,
+          direction: shot.direction,
+          impacts: shot.impacts || [],
+          sequenceBase: (shot.pelletIndex || 0) * 32,
+        });
+        if (shot.hit) {
+          if (shot.hitEntityId != null) {
+            this.createBloodImpact(shot.end, shot.normal, targetMesh, shot.hitEntityId);
+          } else {
+            this.spawnFinalImpact({
+              position: shot.end,
+              normal: shot.normal,
+              material: shot.material || 'default',
+              direction: shot.direction,
+              velocityBefore: shot.terminalVelocity || shot.muzzleVelocity || 0,
+              targetMesh,
+              ownerId: null,
+              shooterId: shot.shooterId,
+              weaponId: shot.weaponId ?? 1,
+              sequence: (shot.impacts || []).length * 2 + 7,
+            });
+          }
+          if (shot.primary && shot.sfx) audio.playShootAt?.(shot.sfx, shot.origin);
+          if (shot.primary) audio.playImpactAt?.(shot.end);
+        } else if (shot.primary && shot.sfx) {
+          audio.playShootAt?.(shot.sfx, shot.origin);
+        }
         break;
       }
-      default:
-        break;
+      default: break;
     }
   }
 
@@ -77,7 +91,7 @@ export class WeaponPresentation {
     return this.effects.createBullet(origin, end, path);
   }
 
-  createBloodImpact(position, normal, renderTarget, entity) {
-    return this.effects.createBloodImpact(position, normal, renderTarget, entity);
+  createBloodImpact(position, normal, renderTarget, ownerId = null) {
+    return this.effects.createBloodImpact(position, normal, renderTarget, ownerId);
   }
 }
