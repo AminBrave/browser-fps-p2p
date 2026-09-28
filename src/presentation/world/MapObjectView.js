@@ -166,7 +166,13 @@ export class MapObjectView {
 
   path({ position, size, thickness, color }) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(size.x, thickness, size.z),
-      new THREE.MeshStandardMaterial({ color, roughness: 1 }));
+      new THREE.MeshStandardMaterial({
+        color,
+        roughness: 1,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
+      }));
     mesh.position.set(position.x, position.y, position.z); mesh.receiveShadow = true;
     this.addToScene(mesh);
     return { root: mesh, targets: [mesh] };
