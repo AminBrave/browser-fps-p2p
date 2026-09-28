@@ -3,6 +3,9 @@
 export const RENDER_CONFIG = Object.freeze({
   MAX_PIXEL_RATIO: 2,
   MAX_RENDER_DELTA_SECONDS: 0.05,
+  // Global guardrails for high-rate automatic weapons and multiplayer bursts.
+  MAX_IMPACT_REACTIONS: 96,
+  MAX_IMPACT_PARTICLES_PER_REACTION: 28,
   NETWORK_VISUAL_CORRECTION_SMOOTHING: 10,
   IMPACT_FLASH: Object.freeze({
     BULLET_MS: 90,
