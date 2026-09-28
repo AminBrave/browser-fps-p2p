@@ -8,6 +8,7 @@ export class PhysicsWorld {
     this.colliderToEntity = new Map();
     this.colliderToRenderTarget = new Map();
     this.colliderToHitZone = new Map();
+    this.colliderToMaterial = new Map();
   }
 
   async init() {
@@ -21,34 +22,27 @@ export class PhysicsWorld {
     if (this.world) this.world.step();
   }
 
-  registerColliderEntity(collider, entity, renderTarget = null, hitZone = null) {
+  registerColliderEntity(collider, entity, renderTarget = null, hitZone = null, materialType = null) {
     if (!collider) return;
     const handle = collider.handle ?? collider;
     this.colliderToEntity.set(handle, entity);
     if (renderTarget) this.colliderToRenderTarget.set(handle, renderTarget);
     if (hitZone) this.colliderToHitZone.set(handle, hitZone);
+    if (materialType) this.colliderToMaterial.set(handle, materialType);
   }
 
   getProjectileMaterial(hit = null) {
-    const entity = hit?.entity;
-    const renderTarget = hit?.renderTarget;
-    const name = String(renderTarget?.name || entity?.name || '').toLowerCase();
-    if (name.includes('glass') || name.includes('window')) return 'glass';
-    if (name.includes('tree') || name.includes('leaf') || name.includes('canopy')) return 'foliage';
-    if (name.includes('car') || name.includes('streetlight') || name.includes('dumpster') || name.includes('metal')) return 'metal';
-    if (name.includes('wood') || name.includes('crate') || name.includes('box')) return 'wood';
-    if (name.includes('mountain') || name.includes('rock') || name.includes('stone')) return 'stone';
-    if (name.includes('ground') || name.includes('dirt')) return 'dirt';
-    if (name.includes('boundary') || name.includes('wall') || name.includes('concrete')) return 'concrete';
-    return 'default';
+    const collider = hit?.collider;
+    const handle = collider?.handle ?? collider;
+    return (handle != null ? this.colliderToMaterial.get(handle) : null) || 'default';
   }
-
   unregisterCollider(collider) {
     if (!collider) return;
     const handle = collider.handle ?? collider;
     this.colliderToEntity.delete(handle);
     this.colliderToRenderTarget.delete(handle);
     this.colliderToHitZone.delete(handle);
+    this.colliderToMaterial.delete(handle);
   }
 
   createPlayerBody(x, y, z, radius = PHYSICS_CONFIG.DEFAULT_PLAYER_RADIUS, height = PHYSICS_CONFIG.DEFAULT_PLAYER_HEIGHT) {
@@ -185,10 +179,10 @@ export class PhysicsWorld {
     setCapsule(colliders[6], legHalf, limbRadius, legX, height * PHYSICS_CONFIG.HITBOX.LEG_Y_FACTOR * scale + pose.offsetY);
   }
 
-  createStaticBox(x, y, z, hx, hy, hz, rotationY = 0, renderTarget = null) {
+  createStaticBox(x, y, z, hx, hy, hz, rotationY = 0, renderTarget = null, materialType = null) {
     return this.createStaticCompound(
       x, y, z,
-      [{ desc: RAPIER.ColliderDesc.cuboid(hx, hy, hz), renderTarget }],
+      [{ desc: RAPIER.ColliderDesc.cuboid(hx, hy, hz), renderTarget, materialType }],
       rotationY
     );
   }
@@ -216,6 +210,7 @@ export class PhysicsWorld {
       colliders,
       colliderTargets: parts.map((part) => part.renderTarget || null),
       hitZones: parts.map((part) => part.hitZone || null),
+      colliderMaterials: parts.map((part) => part.materialType || null),
     };
   }
 
