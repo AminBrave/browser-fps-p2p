@@ -85,3 +85,8 @@ This keeps the dependency direction explicit: `PeerJS -> PeerManager -> PeerTran
 ## Reconciliation ordering
 
 When a correction is required, the client captures its current predicted position before applying the authoritative ACK state. It then replays unacknowledged inputs and computes visual correction from the pre-reconciliation prediction to the corrected current state.
+
+
+## Trust-boundary limits
+
+Client input flags are validated with a bitmask rather than numeric ordering, and weapon slots are derived from the configured loadout. Client-originated SFX events use a bounded per-peer queue to prevent an unbounded application-level backlog. These limits are host-side admission/abuse controls; the client remains non-authoritative for gameplay state.
