@@ -188,8 +188,6 @@ function createMap(ecsWorld, physicsWorld, sceneManager, presentationColliderReg
     0,
     'dirt'
   );
-  floorView.root.position.y = groundY() - FLOOR_THICKNESS / 2;
-  floorView.root.receiveShadow = true;
 
   addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
     position: { x: 0, y: groundY() - FLOOR_THICKNESS / 2, z: 0 },
@@ -199,7 +197,6 @@ function createMap(ecsWorld, physicsWorld, sceneManager, presentationColliderReg
     materialType: 'dirt',
     presentationTargets: [floorView.root],
   });
-  addToScene(sceneManager, floorView.root);
 
   const safetyPhysics = physicsWorld.createWorldSafetyFloor();
   physicsWorld.registerColliderEntity(safetyPhysics.collider, mapEntities[0]);
