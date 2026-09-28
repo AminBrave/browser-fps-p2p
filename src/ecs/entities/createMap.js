@@ -374,10 +374,10 @@ function addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, place
   group.add(lamp);
 
   const parts = [
-    { desc: RAPIER.ColliderDesc.cuboid(cfg.BASE.SIZE.x/2, cfg.BASE.SIZE.y/2, cfg.BASE.SIZE.z/2), position:{x:0,y:cfg.BASE.SIZE.y/2,z:0}, renderTarget:base },
-    { desc: RAPIER.ColliderDesc.cylinder(cfg.POLE.HEIGHT/2, cfg.POLE.RADIUS), position:{x:0,y:cfg.POLE.HEIGHT/2+cfg.BASE.SIZE.y,z:0}, renderTarget:pole },
-    { desc: RAPIER.ColliderDesc.cylinder(cfg.ARM.LENGTH/2, cfg.ARM.RADIUS), position:{x:cfg.ARM.LENGTH/2,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, rotation:{x:0,y:0,z:Math.SQRT1_2,w:Math.SQRT1_2}, renderTarget:arm },
-    { desc: RAPIER.ColliderDesc.ball(0.14), position:{x:cfg.ARM.LENGTH,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, renderTarget:lamp },
+    { desc: RAPIER.ColliderDesc.cuboid(cfg.BASE.SIZE.x/2, cfg.BASE.SIZE.y/2, cfg.BASE.SIZE.z/2), position:{x:0,y:cfg.BASE.SIZE.y/2,z:0}, renderTarget:base, materialType:'metal' },
+    { desc: RAPIER.ColliderDesc.cylinder(cfg.POLE.HEIGHT/2, cfg.POLE.RADIUS), position:{x:0,y:cfg.POLE.HEIGHT/2+cfg.BASE.SIZE.y,z:0}, renderTarget:pole, materialType:'metal' },
+    { desc: RAPIER.ColliderDesc.cylinder(cfg.ARM.LENGTH/2, cfg.ARM.RADIUS), position:{x:cfg.ARM.LENGTH/2,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, rotation:{x:0,y:0,z:Math.SQRT1_2,w:Math.SQRT1_2}, renderTarget:arm, materialType:'metal' },
+    { desc: RAPIER.ColliderDesc.ball(0.14), position:{x:cfg.ARM.LENGTH,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, renderTarget:lamp, materialType:'glass' },
   ];
   const physics = physicsWorld.createStaticCompound(safe.x, groundY(), safe.z, parts);
   addToScene(sceneManager, group);
@@ -440,7 +440,10 @@ function addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities) {
       wall.z,
       wall.size.x / 2,
       wall.size.y / 2,
-      wall.size.z / 2
+      wall.size.z / 2,
+      0,
+      null,
+      'concrete'
     );
 
     const mesh = new THREE.Mesh(
@@ -496,7 +499,8 @@ function addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position
     config.RADIUS,
     config.HEIGHT,
     0,
-    mesh
+    mesh,
+    'stone'
   );
 
   return addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
@@ -533,7 +537,8 @@ function addPath(ecsWorld, physicsWorld, sceneManager, mapEntities) {
       THICKNESS / 2,
       size.z / 2,
       0,
-      path
+      path,
+      'concrete'
     );
     addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
       position: { x: 0, y: groundY() + THICKNESS / 2, z: 0 },
