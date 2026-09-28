@@ -18,9 +18,21 @@ function makeLocalEntity() {
 test('client prediction advances transform and records replay frame', () => {
   const entity = makeLocalEntity();
   const buffer = new CircularBuffer(16);
+  let computedMovement = { x: 0, y: 0, z: 0 };
   const physicsWorld = {
     initialized: true,
     updatePlayerHitZones() {},
+  };
+  entity.physics.collider = {};
+  entity.physics.rigidBody = {
+    translation: () => ({ x: 0, y: 0, z: 0 }),
+    setNextKinematicTranslation() {},
+  };
+  entity.physics.controller = {
+    computeColliderMovement(_collider, movement) {
+      computedMovement = { ...movement };
+    },
+    computedMovement: () => computedMovement,
   };
   const system = new ClientPredictSystem(physicsWorld, buffer);
   entity.input.inputMask = INPUT_FLAGS.FORWARD;
