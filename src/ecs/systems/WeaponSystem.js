@@ -4,6 +4,7 @@ import {
   INPUT_FLAGS,
   GAME_CONFIG,
   FIRE_MODE,
+  COMBAT_CONFIG,
 } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
 import { createBullet, createImpactDecal, createBloodImpact } from '../entities/createBullet.js';
@@ -192,77 +193,173 @@ export class WeaponSystem {
    * constant gravitational acceleration. Each small chord is a real physics
    * ray query, so walls and hitboxes remain the source of truth.
    */
-  _traceBallisticShot(origin, direction, muzzleVelocity, range, excludeCollider) {
-    const speed = Math.max(1, Number(muzzleVelocity) || 500);
+  _traceBallisticShot(origin, direction, muzzleVelocity, range, excludeCollider, weapon = null) {
+    const initialSpeed = Math.max(1, Number(muzzleVelocity) || 500);
+    let velocity = {
+      x: direction.x * initialSpeed,
+      y: direction.y * initialSpeed,
+      z: direction.z * initialSpeed,
+    };
     const maxRange = Math.max(1, Number(range) || 100);
     const gravity = Number(GAME_CONFIG.GRAVITY) || -19.62;
-
-    // Use short trajectory chords for reliable collision detection without
-    // turning every rifle shot into hundreds of scene queries.
-    const stepDistance = 3.0;
-    const steps = Math.max(8, Math.min(64, Math.ceil(maxRange / stepDistance)));
-    const flightTime = maxRange / speed;
-    const dt = flightTime / steps;
-
+    const drag = Math.max(0, Number(weapon?.airDrag) || 0.002);
+    const penetrationPower = Math.max(0, Number(weapon?.penetrationPower) || 0);
+    const maxPenetrations = 3;
+    const stepDistance = 2.5;
+    const maxSteps = Math.max(16, Math.min(96, Math.ceil(maxRange / stepDistance)));
     const path = [{ ...origin }];
-    let previous = { ...origin };
+    const impacts = [];
+    let position = { ...origin };
     let travelled = 0;
+    let elapsed = 0;
+    let remainingEnergy = 1;
+    let exclude = excludeCollider;
 
-    for (let i = 1; i <= steps; i++) {
-      const t = dt * i;
+    for (let i = 0; i < maxSteps && travelled < maxRange && remainingEnergy > 0.03; i++) {
+      const speed = Math.max(1, Math.hypot(velocity.x, velocity.y, velocity.z));
+      const step = Math.min(stepDistance, maxRange - travelled);
+      const dt = step / speed;
+      const dragFactor = Math.exp(-drag * step * Math.max(0.35, speed / initialSpeed));
+
       const next = {
-        x: origin.x + direction.x * speed * t,
-        y: origin.y + direction.y * speed * t + 0.5 * gravity * t * t,
-        z: origin.z + direction.z * speed * t,
+        x: position.x + velocity.x * dt * dragFactor,
+        y: position.y + velocity.y * dt * dragFactor + 0.5 * gravity * dt * dt,
+        z: position.z + velocity.z * dt * dragFactor,
       };
-
       const segment = {
-        x: next.x - previous.x,
-        y: next.y - previous.y,
-        z: next.z - previous.z,
+        x: next.x - position.x,
+        y: next.y - position.y,
+        z: next.z - position.z,
       };
       const segmentLength = Math.hypot(segment.x, segment.y, segment.z);
+      if (segmentLength < 1e-6) break;
 
-      if (segmentLength > 1e-6 && this.physicsWorld?.castRay) {
-        const segmentDirection = {
-          x: segment.x / segmentLength,
-          y: segment.y / segmentLength,
-          z: segment.z / segmentLength,
-        };
-        const hit = this.physicsWorld.castRay(
-          previous,
-          segmentDirection,
-          segmentLength,
-          excludeCollider
-        );
+      const segmentDirection = {
+        x: segment.x / segmentLength,
+        y: segment.y / segmentLength,
+        z: segment.z / segmentLength,
+      };
+      const hit = this.physicsWorld?.castRay
+        ? this.physicsWorld.castRay(position, segmentDirection, segmentLength, exclude)
+        : null;
 
-        if (hit) {
-          const hitDistance = Math.max(0, Math.min(segmentLength, Number(hit.toi) || 0));
-          const hitPoint = {
-            x: previous.x + segmentDirection.x * hitDistance,
-            y: previous.y + segmentDirection.y * hitDistance,
-            z: previous.z + segmentDirection.z * hitDistance,
-          };
-          path.push(hitPoint);
-          return {
-            hit,
-            point: hitPoint,
-            distance: travelled + hitDistance,
-            path,
-          };
-        }
+      if (!hit) {
+        travelled += segmentLength;
+        elapsed += dt;
+        position = next;
+        velocity.x *= dragFactor;
+        velocity.y = velocity.y * dragFactor + gravity * dt;
+        velocity.z *= dragFactor;
+        path.push({ ...position });
+        continue;
       }
 
-      travelled += segmentLength;
-      previous = next;
-      path.push(next);
+      const hitDistance = Math.max(0, Math.min(segmentLength, Number(hit.toi) || 0));
+      const hitPoint = {
+        x: position.x + segmentDirection.x * hitDistance,
+        y: position.y + segmentDirection.y * hitDistance,
+        z: position.z + segmentDirection.z * hitDistance,
+      };
+      travelled += hitDistance;
+      elapsed += dt * (hitDistance / Math.max(segmentLength, 1e-6));
+      path.push(hitPoint);
+
+      const hitSpeed = Math.max(1, speed * Math.exp(-drag * hitDistance));
+      if (hit.entity?.player) {
+        return {
+          hit,
+          point: hitPoint,
+          distance: travelled,
+          path,
+          impacts,
+          velocity: hitSpeed,
+          remainingEnergy,
+          flightTime: elapsed,
+          penetrated: impacts.length,
+        };
+      }
+
+      const material = hit.material || this.physicsWorld?.getProjectileMaterial?.(hit) || 'default';
+      const materials = COMBAT_CONFIG?.MATERIALS || {};
+      const materialCfg = materials[material] || materials.default || { resistance: 1, maxThickness: 0.3 };
+      const thicknessLimit = Math.max(0.02, Number(materialCfg.maxThickness) || 0.3);
+      const resistance = Math.max(0.01, Number(materialCfg.resistance) || 1);
+
+      const exitOrigin = {
+        x: hitPoint.x + segmentDirection.x * 0.006,
+        y: hitPoint.y + segmentDirection.y * 0.006,
+        z: hitPoint.z + segmentDirection.z * 0.006,
+      };
+      const exitHit = this.physicsWorld?.castRay
+        ? this.physicsWorld.castRay(exitOrigin, segmentDirection, thicknessLimit + 0.02, hit.collider)
+        : null;
+      const thickness = exitHit
+        ? Math.max(0.02, Math.min(thicknessLimit, Number(exitHit.toi) || thicknessLimit))
+        : thicknessLimit;
+
+      const energyCost = (thickness / thicknessLimit) * resistance;
+      const penetrationRatio = penetrationPower / Math.max(0.01, energyCost);
+
+      if (penetrationRatio < 1 || impacts.length >= maxPenetrations) {
+        return {
+          hit,
+          point: hitPoint,
+          distance: travelled,
+          path,
+          impacts,
+          velocity: hitSpeed,
+          remainingEnergy,
+          flightTime: elapsed,
+          penetrated: impacts.length,
+        };
+      }
+
+      const energyLoss = Math.min(0.88, energyCost / Math.max(0.01, penetrationPower));
+      remainingEnergy *= Math.max(0.05, 1 - energyLoss);
+      const exitDistance = exitHit ? Math.max(0.02, Number(exitHit.toi) || thickness) : thickness;
+      const exitPoint = {
+        x: exitOrigin.x + segmentDirection.x * exitDistance,
+        y: exitOrigin.y + segmentDirection.y * exitDistance,
+        z: exitOrigin.z + segmentDirection.z * exitDistance,
+      };
+      travelled += exitDistance;
+
+      const residualSpeed = hitSpeed * Math.sqrt(Math.max(0.05, remainingEnergy));
+      velocity = {
+        x: segmentDirection.x * residualSpeed,
+        y: segmentDirection.y * residualSpeed,
+        z: segmentDirection.z * residualSpeed,
+      };
+      position = {
+        x: exitPoint.x + segmentDirection.x * 0.008,
+        y: exitPoint.y + segmentDirection.y * 0.008,
+        z: exitPoint.z + segmentDirection.z * 0.008,
+      };
+
+      impacts.push({
+        point: { ...hitPoint },
+        exitPoint: { ...exitPoint },
+        normal: hit.normal,
+        material,
+        thickness,
+        velocityBefore: hitSpeed,
+        velocityAfter: residualSpeed,
+        energyRemaining: remainingEnergy,
+      });
+      exclude = null;
+      path.push({ ...position });
     }
 
     return {
       hit: null,
-      point: previous,
+      point: position,
       distance: travelled,
       path,
+      impacts,
+      velocity: Math.max(0, Math.hypot(velocity.x, velocity.y, velocity.z)),
+      remainingEnergy,
+      flightTime: elapsed,
+      penetrated: impacts.length,
     };
   }
 
@@ -386,7 +483,8 @@ export class WeaponSystem {
         dir,
         muzzleVelocity,
         range,
-        exclude
+        exclude,
+        weapon
       );
 
       const endPos = trace.point;
@@ -423,6 +521,8 @@ export class WeaponSystem {
         distance: trace.distance,
         muzzleVelocity,
         ballisticDrop: 0.5 * (Number(GAME_CONFIG.GRAVITY) || -19.62) * Math.pow(trace.distance / muzzleVelocity, 2),
+        terminalVelocity: trace.velocity || muzzleVelocity,
+        penetrated: trace.penetrated || 0,
         primary: p === 0,
       });
 
