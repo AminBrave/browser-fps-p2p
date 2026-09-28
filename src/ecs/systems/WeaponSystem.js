@@ -553,7 +553,11 @@ export class WeaponSystem {
         const baseDamage = Number(weapon.damage) || 20;
         const distanceMultiplier = this._getDamageMultiplier(weapon, trace.distance);
         const hitZoneMultiplier = this._getHitZoneMultiplier(hitZone);
-        const dmg = baseDamage * distanceMultiplier * hitZoneMultiplier;
+        const penetrationDamageMultiplier = Math.pow(
+          Math.max(0, 1 - (Number(weapon.penetrationDamageLoss) || 0) * (trace.penetrated || 0)),
+          1
+        );
+        const dmg = baseDamage * distanceMultiplier * hitZoneMultiplier * penetrationDamageMultiplier;
 
         this.healthSystem.applyDamage(hitEntity, dmg, player.id);
         this._emit({
