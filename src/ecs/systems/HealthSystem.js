@@ -2,18 +2,21 @@
 
 import { GAME_CONFIG, PLAYER_CONFIG, DEFAULT_WEAPON } from '../../config/index.js';
 import { WORLD_CONFIG } from '../../config/index.js';
-import { HealthPresentation } from '../../presentation/health/HealthPresentation.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
 import { applyDamageToHealth, calculateHealthRegen } from '../../game/simulation/combat/HealthModel.js';
 
 export class HealthSystem {
-  constructor(physicsWorld, eventSink = null, presentation = null) {
+  constructor(physicsWorld, eventSink = null) {
     this.physicsWorld = physicsWorld;
     this.eventSink = eventSink;
-    this.presentation = presentation || new HealthPresentation();
+    this.presentationEvents = [];
     this.pendingDamageEvents = [];
     this.spawnCursor = 0;
   }
+
+  _emitPresentation(event) { this.presentationEvents.push(Object.freeze(event)); }
+
+  drainPresentationEvents() { const events = this.presentationEvents; this.presentationEvents = []; return events; }
 
   setEventSink(eventSink) {
     this.eventSink = eventSink;
@@ -107,7 +110,7 @@ export class HealthSystem {
           player.respawnTimer = PLAYER_CONFIG.RESPAWN_TIME_MS || 3000;
           entity.physics?.rigidBody?.setLinvel?.({ x: 0, y: 0, z: 0 }, true);
           entity.physics?.rigidBody?.setAngvel?.({ x: 0, y: 0, z: 0 }, true);
-          this.presentation?.onDeath?.({ mesh: entity.renderMesh?.mesh, isLocal: !!player.isLocal });
+          this._emitPresentation({ type: 'death', playerId: player.id, isLocal: !!player.isLocal });
           this.eventSink?.({
             type: EVENT_TYPES.SFX,
             sfx: 'death',
@@ -129,10 +132,10 @@ export class HealthSystem {
         // Keep impact visuals synchronized even while dead. The old logic only
         // updated living players, so a host-side target could respawn at 100 HP
         // while its old blood/bullet-hole decals remained visible.
-        this.presentation?.updateImpactMarks?.(player.id, health, maxHealth);
+        this._emitPresentation({ type: 'impactHealth', playerId: player.id, health, maxHealth });
 
         if (health >= maxHealth) {
-          this.presentation?.clearImpactMarks?.(player.id, 1);
+          this._emitPresentation({ type: 'clearImpactMarks', playerId: player.id, fraction: 1 });
         }
       }
 
@@ -155,12 +158,12 @@ export class HealthSystem {
           // This makes the visual state deterministic: every point of healing
           // immediately reduces impact visibility, regardless of frame rate or
           // how many marks exist.
-          this.presentation?.updateImpactMarks?.(player.id, player.health, maxHealth);
+          this._emitPresentation({ type: 'impactHealth', playerId: player.id, health: player.health, maxHealth });
 
           // Once fully healed, remove the mark entities to reclaim GPU/CPU
           // resources instead of keeping invisible decals alive.
           if (player.health >= maxHealth) {
-            this.presentation?.clearImpactMarks?.(player.id, 1);
+            this._emitPresentation({ type: 'clearImpactMarks', playerId: player.id, fraction: 1 });
             player.impactMarkClearAccumulator = 0;
           }
         }
@@ -185,7 +188,7 @@ export class HealthSystem {
 
       // Respawn is a hard visual reset: a full-health player must not carry
       // body impact decals from the previous life.
-      this.presentation?.clearImpactMarks?.(player.id, 1);
+      this._emitPresentation({ type: 'clearImpactMarks', playerId: player.id, fraction: 1 });
 
       transform.position.x = spawn.x;
       transform.position.y = spawn.y;
@@ -198,7 +201,7 @@ export class HealthSystem {
       physics?.rigidBody?.setTranslation?.(spawn, true);
       physics?.rigidBody?.setNextKinematicTranslation?.(spawn);
 
-      this.presentation?.onRespawn?.({ mesh: entity.renderMesh?.mesh, pose: entity.character?.pose, isLocal: !!player.isLocal }, spawn);
+      this._emitPresentation({ type: 'respawn', playerId: player.id, isLocal: !!player.isLocal, spawn: { ...spawn } });
 
       if (entity.weapon) {
         const activeSize = entity.weapon.magazineSize || DEFAULT_WEAPON.MAGAZINE_SIZE || 12;
