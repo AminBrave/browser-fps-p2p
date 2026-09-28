@@ -57,8 +57,10 @@ test('impact presentation is split into construction, animation, and orchestrati
   assert.match(factory, /createSurfaceImpact/);
   assert.match(animator, /update\(/);
   assert.match(animator, /updatePlayerImpactMarksForHealth/);
-  assert.doesNotMatch(animator, /spawnSurfaceImpact/);
+  assert.doesNotMatch(factory, /effectStore/);
+  assert.doesNotMatch(animator, /spawnSurfaceImpact|new THREE\.(Group|Mesh)/);
   assert.doesNotMatch(system, /from ['"]three['"]/);
+  assert.doesNotMatch(system, /new THREE\./);
   assert.match(system, /ImpactVisualFactory/);
   assert.match(system, /ImpactEffectAnimator/);
 });
