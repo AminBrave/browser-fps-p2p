@@ -100,7 +100,7 @@ export class LobbyUI {
 
     this.hostBtn.addEventListener('click', () => {
       if (this.busy) return;
-      this._setBusy(true);
+      this.setBusy(true);
       this.callbacks?.onHostGame?.(this.getPerformanceProfile());
     });
 
@@ -143,8 +143,8 @@ export class LobbyUI {
     }
   }
 
-  _setBusy(busy) {
-    this.busy = busy;
+  setBusy(busy) {
+    this.busy = !!busy;
     if (this.hostBtn) this.hostBtn.disabled = busy;
     if (this.joinBtn) this.joinBtn.disabled = busy;
     if (this.graphicsProfile) this.graphicsProfile.disabled = busy;
