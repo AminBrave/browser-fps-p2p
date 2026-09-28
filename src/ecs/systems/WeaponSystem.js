@@ -15,6 +15,7 @@ import { sampleShotDirection } from '../../game/simulation/combat/ShotDirection.
 import { audio } from '../../audio/AudioManager.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
 import { calculateShotDamage } from '../../game/simulation/combat/DamageModel.js';
+import { BallisticsTracer } from '../../game/simulation/combat/BallisticsTracer.js';
 
 export class WeaponSystem {
   constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null, eventSink = null, impactSystem = null) {
@@ -25,6 +26,11 @@ export class WeaponSystem {
     this.renderSystem = renderSystem;
     this.eventSink = eventSink;
     this.impactSystem = impactSystem;
+    this.ballisticsTracer = new BallisticsTracer({
+      castRay: (...args) => this.physicsWorld?.castRay?.(...args) || null,
+      getProjectileMaterial: (...args) => this.physicsWorld?.getProjectileMaterial?.(...args) || 'default',
+      getProjectileExitHit: (...args) => this.physicsWorld?.getProjectileExitHit?.(...args) || null,
+    });
   }
 
   setEventSink(eventSink) {
@@ -197,272 +203,6 @@ export class WeaponSystem {
    * constant gravitational acceleration. Each small chord is a real physics
    * ray query, so walls and hitboxes remain the source of truth.
    */
-  _traceBallisticShot(origin, direction, muzzleVelocity, range, excludeCollider, weapon = null) {
-    const initialSpeed = Math.max(1, Number(muzzleVelocity) || 500);
-    let velocity = {
-      x: direction.x * initialSpeed,
-      y: direction.y * initialSpeed,
-      z: direction.z * initialSpeed,
-    };
-    const maxRange = Math.max(1, Number(range) || 100);
-    const gravity = Number(GAME_CONFIG.GRAVITY) || -19.62;
-    const drag = Math.max(0, Number(weapon?.airDrag) || 0.002);
-    const penetrationPower = Math.max(0, Number(weapon?.penetrationPower) || 0);
-    const maxPenetrations = 3;
-    const stepDistance = 2.5;
-    const maxSteps = Math.max(16, Math.min(96, Math.ceil(maxRange / stepDistance)));
-    const path = [{ ...origin }];
-    const impacts = [];
-    let position = { ...origin };
-    let travelled = 0;
-    let elapsed = 0;
-    let remainingEnergy = 1;
-    let exclude = excludeCollider;
-    let excludedPenetrationCollider = null;
-    let excludedPenetrationUntil = 0;
-
-    for (let i = 0; i < maxSteps && travelled < maxRange && remainingEnergy > 0.03; i++) {
-      const speed = Math.max(1, Math.hypot(velocity.x, velocity.y, velocity.z));
-      const step = Math.min(stepDistance, maxRange - travelled);
-      const dt = step / speed;
-      const dragFactor = Math.exp(-drag * step * Math.max(0.35, speed / initialSpeed));
-
-      const next = {
-        x: position.x + velocity.x * dt * dragFactor,
-        y: position.y + velocity.y * dt * dragFactor + 0.5 * gravity * dt * dt,
-        z: position.z + velocity.z * dt * dragFactor,
-      };
-      const segment = {
-        x: next.x - position.x,
-        y: next.y - position.y,
-        z: next.z - position.z,
-      };
-      const segmentLength = Math.hypot(segment.x, segment.y, segment.z);
-      if (segmentLength < 1e-6) break;
-
-      const segmentDirection = {
-        x: segment.x / segmentLength,
-        y: segment.y / segmentLength,
-        z: segment.z / segmentLength,
-      };
-      if (excludedPenetrationCollider && travelled >= excludedPenetrationUntil) {
-        excludedPenetrationCollider = null;
-      }
-
-      const queryExclude = excludedPenetrationCollider
-        ? [exclude, excludedPenetrationCollider]
-        : exclude;
-      const hit = this.physicsWorld?.castRay
-        ? this.physicsWorld.castRay(position, segmentDirection, segmentLength, queryExclude)
-        : null;
-
-      if (!hit) {
-        travelled += segmentLength;
-        elapsed += dt;
-        position = next;
-        velocity.x *= dragFactor;
-        velocity.y = velocity.y * dragFactor + gravity * dt;
-        velocity.z *= dragFactor;
-        path.push({ ...position });
-        continue;
-      }
-
-      const hitDistance = Math.max(0, Math.min(segmentLength, Number(hit.toi) || 0));
-      const hitPoint = {
-        x: position.x + segmentDirection.x * hitDistance,
-        y: position.y + segmentDirection.y * hitDistance,
-        z: position.z + segmentDirection.z * hitDistance,
-      };
-      travelled += hitDistance;
-      elapsed += dt * (hitDistance / Math.max(segmentLength, 1e-6));
-      path.push(hitPoint);
-
-      const hitSpeed = Math.max(1, speed * Math.exp(-drag * hitDistance));
-      if (hit.entity?.player) {
-        return {
-          hit,
-          point: hitPoint,
-          distance: travelled,
-          path,
-          impacts,
-          velocity: hitSpeed,
-          remainingEnergy,
-          flightTime: elapsed,
-          penetrated: impacts.length,
-        };
-      }
-
-      const material = hit.material || this.physicsWorld?.getProjectileMaterial?.(hit) || 'default';
-      const materials = COMBAT_CONFIG?.MATERIALS || {};
-      const materialCfg = materials[material] || materials.default || { resistance: 1, maxThickness: 0.3 };
-      const thicknessLimit = Math.max(0.02, Number(materialCfg.maxThickness) || 0.3);
-      const resistance = Math.max(0.01, Number(materialCfg.resistance) || 1);
-
-      const exitOrigin = {
-        x: hitPoint.x + segmentDirection.x * 0.006,
-        y: hitPoint.y + segmentDirection.y * 0.006,
-        z: hitPoint.z + segmentDirection.z * 0.006,
-      };
-      const exitHit = this.physicsWorld?.getProjectileExitHit
-        ? this.physicsWorld.getProjectileExitHit(
-            hit.collider,
-            exitOrigin,
-            segmentDirection,
-            thicknessLimit + 0.02
-          )
-        : null;
-      const exitDistance = exitHit?.distance ?? null;
-      const exitNormal = exitHit?.normal || null;
-
-      // A grazing ray can travel through the surface farther than the
-      // material's nominal maximum penetration thickness. If Rapier cannot
-      // find the actual opposite surface within that bound, there is no
-      // trustworthy exit point. Do not fabricate one at thicknessLimit:
-      // doing that creates a second stacked hole near the entry hole.
-      if (exitDistance == null) {
-        return {
-          hit,
-          point: hitPoint,
-          distance: travelled,
-          path,
-          impacts,
-          velocity: hitSpeed,
-          remainingEnergy,
-          flightTime: elapsed,
-          penetrated: impacts.length,
-        };
-      }
-
-      const thickness = Math.max(
-        0.02,
-        Math.min(thicknessLimit, exitDistance)
-      );
-
-      const energyCost = (thickness / thicknessLimit) * resistance;
-      const penetrationRatio = penetrationPower / Math.max(0.01, energyCost);
-
-      if (penetrationRatio < 1 || impacts.length >= maxPenetrations) {
-        return {
-          hit,
-          point: hitPoint,
-          distance: travelled,
-          path,
-          impacts,
-          velocity: hitSpeed,
-          remainingEnergy,
-          flightTime: elapsed,
-          penetrated: impacts.length,
-        };
-      }
-
-      const energyLoss = Math.min(0.88, energyCost / Math.max(0.01, penetrationPower));
-      remainingEnergy *= Math.max(0.05, 1 - energyLoss);
-      const exactExitDistance = Math.max(0.02, exitDistance);
-      const exitPoint = {
-        x: exitOrigin.x + segmentDirection.x * exactExitDistance,
-        y: exitOrigin.y + segmentDirection.y * exactExitDistance,
-        z: exitOrigin.z + segmentDirection.z * exactExitDistance,
-      };
-      travelled += exactExitDistance;
-
-      const residualSpeed = hitSpeed * Math.sqrt(Math.max(0.05, remainingEnergy));
-      velocity = {
-        x: segmentDirection.x * residualSpeed,
-        y: segmentDirection.y * residualSpeed,
-        z: segmentDirection.z * residualSpeed,
-      };
-      const outwardNormal = exitNormal || {
-        x: -segmentDirection.x,
-        y: -segmentDirection.y,
-        z: -segmentDirection.z,
-      };
-      const normalLength = Math.hypot(
-        outwardNormal.x,
-        outwardNormal.y,
-        outwardNormal.z
-      ) || 1;
-      const normalizedExitNormal = {
-        x: outwardNormal.x / normalLength,
-        y: outwardNormal.y / normalLength,
-        z: outwardNormal.z / normalLength,
-      };
-      // Move beyond the exit face along its actual outward normal. At a very
-      // shallow grazing angle, advancing only along the projectile direction
-      // can leave the ray numerically inside the same volume and cause the
-      // next segment to generate duplicate entry/exit impacts.
-      const exitClearance = 0.018;
-      position = {
-        x: exitPoint.x + normalizedExitNormal.x * exitClearance + segmentDirection.x * 0.004,
-        y: exitPoint.y + normalizedExitNormal.y * exitClearance + segmentDirection.y * 0.004,
-        z: exitPoint.z + normalizedExitNormal.z * exitClearance + segmentDirection.z * 0.004,
-      };
-
-      const duplicateImpact = impacts.some((impact) => {
-        const contactPoints = [impact.point, impact.exitPoint].filter(Boolean);
-        return contactPoints.some((point) => {
-          const dx = point.x - hitPoint.x;
-          const dy = point.y - hitPoint.y;
-          const dz = point.z - hitPoint.z;
-          return dx * dx + dy * dy + dz * dz < 0.018 * 0.018;
-        });
-      });
-      if (duplicateImpact) {
-        position = {
-          x: position.x + normalizedExitNormal.x * 0.012,
-          y: position.y + normalizedExitNormal.y * 0.012,
-          z: position.z + normalizedExitNormal.z * 0.012,
-        };
-        excludedPenetrationCollider = hit.collider || null;
-        excludedPenetrationUntil = travelled + 0.05;
-        exclude = null;
-        path.push({ ...position });
-        continue;
-      }
-
-      impacts.push({
-        point: { ...hitPoint },
-        exitPoint: { ...exitPoint },
-        normal: hit.normal,
-        exitNormal: exitNormal || {
-          x: -segmentDirection.x,
-          y: -segmentDirection.y,
-          z: -segmentDirection.z,
-        },
-        material,
-        thickness,
-        velocityBefore: hitSpeed,
-        velocityAfter: residualSpeed,
-        energyRemaining: remainingEnergy,
-      });
-      exclude = null;
-      excludedPenetrationCollider = hit.collider || null;
-      excludedPenetrationUntil = travelled + 0.05;
-      path.push({ ...position });
-    }
-
-    return {
-      hit: null,
-      point: position,
-      distance: travelled,
-      path,
-      impacts,
-      velocity: Math.max(0, Math.hypot(velocity.x, velocity.y, velocity.z)),
-      remainingEnergy,
-      flightTime: elapsed,
-      penetrated: impacts.length,
-    };
-  }
-
-  /**
-   * Distance damage is based on the projectile's actual travelled path, not
-   * straight-line muzzle-to-target distance. That matters because gravity
-   * bends the trajectory and therefore changes flight distance/time.
-   *
-   * The curve is deliberately configurable per weapon:
-   *   1.0 = linear falloff
-   *   >1 = retain power longer, then weaken harder near the end
-   *   <1 = lose power early
-   */
   _fireShot(ecsWorld, entity, now) {
     const player = entity.player;
     const transform = entity.transform;
@@ -521,7 +261,7 @@ export class WeaponSystem {
         spread: effectiveSpread,
       });
 
-      const trace = this._traceBallisticShot(
+      const trace = this.ballisticsTracer.trace(
         origin,
         dir,
         muzzleVelocity,
