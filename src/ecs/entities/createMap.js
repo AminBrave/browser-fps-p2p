@@ -145,153 +145,158 @@ function addDumpster(ecsWorld, physicsWorld, sceneManager, mapEntities, placemen
 
 function addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities) {
   const { WIDTH, LENGTH, BOUNDARY } = WORLD_CONFIG.MAP;
-  const halfW = WIDTH / 2;
-  const halfL = LENGTH / 2;
+  const halfW = WIDTH / 2, halfL = LENGTH / 2;
   const { HEIGHT, THICKNESS } = BOUNDARY;
-
   const walls = [
-    {
-      x: 0, z: -halfL - THICKNESS / 2,
-      size: { x: WIDTH + THICKNESS * 2, y: HEIGHT, z: THICKNESS },
-    },
-    {
-      x: 0, z: halfL + THICKNESS / 2,
-      size: { x: WIDTH + THICKNESS * 2, y: HEIGHT, z: THICKNESS },
-    },
-    {
-      x: -halfW - THICKNESS / 2, z: 0,
-      size: { x: THICKNESS, y: HEIGHT, z: LENGTH },
-    },
-    {
-      x: halfW + THICKNESS / 2, z: 0,
-      size: { x: THICKNESS, y: HEIGHT, z: LENGTH },
-    },
+    { x: 0, z: -halfL - THICKNESS / 2, size: { x: WIDTH + THICKNESS * 2, y: HEIGHT, z: THICKNESS } },
+    { x: 0, z: halfL + THICKNESS / 2, size: { x: WIDTH + THICKNESS * 2, y: HEIGHT, z: THICKNESS } },
+    { x: -halfW - THICKNESS / 2, z: 0, size: { x: THICKNESS, y: HEIGHT, z: LENGTH } },
+    { x: halfW + THICKNESS / 2, z: 0, size: { x: THICKNESS, y: HEIGHT, z: LENGTH } },
   ];
-
   for (const wall of walls) {
-    const physics = physicsWorld.createStaticBox(
-      wall.x,
-      groundY() + wall.size.y / 2,
-      wall.z,
-      wall.size.x / 2,
-      wall.size.y / 2,
-      wall.size.z / 2,
-      0,
-      'concrete'
-    );
-
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(wall.size.x, wall.size.y, wall.size.z),
-      new THREE.MeshBasicMaterial({ visible: false })
-    );
-    mesh.position.y = wall.size.y / 2;
-
+    const physics = physicsWorld.createStaticBox(wall.x, groundY() + wall.size.y / 2, wall.z, wall.size.x / 2, wall.size.y / 2, wall.size.z / 2, 0, 'concrete');
+    const view = new MapObjectView(sceneManager).boundary({ position: { x: wall.x, y: groundY(), z: wall.z }, size: wall.size });
     addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
-      position: { x: wall.x, y: groundY(), z: wall.z },
-      physics,
-      mesh,
-      name: 'boundary',
-      materialType: 'concrete',
-      boundary: true,
+      position: { x: wall.x, y: groundY(), z: wall.z }, physics, mesh: view.root, name: 'boundary', materialType: 'concrete', boundary: true,
     });
   }
 }
 
 function addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
   const config = WORLD_CONFIG.OBJECTS.MOUNTAIN;
-  const safePosition = clampToIsland(
-    position.x,
-    position.z,
-    config.RADIUS,
-    config.RADIUS
-  );
-
-  const group = new THREE.Group();
-  group.position.set(safePosition.x, groundY(), safePosition.z);
-  const mesh = new THREE.Mesh(
-    new THREE.ConeGeometry(
-      config.RADIUS,
-      config.HEIGHT,
-      config.SEGMENTS
-    ),
-    new THREE.MeshStandardMaterial({
-      color: WORLD_CONFIG.COLORS.MOUNTAIN,
-      roughness: 1,
-      flatShading: true,
-    })
-  );
-  mesh.position.y = config.HEIGHT / 2;
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  group.add(mesh);
-  addToScene(sceneManager, group);
-
-  const physics = physicsWorld.createStaticCone(
-    safePosition.x,
-    groundY() + config.HEIGHT / 2,
-    safePosition.z,
-    config.RADIUS,
-    config.HEIGHT,
-    0,
-    'stone'
-  );
-
+  const safePosition = clampToIsland(position.x, position.z, config.RADIUS, config.RADIUS);
+  const view = new MapObjectView(sceneManager).mountain({ position: { x: safePosition.x, y: groundY(), z: safePosition.z } });
+  const physics = physicsWorld.createStaticCone(safePosition.x, groundY() + config.HEIGHT / 2, safePosition.z, config.RADIUS, config.HEIGHT, 0, 'stone');
   return addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
-    position: { x: safePosition.x, y: groundY(), z: safePosition.z },
-    physics,
-    mesh: group,
-    name: 'mountain',
-    materialType: 'stone',
-    presentationTargets: [mesh],
+    position: { x: safePosition.x, y: groundY(), z: safePosition.z }, physics, mesh: view.root, name: 'mountain', materialType: 'stone', presentationTargets: view.targets,
   });
 }
 
-function addPath(ecsWorld, physicsWorld, sceneManager, mapEntities) {
-  const { CENTER_WIDTH, ARM_LENGTH, THICKNESS, COLOR } =
-    WORLD_CONFIG.OBJECTS.PATH;
-  const material = new THREE.MeshStandardMaterial({ color: COLOR, roughness: 1 });
-
-  for (const size of [
-    { x: CENTER_WIDTH, z: ARM_LENGTH },
-    { x: ARM_LENGTH, z: CENTER_WIDTH },
-  ]) {
-    const path = new THREE.Mesh(
-      new THREE.BoxGeometry(size.x, THICKNESS, size.z),
-      material
-    );
-    path.position.set(0, groundY() + THICKNESS / 2, 0);
-    path.receiveShadow = true;
-    addToScene(sceneManager, path);
-
-    const physics = physicsWorld.createStaticBox(
-      0,
-      groundY() + THICKNESS / 2,
-      0,
-      size.x / 2,
-      THICKNESS / 2,
-      size.z / 2,
-      0,
-      'concrete'
-    );
-    addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
-      position: { x: 0, y: groundY() + THICKNESS / 2, z: 0 },
-      physics,
-      mesh: path,
-      name: 'path',
-      materialType: 'concrete',
-      presentationTargets: [path],
-    });
-  }
-}
-
-export function createMap(ecsWorld, physicsWorld, sceneManager, presentationColliderRegistry = null) {
+function createMap(ecsWorld, physicsWorld, sceneManager, presentationColliderRegistry = null) {
   const mapEntities = [];
   mapEntities.presentationColliderRegistry = presentationColliderRegistry;
   const { WIDTH, LENGTH, FLOOR_THICKNESS } = WORLD_CONFIG.MAP;
 
   // Build the render surface before constructing the collider so the
   // presentation registry can bind the exact mesh target for bullet impact decals.
-  const floorMesh = new THREE.Mesh(
+  const floorView = new MapObjectView(sceneManager).floor({
+    position: { x: 0, y: groundY() - FLOOR_THICKNESS / 2, z: 0 },
+    size: { x: WIDTH, y: FLOOR_THICKNESS, z: LENGTH },
+    color: WORLD_CONFIG.COLORS.GROUND,
+  });
+  const floorPhysics = physicsWorld.createStaticBox(
+    0,
+    groundY() - FLOOR_THICKNESS / 2,
+    0,
+    WIDTH / 2,
+    FLOOR_THICKNESS / 2,
+    LENGTH / 2,
+    0,
+    'dirt'
+  );
+  floorView.root.position.y = groundY() - FLOOR_THICKNESS / 2;
+  floorView.root.receiveShadow = true;
+
+  addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
+    position: { x: 0, y: groundY() - FLOOR_THICKNESS / 2, z: 0 },
+    physics: floorPhysics,
+    mesh: floorView.root,
+    name: 'ground',
+    materialType: 'dirt',
+    presentationTargets: [floorView.root],
+  });
+  addToScene(sceneManager, floorView.root);
+
+  const safetyPhysics = physicsWorld.createWorldSafetyFloor();
+  physicsWorld.registerColliderEntity(safetyPhysics.collider, mapEntities[0]);
+
+  addPath(ecsWorld, physicsWorld, sceneManager, mapEntities);
+  addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities);
+  for (const p of WORLD_CONFIG.OBJECTS.STREETLIGHT.POSITIONS) addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, p);
+  for (const p of WORLD_CONFIG.OBJECTS.DUMPSTER.POSITIONS) addDumpster(ecsWorld, physicsWorld, sceneManager, mapEntities, p);
+  createUrbanObjects(ecsWorld, physicsWorld, sceneManager, mapEntities);
+
+  for (const placement of WORLD_CONFIG.OBJECTS.CRATE.PLACEMENTS) {
+    addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
+      position: placement.position,
+      size: placement.size,
+      color: placement.color,
+      name: 'crate',
+    });
+  }
+
+  for (const position of WORLD_CONFIG.OBJECTS.TREE.POSITIONS) {
+    addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position);
+  }
+
+  for (const placement of WORLD_CONFIG.OBJECTS.CAR.PLACEMENTS) {
+    addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement);
+  }
+
+  const barrier = WORLD_CONFIG.OBJECTS.BARRIER;
+  for (const x of barrier.POSITIONS_X) {
+    addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
+      position: { x, z: barrier.Z },
+      size: barrier.SIZE,
+      color: barrier.COLOR,
+      name: 'barrier',
+      materialType: 'concrete',
+    });
+  }
+
+  for (const position of WORLD_CONFIG.OBJECTS.MOUNTAIN.POSITIONS) {
+    addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position);
+  }
+
+  return mapEntities;
+}function addPath(ecsWorld, physicsWorld, sceneManager, mapEntities) {
+  const { CENTER_WIDTH, ARM_LENGTH, THICKNESS, COLOR } = WORLD_CONFIG.OBJECTS.PATH;
+  for (const size of [{ x: CENTER_WIDTH, z: ARM_LENGTH }, { x: ARM_LENGTH, z: CENTER_WIDTH }]) {
+    const view = new MapObjectView(sceneManager).path({ position: { x: 0, y: groundY() + THICKNESS / 2, z: 0 }, size, thickness: THICKNESS, color: COLOR });
+    const physics = physicsWorld.createStaticBox(0, groundY() + THICKNESS / 2, 0, size.x / 2, THICKNESS / 2, size.z / 2, 0, 'concrete');
+    addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
+      position: { x: 0, y: groundY() + THICKNESS / 2, z: 0 }, physics, mesh: view.root, name: 'path', materialType: 'concrete', presentationTargets: view.targets,
+    });
+  }
+}
+
+function addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities) {
+  const { WIDTH, LENGTH, BOUNDARY } = WORLD_CONFIG.MAP;
+  const halfW = WIDTH / 2, halfL = LENGTH / 2;
+  const { HEIGHT, THICKNESS } = BOUNDARY;
+  const walls = [
+    { x: 0, z: -halfL - THICKNESS / 2, size: { x: WIDTH + THICKNESS * 2, y: HEIGHT, z: THICKNESS } },
+    { x: 0, z: halfL + THICKNESS / 2, size: { x: WIDTH + THICKNESS * 2, y: HEIGHT, z: THICKNESS } },
+    { x: -halfW - THICKNESS / 2, z: 0, size: { x: THICKNESS, y: HEIGHT, z: LENGTH } },
+    { x: halfW + THICKNESS / 2, z: 0, size: { x: THICKNESS, y: HEIGHT, z: LENGTH } },
+  ];
+  for (const wall of walls) {
+    const physics = physicsWorld.createStaticBox(wall.x, groundY() + wall.size.y / 2, wall.z, wall.size.x / 2, wall.size.y / 2, wall.size.z / 2, 0, 'concrete');
+    const view = new MapObjectView(sceneManager).boundary({ position: { x: wall.x, y: groundY(), z: wall.z }, size: wall.size });
+    addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
+      position: { x: wall.x, y: groundY(), z: wall.z }, physics, mesh: view.root, name: 'boundary', materialType: 'concrete', boundary: true,
+    });
+  }
+}
+
+function addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
+  const config = WORLD_CONFIG.OBJECTS.MOUNTAIN;
+  const safePosition = clampToIsland(position.x, position.z, config.RADIUS, config.RADIUS);
+  const view = new MapObjectView(sceneManager).mountain({ position: { x: safePosition.x, y: groundY(), z: safePosition.z } });
+  const physics = physicsWorld.createStaticCone(safePosition.x, groundY() + config.HEIGHT / 2, safePosition.z, config.RADIUS, config.HEIGHT, 0, 'stone');
+  return addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
+    position: { x: safePosition.x, y: groundY(), z: safePosition.z }, physics, mesh: view.root, name: 'mountain', materialType: 'stone', presentationTargets: view.targets,
+  });
+}
+
+function createMap(ecsWorld, physicsWorld, sceneManager, presentationColliderRegistry = null) {
+  const mapEntities = [];
+  mapEntities.presentationColliderRegistry = presentationColliderRegistry;
+  const { WIDTH, LENGTH, FLOOR_THICKNESS } = WORLD_CONFIG.MAP;
+
+  // Build the render surface before constructing the collider so the
+  // presentation registry can bind the exact mesh target for bullet impact decals.
+  const floorView.root = new THREE.Mesh(
     new THREE.BoxGeometry(WIDTH, FLOOR_THICKNESS, LENGTH),
     new THREE.MeshStandardMaterial({
       color: WORLD_CONFIG.COLORS.GROUND,
@@ -308,18 +313,18 @@ export function createMap(ecsWorld, physicsWorld, sceneManager, presentationColl
     0,
     'dirt'
   );
-  floorMesh.position.y = groundY() - FLOOR_THICKNESS / 2;
-  floorMesh.receiveShadow = true;
+  floorView.root.position.y = groundY() - FLOOR_THICKNESS / 2;
+  floorView.root.receiveShadow = true;
 
   addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
     position: { x: 0, y: groundY() - FLOOR_THICKNESS / 2, z: 0 },
     physics: floorPhysics,
-    mesh: floorMesh,
+    mesh: floorView.root,
     name: 'ground',
     materialType: 'dirt',
-    presentationTargets: [floorMesh],
+    presentationTargets: [floorView.root],
   });
-  addToScene(sceneManager, floorMesh);
+  addToScene(sceneManager, floorView.root);
 
   const safetyPhysics = physicsWorld.createWorldSafetyFloor();
   physicsWorld.registerColliderEntity(safetyPhysics.collider, mapEntities[0]);
