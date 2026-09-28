@@ -374,10 +374,13 @@ export class WeaponSystem {
       };
 
       const duplicateImpact = impacts.some((impact) => {
-        const dx = impact.point.x - hitPoint.x;
-        const dy = impact.point.y - hitPoint.y;
-        const dz = impact.point.z - hitPoint.z;
-        return dx * dx + dy * dy + dz * dz < 0.012 * 0.012;
+        const contactPoints = [impact.point, impact.exitPoint].filter(Boolean);
+        return contactPoints.some((point) => {
+          const dx = point.x - hitPoint.x;
+          const dy = point.y - hitPoint.y;
+          const dz = point.z - hitPoint.z;
+          return dx * dx + dy * dy + dz * dz < 0.018 * 0.018;
+        });
       });
       if (duplicateImpact) {
         position = {
