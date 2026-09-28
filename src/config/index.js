@@ -15,6 +15,15 @@ export { AUDIO_CONFIG } from './audio.js';
 export { UI_CONFIG } from './ui.js';
 export { WORLD_CONFIG } from './world.js';
 export { generateObjectPlacements, OBJECT_PLACEMENT_ALGORITHMS } from './objectPlacement.js';
+export {
+  PERFORMANCE_PROFILES,
+  PERFORMANCE_PROFILE_IDS,
+  PERFORMANCE_STORAGE_KEY,
+  getSavedPerformanceProfile,
+  resolvePerformanceProfile,
+  setSavedPerformanceProfile,
+  normalizePerformanceProfile,
+} from './performance.js';
 
 import { GAME_CONFIG } from './constants.js';
 import { NETWORK_CONFIG } from './network.js';
@@ -45,7 +54,7 @@ export function validateConfig() {
     errors.push('PLAYER.SPAWN_POINTS must contain at least one spawn');
   }
 
-  if (errors.length) throw new Error(`Invalid game configuration:\n- ${errors.join('\\n- ')}`);
+  if (errors.length) throw new Error(`Invalid game configuration:\\n- ${errors.join('\\n- ')}`);
   return true;
 }
 
