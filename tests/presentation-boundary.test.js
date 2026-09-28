@@ -36,3 +36,14 @@ test('transient tracer creation does not depend on ECS', () => {
   assert.doesNotMatch(renderer, /entity\.lifespan/);
   assert.doesNotMatch(renderer, /ecsWorld\.remove\(entity\)/);
 });
+
+
+test('impact presentation owns visual lifecycle without ECS access', () => {
+  const impact = read('src/presentation/impact/ImpactSystem.js');
+  assert.doesNotMatch(impact, /ecsWorld/);
+  assert.match(impact, /PresentationEffectStore|effectStore/);
+  const health = read('src/presentation/health/HealthPresentation.js');
+  assert.doesNotMatch(health, /ImpactEffects/);
+  const healthSystem = read('src/ecs/systems/HealthSystem.js');
+  assert.doesNotMatch(healthSystem, /ImpactEffects/);
+});
