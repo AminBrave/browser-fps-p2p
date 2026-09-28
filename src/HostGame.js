@@ -10,6 +10,7 @@ import { createMap } from './ecs/entities/createMap.js';
 import { InputSystem } from './ecs/systems/InputSystem.js';
 import { PhysicsSystem } from './ecs/systems/PhysicsSystem.js';
 import { HealthSystem } from './ecs/systems/HealthSystem.js';
+import { HealthPresentation } from './presentation/health/HealthPresentation.js';
 import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
 import { WeaponPresentation } from './presentation/weapon/WeaponPresentation.js';
 import { RenderSystem } from './ecs/systems/RenderSystem.js';
@@ -52,7 +53,7 @@ export class HostGame {
 
     this.inputSystem = new InputSystem(this.container);
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
-    this.healthSystem = new HealthSystem(this.physicsWorld);
+    this.healthSystem = new HealthSystem(this.physicsWorld, null, new HealthPresentation());
     this.renderSystem = new RenderSystem(this.sceneManager);
     this.weaponSystem = new WeaponSystem({
       physicsWorld: this.physicsWorld,
