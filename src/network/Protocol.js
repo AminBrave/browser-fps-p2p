@@ -1,5 +1,7 @@
 import { PACKET_TYPES } from './PacketTypes.js';
-import { GAME_CONFIG, PROTOCOL_CONFIG } from '../config/index.js';
+import { GAME_CONFIG, NETWORK_CONFIG, PROTOCOL_CONFIG } from '../config/index.js';
+
+const MAX_PACKET_BYTES = Math.max(1024, Number(NETWORK_CONFIG.TRANSPORT?.MAX_PACKET_BYTES) || 1024 * 1024);
 
 const { CLIENT_INPUT_SIZE, SNAPSHOT_HEADER_SIZE, SNAPSHOT_ENTITY_SIZE } = PROTOCOL_CONFIG;
 
@@ -76,7 +78,9 @@ export class Protocol {
    */
   static encodeWorldInit(manifest) {
     const payload = new TextEncoder().encode(JSON.stringify(manifest));
-    const buffer = new ArrayBuffer(PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE + payload.byteLength);
+    const totalLength = PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE + payload.byteLength;
+    if (totalLength > MAX_PACKET_BYTES) throw new RangeError('WORLD_INIT packet exceeds maximum size');
+    const buffer = new ArrayBuffer(totalLength);
     const view = new DataView(buffer);
     view.setUint8(0, PACKET_TYPES.WORLD_INIT);
     view.setUint32(1, payload.byteLength, true);
@@ -86,7 +90,7 @@ export class Protocol {
 
   static decodeWorldInit(data) {
     const view = asDataView(data);
-    if (!view || view.byteLength < PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE || view.getUint8(0) !== PACKET_TYPES.WORLD_INIT) return null;
+    if (!view || view.byteLength > MAX_PACKET_BYTES || view.byteLength < PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE || view.getUint8(0) !== PACKET_TYPES.WORLD_INIT) return null;
     const length = view.getUint32(1, true);
     if (length !== view.byteLength - PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE) return null;
     try {
@@ -155,7 +159,9 @@ export class Protocol {
 
   static encodeGameEvent(event = {}) {
     const payload = new TextEncoder().encode(JSON.stringify(event));
-    const buffer = new ArrayBuffer(PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE + payload.byteLength);
+    const totalLength = PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE + payload.byteLength;
+    if (totalLength > MAX_PACKET_BYTES) throw new RangeError('GAME_EVENT packet exceeds maximum size');
+    const buffer = new ArrayBuffer(totalLength);
     const view = new DataView(buffer);
     view.setUint8(0, PACKET_TYPES.GAME_EVENT);
     view.setUint32(1, payload.byteLength, true);
@@ -165,7 +171,7 @@ export class Protocol {
 
   static decodeGameEvent(data) {
     const view = asDataView(data);
-    if (!view || view.byteLength < PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE || view.getUint8(0) !== PACKET_TYPES.GAME_EVENT) return null;
+    if (!view || view.byteLength > MAX_PACKET_BYTES || view.byteLength < PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE || view.getUint8(0) !== PACKET_TYPES.GAME_EVENT) return null;
     const length = view.getUint32(1, true);
     if (length !== view.byteLength - PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE) return null;
     try {
