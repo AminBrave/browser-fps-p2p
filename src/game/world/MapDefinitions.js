@@ -32,7 +32,7 @@ export function getPathDefinitions() {
   const path = WORLD_CONFIG.OBJECTS.PATH;
   return [
     {
-      position: { x: 0, y: groundY() - path.THICKNESS / 2, z: 0 },
+      position: { x: 0, y: groundY() + 0.006 - path.THICKNESS / 2, z: 0 },
       size: { x: path.ARM_LENGTH, y: path.THICKNESS, z: path.CENTER_WIDTH },
       thickness: path.THICKNESS,
       color: path.COLOR,
