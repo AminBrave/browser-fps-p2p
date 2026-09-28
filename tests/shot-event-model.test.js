@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildShotEvent } from '../src/game/simulation/combat/ShotEventModel.js';
+import { EVENT_TYPES } from '../src/network/PacketTypes.js';
 
 test('shot event model is independent of hit physics metadata fallback', () => {
   const event = buildShotEvent({
@@ -14,7 +15,7 @@ test('shot event model is independent of hit physics metadata fallback', () => {
     trace: { distance: 10, velocity: 450, penetrated: 1, impacts: [] },
     pelletIndex: 0,
   });
-  assert.equal(event.type, 'SHOT');
+  assert.equal(event.type, EVENT_TYPES.SHOT);
   assert.equal(event.material, 'metal');
   assert.equal(event.distance, 10);
   assert.equal(event.terminalVelocity, 450);
