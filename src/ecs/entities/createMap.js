@@ -390,7 +390,7 @@ function addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, place
   const physics = physicsWorld.createStaticCompound(safe.x, groundY(), safe.z, parts);
   addToScene(sceneManager, group);
   return addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
-    position:{x:safe.x,y:groundY(),z:safe.z}, physics, mesh:group, name:'streetlight'
+    position:{x:safe.x,y:groundY(),z:safe.z}, physics, mesh:group, name:'streetlight', presentationTargets
   });
 }
 
