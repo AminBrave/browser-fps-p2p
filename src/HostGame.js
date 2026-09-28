@@ -6,7 +6,7 @@ import { PeerTransport } from './network/transport/PeerTransport.js';
 import { SceneManager } from './render/SceneManager.js';
 import { HUD } from './ui/HUD.js';
 import { createPlayer } from './ecs/entities/createPlayer.js';
-import { createMap } from './ecs/entities/createMap.js';
+import { createMap } from './game/world/createMap.js';
 import { InputSystem } from './ecs/systems/InputSystem.js';
 import { PhysicsSystem } from './ecs/systems/PhysicsSystem.js';
 import { HealthSystem } from './ecs/systems/HealthSystem.js';
