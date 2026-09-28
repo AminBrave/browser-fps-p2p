@@ -18,7 +18,6 @@ export function createPlayer(
   isLocal = false,
   isHost = false
 ) {
-  const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
   const groundedY = spawnPos.y ?? (WORLD_CONFIG.GROUND_Y + PLAYER_CONFIG.HEIGHT / 2);
 
   const phys = physicsWorld.createPlayerBody(
@@ -30,7 +29,7 @@ export function createPlayer(
   );
 
   const character = createPlayerCharacter({
-    scene,
+    sceneOrManager,
     spawnPos,
     isLocal,
     groundedY,
