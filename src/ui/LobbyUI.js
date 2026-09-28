@@ -1,4 +1,4 @@
-import { NETWORK_CONFIG, UI_CONFIG, PERFORMANCE_PROFILES, getSavedPerformanceProfile, resolvePerformanceProfile, setSavedPerformanceProfile } from '../config/index.js';
+import { NETWORK_CONFIG, UI_CONFIG, PERFORMANCE_PROFILES, getSavedPerformanceProfile, resolvePerformanceProfile, setSavedPerformanceProfile, NETWORK_CONNECTION_MODES, getSavedNetworkConnectionMode, setSavedNetworkConnectionMode } from '../config/index.js';
 
 /**
  * Pre-game lobby and local graphics/performance selection.
@@ -33,6 +33,7 @@ export class LobbyUI {
 
   _createDOMStructure() {
     const savedProfile = getSavedPerformanceProfile();
+    const savedNetworkMode = getSavedNetworkConnectionMode();
     const profileOptions = [
       '<option value="auto">Auto — recommended</option>',
       ...Object.values(PERFORMANCE_PROFILES).map((profile) =>
@@ -53,6 +54,15 @@ export class LobbyUI {
       ">
         <h1 style="margin:0 0 10px;font-size:28px;letter-spacing:2px;color:#00d2d3;">P2P FPS ARENA</h1>
         <p style="margin:0 0 24px;font-size:13px;color:#888;">Listen-Host WebRTC Network Architecture</p>
+
+        <div style="margin-bottom:16px;text-align:left;padding:14px;border-radius:8px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.08);">
+          <label for="network-mode" style="display:block;font-size:11px;color:#aaa;letter-spacing:1px;margin-bottom:8px;">NETWORK CONNECTION</label>
+          <select id="network-mode" style="width:100%;padding:10px;background:#182128;color:white;border:1px solid rgba(255,255,255,.18);border-radius:6px;font-size:14px;"><option value="auto">Automatic — recommended</option>
+      <option value="direct">Direct — STUN / no relay</option>
+      <option value="relay">Relay — TURN</option>
+      <option value="relay-tcp-tls">Relay — TCP / TLS</option></select>
+          <div id="network-mode-help" style="margin-top:8px;font-size:11px;line-height:1.45;color:#777;"></div>
+        </div>
 
         <div style="margin-bottom:22px;text-align:left;padding:14px;border-radius:8px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.08);">
           <label for="graphics-profile" style="display:block;font-size:11px;color:#aaa;letter-spacing:1px;margin-bottom:8px;">GRAPHICS / PERFORMANCE</label>
@@ -88,10 +98,19 @@ export class LobbyUI {
     this.invitationPanel = this.container.querySelector('#host-invitation');
     this.hostCodeInput = this.container.querySelector('#host-code');
     this.copyCodeBtn = this.container.querySelector('#btn-copy-code');
+    this.networkMode = this.container.querySelector('#network-mode');
+    this.networkModeHelp = this.container.querySelector('#network-mode-help');
     this.graphicsProfile = this.container.querySelector('#graphics-profile');
     this.graphicsProfileHelp = this.container.querySelector('#graphics-profile-help');
+    this.networkMode.value = savedNetworkMode;
+    this._updateNetworkModeHelp();
     this.graphicsProfile.value = savedProfile;
     this._updateProfileHelp();
+
+    this.networkMode.addEventListener('change', () => {
+      setSavedNetworkConnectionMode(this.networkMode.value);
+      this._updateNetworkModeHelp();
+    });
 
     this.graphicsProfile.addEventListener('change', () => {
       setSavedPerformanceProfile(this.graphicsProfile.value);
@@ -101,7 +120,7 @@ export class LobbyUI {
     this.hostBtn.addEventListener('click', () => {
       if (this.busy) return;
       this.setBusy(true);
-      this.callbacks?.onHostGame?.(this.getPerformanceProfile());
+      this.callbacks?.onHostGame?.(this.getPerformanceProfile(), this.getNetworkConnectionMode());
     });
 
     this.joinBtn.addEventListener('click', () => {
@@ -109,7 +128,7 @@ export class LobbyUI {
       const roomId = this.roomIdInput?.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || '';
       if (!roomId) return;
       this.setBusy(true);
-      this.callbacks?.onJoinGame?.(roomId, this.getPerformanceProfile());
+      this.callbacks?.onJoinGame?.(roomId, this.getPerformanceProfile(), this.getNetworkConnectionMode());
     });
 
     this.roomIdInput.addEventListener('keydown', (event) => {
@@ -127,6 +146,21 @@ export class LobbyUI {
         document.execCommand('copy');
       }
     });
+  }
+
+  getNetworkConnectionMode() {
+    return this.networkMode?.value || getSavedNetworkConnectionMode();
+  }
+
+  _updateNetworkModeHelp() {
+    const mode = this.getNetworkConnectionMode();
+    const messages = {
+      [NETWORK_CONNECTION_MODES.AUTO]: 'Uses direct/STUN when possible and TURN relay when needed. Recommended.',
+      [NETWORK_CONNECTION_MODES.DIRECT]: 'Lowest infrastructure use, but some Internet/NAT combinations cannot connect.',
+      [NETWORK_CONNECTION_MODES.RELAY]: 'Forces TURN relay when configured. Useful for restrictive networks and diagnostics.',
+      [NETWORK_CONNECTION_MODES.RELAY_TCP_TLS]: 'Forces TURN over TCP/TLS. Useful when UDP is blocked; requires compatible TURN service.',
+    };
+    if (this.networkModeHelp) this.networkModeHelp.textContent = messages[mode] || messages.auto;
   }
 
   getPerformanceProfile() {
@@ -148,6 +182,7 @@ export class LobbyUI {
     if (this.hostBtn) this.hostBtn.disabled = busy;
     if (this.joinBtn) this.joinBtn.disabled = busy;
     if (this.graphicsProfile) this.graphicsProfile.disabled = busy;
+    if (this.networkMode) this.networkMode.disabled = busy;
   }
 
   showInvitationCode(code) {
