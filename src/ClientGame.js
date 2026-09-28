@@ -87,7 +87,7 @@ export class ClientGame {
     });
     this.renderSystem.setEventSink((event) => this.networkTransport.sendToHost(Protocol.encodeGameEvent(event)));
 
-    this.localPlayerId = await this.networkTransport.initializeClient(hostRoomId);
+    this.localPlayerId = await this.networkTransport.initializeClient(hostRoomId, networkMode);
 
     // WebRTC transport establishment is not the same thing as admission to
     // the game. Explicitly request admission so the host can validate and
