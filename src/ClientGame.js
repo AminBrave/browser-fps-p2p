@@ -20,10 +20,8 @@ import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.j
 import { CircularBuffer } from './utils/CircularBuffer.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
-import { createBullet } from './presentation/impact/ImpactEffects.js';
 import { ImpactSystem } from './presentation/impact/ImpactSystem.js';
 import { PresentationEffectStore } from './presentation/effects/PresentationEffectStore.js';
-import { createImpactSeed } from './game/simulation/combat/ImpactSeed.js';
 import { applyWorldManifest } from './network/WorldSync.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
 
@@ -74,12 +72,17 @@ export class ClientGame {
 
     this.inputSystem = new InputSystem(this.container);
     this.renderSystem = new RenderSystem(this.sceneManager);
+    this.weaponPresentation = new WeaponPresentation({
+      sceneManager: this.sceneManager,
+      renderSystem: this.renderSystem,
+      colliderRegistry: this.presentationColliderRegistry,
+      effectStore: this.effectStore,
+    });
     this.weaponSystem = new WeaponSystem({
       physicsWorld: this.physicsWorld,
       healthSystem: null,
       isAuthoritative: false,
       eventSink: null,
-      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem, colliderRegistry: this.presentationColliderRegistry, effectStore: this.effectStore })
     });
     this.renderSystem.setEventSink((event) => this.networkTransport.sendToHost(Protocol.encodeGameEvent(event)));
 
@@ -337,84 +340,10 @@ export class ClientGame {
     ) return;
 
     if (event.type === EVENT_TYPES.SHOT) {
-      const origin = event.origin;
-      const end = event.end;
-      if (!origin || !end) return;
-      createBullet(this.effectStore, this.sceneManager, origin, end);;
-
-      // Reconstruct every penetration reaction from authoritative
-      // contact data. No client-side ballistic trace is needed or trusted.
-      for (const impact of event.impacts || []) {
-        if (!impact?.point) continue;
-        this.impactSystem?.spawnSurfaceImpact({
-          position: impact.point,
-          normal: impact.normal || event.normal || { x: 0, y: 1, z: 0 },
-          material: impact.material || 'default',
-          incomingDirection: impact.incomingDirection || event.direction || null,
-          velocityBefore: impact.velocityBefore,
-          velocityAfter: impact.velocityAfter,
-          seed: impact.entrySeed ?? createImpactSeed({
-            shooterId: event.shooterId,
-            weaponId: event.weaponId,
-            position: impact.point,
-            material: impact.material,
-            sequence: 0,
-          }),
-          penetrated: true,
-        });
-        if (impact.exitPoint) {
-          this.impactSystem?.spawnSurfaceImpact({
-            position: impact.exitPoint,
-            normal: impact.exitNormal || impact.normal || { x: 0, y: 1, z: 0 },
-            material: impact.material || 'default',
-            incomingDirection: impact.incomingDirection || event.direction || null,
-            velocityBefore: impact.velocityAfter,
-            velocityAfter: impact.velocityAfter,
-            seed: impact.exitSeed ?? createImpactSeed({
-              shooterId: event.shooterId,
-              weaponId: event.weaponId,
-              position: impact.exitPoint,
-              material: impact.material,
-              sequence: 1,
-            }),
-            exit: true,
-            penetrated: true,
-          });
-        }
-      }
-
-      if (event.hit && event.hitEntityId != null) {
-        const target = this.playerById.get(event.hitEntityId);
-        const zone = event.hitZone || 'torso';
-        const targetMesh =
-          target?.character?.parts?.[zone] ||
-          target?.character?.parts?.torso ||
-          null;
-        if (targetMesh) {
-          this.impactSystem?.spawnBloodImpact?.({ position: end, normal: event.normal, targetMesh, targetEntity: target });
-        }
-      } else if (event.hit) {
-        this.impactSystem?.spawnSurfaceImpact({
-          position: end,
-          normal: event.normal || { x: 0, y: 1, z: 0 },
-          material: event.material || 'default',
-          incomingDirection: event.direction || null,
-          velocityBefore: event.terminalVelocity || event.muzzleVelocity || 0,
-          velocityAfter: 0,
-          seed: event.impactSeed ?? createImpactSeed({
-            shooterId: event.shooterId,
-            weaponId: event.weaponId,
-            position: end,
-            material: event.material || 'default',
-            sequence: (event.impacts || []).length * 2 + 7,
-          }),
-        });
-      }
-
-      if (event.primary) {
-        audio.playShootAt?.(event.sfx || 'pistol', origin);
-        if (event.hit) audio.playImpactAt?.(end);
-      }
+      const target = event.hitEntityId != null ? this.playerById.get(event.hitEntityId) : null;
+      const zone = event.hitZone || 'torso';
+      const targetMesh = target?.character?.parts?.[zone] || target?.character?.parts?.torso || null;
+      this.weaponPresentation.handleEvent({ type: 'shot', shot: event, targetMesh });
       return;
     }
 
