@@ -11,6 +11,27 @@ export class StaticPhysics {
     this.getWorld = getWorld;
   }
 
+  createPrimitiveCollider(part) {
+    let desc;
+    switch (part.kind) {
+      case 'box':
+        desc = RAPIER.ColliderDesc.cuboid(part.size.x / 2, part.size.y / 2, part.size.z / 2);
+        break;
+      case 'cylinder':
+        desc = RAPIER.ColliderDesc.cylinder(part.height / 2, part.radius);
+        break;
+      case 'cone':
+        desc = RAPIER.ColliderDesc.cone(part.height / 2, part.radius);
+        break;
+      default:
+        desc = RAPIER.ColliderDesc.ball(part.radius);
+        break;
+    }
+    desc.setTranslation(part.position?.x ?? 0, part.position?.y ?? 0, part.position?.z ?? 0);
+    if (part.rotationQuaternion) desc.setRotation(part.rotationQuaternion);
+    return desc;
+  }
+
   createStaticBox(x, y, z, hx, hy, hz, rotationY = 0, materialType = null) {
     return this.createStaticCompound(
       x, y, z,
