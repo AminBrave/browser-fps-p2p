@@ -30,7 +30,7 @@ function addSolidMapEntity(
   ecsWorld,
   physicsWorld,
   mapEntities,
-  { position, physics, mesh, name, boundary = false, colliders = [], rotationY = 0 }
+  { position, physics, mesh, name, boundary = false, colliders = [], rotationY = 0, presentationTargets = [] }
 ) {
   mesh.name = name || mesh.name || 'world-object';
   mesh.visible = !boundary;
@@ -55,18 +55,17 @@ function addSolidMapEntity(
     physicsWorld.registerColliderEntity(
       physicsColliders[i],
       entity,
-      physics.colliderTargets?.[i] || null,
       physics.hitZones?.[i] || null,
       physics.colliderMaterials?.[i] || null
     );
   }
   for (const collider of colliders) {
-    physicsWorld.registerColliderEntity(collider, entity, null, null, 'default');
+    physicsWorld.registerColliderEntity(collider, entity, null, 'default');
   }
 
   const presentationBindings = mapEntities.presentationColliderRegistry;
   for (let i = 0; i < physicsColliders.length; i++) {
-    const target = physics.colliderTargets?.[i] || null;
+    const target = presentationTargets[i] || null;
     if (target) presentationBindings?.register(physicsColliders[i], target);
   }
 
@@ -114,7 +113,6 @@ function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
     size.y / 2,
     size.z / 2,
     rotationY,
-    mesh,
     materialType
   );
 
@@ -124,6 +122,7 @@ function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
     physics,
     mesh: root,
     name,
+    presentationTargets: [mesh],
   });
 }
 
@@ -161,6 +160,8 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
     roughness: 0.9,
   });
 
+  const presentationTargets = [trunk];
+  const presentationTargets = [body, hood, trunk, cabin, windshield, rearWindow, leftWindow, rightWindow, ...wheelMeshes];
   const compoundParts = [
     {
       desc: RAPIER.ColliderDesc.cylinder(
@@ -172,7 +173,6 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
         y: config.TRUNK.HEIGHT / 2,
         z: 0,
       },
-      renderTarget: trunk,
       materialType: 'wood',
     },
   ];
@@ -201,9 +201,9 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
     compoundParts.push({
       desc: RAPIER.ColliderDesc.cone(config.CANOPY.HEIGHT / 2, radius),
       position: { x: 0, y: centerY, z: 0 },
-      renderTarget: cone,
       materialType: 'foliage',
     });
+    presentationTargets.push(cone);
   }
 
   addToScene(sceneManager, group);
@@ -220,6 +220,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
     physics,
     mesh: group,
     name: 'tree',
+    presentationTargets,
   });
 
   entity.isTree = true;
@@ -324,14 +325,14 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
   const rightWindow = group.children.find((child) => child.name === 'rightWindow');
 
   const compoundParts = [
-    { desc: RAPIER.ColliderDesc.cuboid(config.BODY.SIZE.x / 2, config.BODY.SIZE.y / 2, config.BODY.SIZE.z / 2), position: { x: 0, y: config.BODY.CENTER_Y, z: 0 }, renderTarget: body, materialType: 'metal' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.91, 0.08, 0.45), position: { x: 0, y: 0.79, z: -1.38 }, renderTarget: hood, materialType: 'metal' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.91, 0.075, 0.325), position: { x: 0, y: 0.76, z: 1.35 }, renderTarget: trunk, materialType: 'metal' },
-    { desc: RAPIER.ColliderDesc.cuboid(config.CABIN.SIZE.x / 2, config.CABIN.SIZE.y / 2, config.CABIN.SIZE.z / 2), position: { x: 0, y: config.CABIN.CENTER_Y, z: config.CABIN.CENTER_Z }, renderTarget: cabin, materialType: 'metal' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.74, 0.19, 0.018), position: { x: 0, y: 1.22, z: -1.01 }, renderTarget: windshield, materialType: 'glass' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.74, 0.18, 0.018), position: { x: 0, y: 1.21, z: 0.72 }, renderTarget: rearWindow, materialType: 'glass' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.018, 0.17, 0.69), position: { x: -0.84, y: 1.21, z: -0.14 }, renderTarget: leftWindow, materialType: 'glass' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.018, 0.17, 0.69), position: { x: 0.84, y: 1.21, z: -0.14 }, renderTarget: rightWindow, materialType: 'glass' },
+    { desc: RAPIER.ColliderDesc.cuboid(config.BODY.SIZE.x / 2, config.BODY.SIZE.y / 2, config.BODY.SIZE.z / 2), position: { x: 0, y: config.BODY.CENTER_Y, z: 0 }, materialType: 'metal' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.91, 0.08, 0.45), position: { x: 0, y: 0.79, z: -1.38 }, materialType: 'metal' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.91, 0.075, 0.325), position: { x: 0, y: 0.76, z: 1.35 }, materialType: 'metal' },
+    { desc: RAPIER.ColliderDesc.cuboid(config.CABIN.SIZE.x / 2, config.CABIN.SIZE.y / 2, config.CABIN.SIZE.z / 2), position: { x: 0, y: config.CABIN.CENTER_Y, z: config.CABIN.CENTER_Z }, materialType: 'metal' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.74, 0.19, 0.018), position: { x: 0, y: 1.22, z: -1.01 }, materialType: 'glass' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.74, 0.18, 0.018), position: { x: 0, y: 1.21, z: 0.72 }, materialType: 'glass' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.018, 0.17, 0.69), position: { x: -0.84, y: 1.21, z: -0.14 }, materialType: 'glass' },
+    { desc: RAPIER.ColliderDesc.cuboid(0.018, 0.17, 0.69), position: { x: 0.84, y: 1.21, z: -0.14 }, materialType: 'glass' },
     ...wheelPositions.map(({ x, z }, index) => ({
       desc: RAPIER.ColliderDesc.cylinder(config.WHEELS.WIDTH / 2, config.WHEELS.RADIUS),
       position: { x, y: config.WHEELS.RADIUS, z },
@@ -379,6 +380,7 @@ function addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, place
   lamp.position.set(cfg.ARM.LENGTH, cfg.POLE.HEIGHT + cfg.BASE.SIZE.y - 0.12, 0);
   group.add(lamp);
 
+  const presentationTargets = [base, pole, arm, lamp];
   const parts = [
     { desc: RAPIER.ColliderDesc.cuboid(cfg.BASE.SIZE.x/2, cfg.BASE.SIZE.y/2, cfg.BASE.SIZE.z/2), position:{x:0,y:cfg.BASE.SIZE.y/2,z:0}, renderTarget:base, materialType:'metal' },
     { desc: RAPIER.ColliderDesc.cylinder(cfg.POLE.HEIGHT/2, cfg.POLE.RADIUS), position:{x:0,y:cfg.POLE.HEIGHT/2+cfg.BASE.SIZE.y,z:0}, renderTarget:pole, materialType:'metal' },
@@ -405,9 +407,10 @@ function addDumpster(ecsWorld, physicsWorld, sceneManager, mapEntities, placemen
   lid.position.set(0,size.y+0.04,0); lid.castShadow=true; group.add(lid);
   const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75,0.06,0.08),lidMat);
   handle.position.set(0,size.y+0.12,size.z/2+0.04); group.add(handle);
+  const presentationTargets=[body,lid];
   const parts=[
-    {desc:RAPIER.ColliderDesc.cuboid(size.x/2,size.y/2,size.z/2),position:{x:0,y:size.y/2,z:0},renderTarget:body,materialType:'metal'},
-    {desc:RAPIER.ColliderDesc.cuboid((size.x+0.04)/2,0.04,(size.z+0.04)/2),position:{x:0,y:size.y+0.04,z:0},renderTarget:lid,materialType:'metal'},
+    {desc:RAPIER.ColliderDesc.cuboid(size.x/2,size.y/2,size.z/2),position:{x:0,y:size.y/2,z:0},materialType:'metal'},
+    {desc:RAPIER.ColliderDesc.cuboid((size.x+0.04)/2,0.04,(size.z+0.04)/2),position:{x:0,y:size.y+0.04,z:0},materialType:'metal'},
   ];
   const physics=physicsWorld.createStaticCompound(safe.x,groundY(),safe.z,parts);
   addToScene(sceneManager,group);
@@ -448,7 +451,6 @@ function addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities) {
       wall.size.y / 2,
       wall.size.z / 2,
       0,
-      null,
       'concrete'
     );
 
@@ -505,7 +507,6 @@ function addMountain(ecsWorld, physicsWorld, sceneManager, mapEntities, position
     config.RADIUS,
     config.HEIGHT,
     0,
-    mesh,
     'stone'
   );
 
@@ -543,7 +544,6 @@ function addPath(ecsWorld, physicsWorld, sceneManager, mapEntities) {
       THICKNESS / 2,
       size.z / 2,
       0,
-      path,
       'concrete'
     );
     addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
@@ -578,7 +578,6 @@ export function createMap(ecsWorld, physicsWorld, sceneManager, presentationColl
     FLOOR_THICKNESS / 2,
     LENGTH / 2,
     0,
-    floorMesh,
     'dirt'
   );
   floorMesh.position.y = groundY() - FLOOR_THICKNESS / 2;
