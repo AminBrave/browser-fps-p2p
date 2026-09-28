@@ -16,7 +16,8 @@ export function createPlayer(
   playerId,
   spawnPos = { ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[0] },
   isLocal = false,
-  isHost = false
+  isHost = false,
+  presentationColliderRegistry = null
 ) {
   const groundedY = spawnPos.y ?? (WORLD_CONFIG.GROUND_Y + PLAYER_CONFIG.HEIGHT / 2);
 
@@ -58,7 +59,7 @@ export function createPlayer(
     loadout,
     input: createInput(),
     character,
-    renderMesh: { mesh },
+    renderMesh: { mesh: character.mesh },
   });
 
   character.setWeaponType(activeWeapon?.typeId ?? 1);
@@ -67,22 +68,17 @@ export function createPlayer(
     maxHealth: PLAYER_CONFIG.MAX_HEALTH,
   });
 
-  const targetByZone = {
-    torso,
-    head,
-    leftArm,
-    rightArm,
-    leftLeg,
-    rightLeg,
-  };
+  const targetByZone = character.parts;
   for (let i = 0; i < phys.colliders.length; i++) {
     const zone = phys.hitZones[i];
     physicsWorld.registerColliderEntity(
       phys.colliders[i],
       playerEntity,
-      targetByZone[zone] || torso,
-      zone
+      zone,
+      'default'
     );
+    const target = targetByZone[zone] || null;
+    if (target) presentationColliderRegistry?.register(phys.colliders[i], target);
   }
 
   return playerEntity;
