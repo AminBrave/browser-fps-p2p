@@ -104,8 +104,6 @@ export class RenderSystem {
     for (const entity of ecsWorld.with('transform', 'renderMesh')) {
       const transform = entity.transform;
       const renderMesh = entity.renderMesh;
-      const lifespan = entity.lifespan;
-
       if (entity.isPermanentDecal && renderMesh?.mesh) {
         const particles = renderMesh.mesh.getObjectByName?.('impactParticles');
         if (particles && entity.impactImpactUntil) {
@@ -179,28 +177,6 @@ export class RenderSystem {
         continue;
       }
 
-      if (lifespan) {
-        const elapsed = now - lifespan.createdAt;
-        if (elapsed >= lifespan.durationMs) {
-          if (renderMesh?.mesh) {
-            this.scene?.remove(renderMesh.mesh);
-            renderMesh.mesh.traverse?.((c) => {
-              c.geometry?.dispose();
-              if (c.material) {
-                if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
-                else c.material.dispose();
-              }
-            });
-            renderMesh.mesh.geometry?.dispose();
-            renderMesh.mesh.material?.dispose?.();
-          }
-          ecsWorld.remove(entity);
-          continue;
-        }
-        if (entity.isBullet && renderMesh?.mesh?.material) {
-          renderMesh.mesh.material.opacity = 1 - elapsed / lifespan.durationMs;
-        }
-      }
 
       if (!transform || !renderMesh?.mesh) continue;
       if (entity.isMap && !entity.isBoundary) {
