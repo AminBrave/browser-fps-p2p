@@ -310,9 +310,30 @@ export class WeaponSystem {
         : null;
       const exitDistance = exitHit?.distance ?? null;
       const exitNormal = exitHit?.normal || null;
-      const thickness = exitDistance != null
-        ? Math.max(0.02, Math.min(thicknessLimit, exitDistance))
-        : thicknessLimit;
+
+      // A grazing ray can travel through the surface farther than the
+      // material's nominal maximum penetration thickness. If Rapier cannot
+      // find the actual opposite surface within that bound, there is no
+      // trustworthy exit point. Do not fabricate one at thicknessLimit:
+      // doing that creates a second stacked hole near the entry hole.
+      if (exitDistance == null) {
+        return {
+          hit,
+          point: hitPoint,
+          distance: travelled,
+          path,
+          impacts,
+          velocity: hitSpeed,
+          remainingEnergy,
+          flightTime: elapsed,
+          penetrated: impacts.length,
+        };
+      }
+
+      const thickness = Math.max(
+        0.02,
+        Math.min(thicknessLimit, exitDistance)
+      );
 
       const energyCost = (thickness / thicknessLimit) * resistance;
       const penetrationRatio = penetrationPower / Math.max(0.01, energyCost);
@@ -333,7 +354,7 @@ export class WeaponSystem {
 
       const energyLoss = Math.min(0.88, energyCost / Math.max(0.01, penetrationPower));
       remainingEnergy *= Math.max(0.05, 1 - energyLoss);
-      const exactExitDistance = exitDistance != null ? Math.max(0.02, exitDistance) : thickness;
+      const exactExitDistance = Math.max(0.02, exitDistance);
       const exitPoint = {
         x: exitOrigin.x + segmentDirection.x * exactExitDistance,
         y: exitOrigin.y + segmentDirection.y * exactExitDistance,
