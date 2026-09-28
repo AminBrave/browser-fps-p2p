@@ -176,7 +176,7 @@ export class WeaponSystem {
     entity.weapon.currentSpread = 0;
     entity.weapon.shootHeldPrev = false;
 
-    this._emitPresentation({ type: 'weaponType', playerId: entity.player?.id ?? null, typeId: entity.weapon.typeId });
+    this._emitPresentation({ type: 'weaponType', playerId: entity.player?.id ?? null, typeId: entity.weapon.typeId, isLocal: !!entity.player?.isLocal });
     return true;
   }
 
