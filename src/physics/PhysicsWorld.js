@@ -57,6 +57,10 @@ export class PhysicsWorld {
     return this.characterPhysics.updatePlayerHitZones(physics, stance);
   }
 
+  createPrimitiveCollider(part) {
+    return this.staticPhysics.createPrimitiveCollider(part);
+  }
+
   createStaticBox(...args) {
     return this.staticPhysics.createStaticBox(...args);
   }
