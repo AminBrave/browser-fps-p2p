@@ -54,7 +54,7 @@ export function validateConfig() {
     errors.push('PLAYER.SPAWN_POINTS must contain at least one spawn');
   }
 
-  if (errors.length) throw new Error(`Invalid game configuration:\\n- ${errors.join('\\n- ')}`);
+  if (errors.length) throw new Error(`Invalid game configuration:\n- ${errors.join('\\n- ')}`);
   return true;
 }
 
