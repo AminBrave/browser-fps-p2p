@@ -2,7 +2,6 @@
 //
 // ECS/physics assembly for urban props. No rendering or scene dependencies.
 
-import RAPIER from '@dimforge/rapier3d-compat';
 import { createTransform } from '../components/Transform.js';
 import { createPhysics } from '../components/Physics.js';
 
