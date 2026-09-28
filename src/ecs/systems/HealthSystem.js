@@ -1,21 +1,16 @@
 // src/ecs/systems/HealthSystem.js
 
-import * as THREE from 'three';
 import { GAME_CONFIG, PLAYER_CONFIG, DEFAULT_WEAPON } from '../../config/index.js';
 import { WORLD_CONFIG } from '../../config/index.js';
-import {
-  clearPlayerImpactMarks,
-  getPlayerImpactMarkCount,
-  updatePlayerImpactMarksForHealth,
-} from '../entities/createBullet.js';
-import { audio } from '../../audio/AudioManager.js';
+import { HealthPresentation } from '../../presentation/health/HealthPresentation.js';
 import { EVENT_TYPES } from '../../network/PacketTypes.js';
 import { applyDamageToHealth, calculateHealthRegen } from '../../game/simulation/combat/HealthModel.js';
 
 export class HealthSystem {
-  constructor(physicsWorld, eventSink = null) {
+  constructor(physicsWorld, eventSink = null, presentation = null) {
     this.physicsWorld = physicsWorld;
     this.eventSink = eventSink;
+    this.presentation = presentation || new HealthPresentation();
     this.pendingDamageEvents = [];
     this.spawnCursor = 0;
   }
@@ -50,8 +45,8 @@ export class HealthSystem {
     // Respawns are randomized, while the authoritative physics world decides
     // whether each candidate has enough clearance from real world geometry.
     for (let i = 0; i < 96; i++) {
-      const x = THREE.MathUtils.randFloat(-halfWidth, halfWidth);
-      const z = THREE.MathUtils.randFloat(-halfLength, halfLength);
+      const x = -halfWidth + Math.random() * (halfWidth * 2);
+      const z = -halfLength + Math.random() * (halfLength * 2);
       if (this._isSpawnFree(ecsWorld, entity, x, y, z)) {
         return { x, y, z };
       }
@@ -112,14 +107,13 @@ export class HealthSystem {
           player.respawnTimer = PLAYER_CONFIG.RESPAWN_TIME_MS || 3000;
           entity.physics?.rigidBody?.setLinvel?.({ x: 0, y: 0, z: 0 }, true);
           entity.physics?.rigidBody?.setAngvel?.({ x: 0, y: 0, z: 0 }, true);
-          if (entity.renderMesh?.mesh) entity.renderMesh.mesh.visible = false;
+          this.presentation?.onDeath?.(entity);
           this.eventSink?.({
             type: EVENT_TYPES.SFX,
             sfx: 'death',
             sourceId: player.id,
             position: { ...entity.transform.position },
           });
-          if (player.isLocal) audio.playDeath();
         }
       }
     }
@@ -135,10 +129,10 @@ export class HealthSystem {
         // Keep impact visuals synchronized even while dead. The old logic only
         // updated living players, so a host-side target could respawn at 100 HP
         // while its old blood/bullet-hole decals remained visible.
-        updatePlayerImpactMarksForHealth(ecsWorld, entity, health, maxHealth);
+        this.presentation?.updateImpactMarks?.(ecsWorld, entity, health, maxHealth);
 
         if (health >= maxHealth) {
-          clearPlayerImpactMarks(ecsWorld, entity, 1);
+          this.presentation?.clearImpactMarks?.(ecsWorld, entity, 1);
         }
       }
 
@@ -209,15 +203,7 @@ export class HealthSystem {
       physics?.rigidBody?.setTranslation?.(spawn, true);
       physics?.rigidBody?.setNextKinematicTranslation?.(spawn);
 
-      if (entity.renderMesh?.mesh) {
-        entity.renderMesh.mesh.position.set(spawn.x, spawn.y, spawn.z);
-        entity.renderMesh.mesh.visible = !player.isLocal;
-      }
-
-      if (entity.character?.pose) {
-        entity.character.pose.position.y = 0;
-        entity.character.pose.scale.y = 1;
-      }
+      this.presentation?.onRespawn?.(entity, spawn);
 
       if (entity.weapon) {
         const activeSize = entity.weapon.magazineSize || DEFAULT_WEAPON.MAGAZINE_SIZE || 12;
