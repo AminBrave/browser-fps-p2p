@@ -76,3 +76,21 @@ test('health presentation boundary does not accept ECS world/entity arguments', 
   assert.doesNotMatch(system, /updateImpactMarks\?\.\(ecsWorld/);
   assert.doesNotMatch(system, /clearImpactMarks\?\.\(ecsWorld/);
 });
+
+test('weapon simulation queues presentation commands instead of calling presentation methods directly', () => {
+  const weapon = read('src/ecs/systems/WeaponSystem.js');
+  assert.match(weapon, /presentationEvents/);
+  assert.match(weapon, /drainPresentationEvents/);
+  assert.match(weapon, /_emitPresentation/);
+  assert.doesNotMatch(weapon, /presentation\?\.(onWeaponFired|onReloadStart|onReloadEnd|onEmptyClick|onImpact|onHit|setWeaponType)\?\./);
+  assert.doesNotMatch(weapon, /entity\.character\?\.setWeaponType/);
+});
+
+test('weapon presentation owns interpretation of queued presentation commands', () => {
+  const presentation = read('src/presentation/weapon/WeaponPresentation.js');
+  assert.match(presentation, /handleEvent\(event/);
+  assert.match(presentation, /case 'weaponFired'/);
+  assert.match(presentation, /case 'reloadStart'/);
+  assert.match(presentation, /case 'reloadEnd'/);
+  assert.match(presentation, /case 'weaponType'/);
+});
