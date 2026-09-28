@@ -15,10 +15,7 @@ export class PhysicsWorld {
     this.queries = new PhysicsQueries(() => this.world, this.colliderRegistry);
     this.characterPhysics = new CharacterPhysics(() => this.world);
     this.staticPhysics = new StaticPhysics(() => this.world);
-    this.spawnSafety = new SpawnSafety({
-      castRay: (...args) => this.castRay(...args),
-      getPlayers: () => this._spawnSafetyPlayers || [],
-    });
+    this.spawnSafety = new SpawnSafety({ castRay: (...args) => this.castRay(...args) });
   }
 
   async init() {
@@ -83,12 +80,12 @@ export class PhysicsWorld {
   isSpawnPositionSafe(ecsWorld, position, radius = GAME_CONFIG.PLAYER_RADIUS, height = GAME_CONFIG.PLAYER_HEIGHT, ignoreEntity = null) {
     if (!this.world || !position) return false;
 
-    this._spawnSafetyPlayers = ecsWorld?.with?.('player', 'transform') || [];
-    try {
-      return this.spawnSafety.isSafe(position, { radius, height, ignoreEntity });
-    } finally {
-      this._spawnSafetyPlayers = null;
-    }
+    return this.spawnSafety.isSafe(position, {
+      radius,
+      height,
+      ignoreEntity,
+      players: ecsWorld?.with?.('player', 'transform') || [],
+    });
   }
 
   castRay(origin, direction, maxDistance = PHYSICS_CONFIG.DEFAULT_RAY_DISTANCE, excludeCollider = null) {
