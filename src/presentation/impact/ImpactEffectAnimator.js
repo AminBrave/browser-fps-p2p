@@ -53,11 +53,11 @@ export class ImpactEffectAnimator {
     return Math.min(marks.length, Math.floor(marks.length * amount + 1e-6));
   }
 
-    updatePlayerImpactMarksForHealth(playerId, health, maxHealth) {
+    updatePlayerImpactMarksForHealth(contacts, playerId, health, maxHealth) {
     const max = Math.max(1, Number(maxHealth) || 100);
     const current = THREE.MathUtils.clamp(Number(health) || 0, 0, max);
     const healthOpacity = 1 - current / max;
-    for (const entry of this.contacts) {
+    for (const entry of contacts) {
       const metadata = entry?.effect?.metadata;
       if (!metadata?.playerImpactMark || metadata.ownerId !== playerId) continue;
       const mesh = entry.effect.root;
