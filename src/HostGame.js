@@ -83,7 +83,8 @@ export class HostGame {
       this.localPlayerId,
       { ...WORLD_CONFIG.PLAYER.SPAWN_POINTS[0], y: WORLD_CONFIG.GROUND_Y + PLAYER_CONFIG.HEIGHT / 2 },
       true,
-      true
+      true,
+      this.presentationColliderRegistry
     );
 
     const hostRoomId = await this.networkTransport.initializeHost();
@@ -205,7 +206,8 @@ export class HostGame {
         y: WORLD_CONFIG.GROUND_Y + PLAYER_CONFIG.HEIGHT / 2,
       },
       false,
-      false
+      false,
+      this.presentationColliderRegistry
     );
 
     // Host-owned remote players are always renderable world entities. Keep
