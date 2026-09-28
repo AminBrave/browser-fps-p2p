@@ -58,12 +58,17 @@ export class HostGame {
     this.physicsSystem = new PhysicsSystem(this.physicsWorld);
     this.healthSystem = new HealthSystem(this.physicsWorld, null, new HealthPresentation(this.impactSystem));
     this.renderSystem = new RenderSystem(this.sceneManager);
+    this.weaponPresentation = new WeaponPresentation({
+      sceneManager: this.sceneManager,
+      renderSystem: this.renderSystem,
+      colliderRegistry: this.presentationColliderRegistry,
+      effectStore: this.effectStore,
+    });
     this.weaponSystem = new WeaponSystem({
       physicsWorld: this.physicsWorld,
       healthSystem: this.healthSystem,
       isAuthoritative: true,
       eventSink: null,
-      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem, colliderRegistry: this.presentationColliderRegistry, effectStore: this.effectStore })
     });
     this.hostNetworkSystem = new HostNetworkSystem(this.networkTransport);
     this.hostNetworkSystem.setJoinHandler((peerId) => {
@@ -129,10 +134,14 @@ export class HostGame {
 
 
   _flushWeaponPresentationEvents() {
-    const presentation = this.weaponSystem?.presentation;
-    if (!presentation) return;
+    if (!this.weaponPresentation) return;
     for (const event of this.weaponSystem.drainPresentationEvents()) {
-      presentation.handleEvent(event, this.ecsWorld);
+      if (event.type === 'shot') {
+        const targetMesh = this.presentationColliderRegistry.getTargetByHandle?.(event.hitColliderHandle) || null;
+        this.weaponPresentation.handleEvent({ ...event, targetMesh });
+      } else {
+        this.weaponPresentation.handleEvent(event);
+      }
     }
   }
 
