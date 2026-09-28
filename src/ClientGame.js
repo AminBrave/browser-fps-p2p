@@ -8,7 +8,7 @@ import { HUD } from './ui/HUD.js';
 import { Protocol } from './network/Protocol.js';
 import { PACKET_TYPES, EVENT_TYPES } from './network/PacketTypes.js';
 import { createPlayer } from './ecs/entities/createPlayer.js';
-import { createMap } from './ecs/entities/createMap.js';
+import { createMap } from './game/world/createMap.js';
 import { InputSystem } from './ecs/systems/InputSystem.js';
 import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
 import { WeaponPresentation } from './presentation/weapon/WeaponPresentation.js';
