@@ -11,10 +11,10 @@ export class StaticPhysics {
     this.getWorld = getWorld;
   }
 
-  createStaticBox(x, y, z, hx, hy, hz, rotationY = 0, renderTarget = null, materialType = null) {
+  createStaticBox(x, y, z, hx, hy, hz, rotationY = 0, materialType = null) {
     return this.createStaticCompound(
       x, y, z,
-      [{ desc: RAPIER.ColliderDesc.cuboid(hx, hy, hz), renderTarget, materialType }],
+      [{ desc: RAPIER.ColliderDesc.cuboid(hx, hy, hz), materialType }],
       rotationY
     );
   }
@@ -41,24 +41,23 @@ export class StaticPhysics {
       body,
       collider: colliders[0],
       colliders,
-      colliderTargets: parts.map((part) => part.renderTarget || null),
       hitZones: parts.map((part) => part.hitZone || null),
       colliderMaterials: parts.map((part) => part.materialType || null),
     };
   }
 
-  createStaticCone(x, y, z, radius, height, rotationY = 0, renderTarget = null, materialType = null) {
+  createStaticCone(x, y, z, radius, height, rotationY = 0, materialType = null) {
     return this.createStaticCompound(
       x, y, z,
-      [{ desc: RAPIER.ColliderDesc.cone(height / 2, radius), renderTarget, materialType }],
+      [{ desc: RAPIER.ColliderDesc.cone(height / 2, radius), materialType }],
       rotationY
     );
   }
 
-  createStaticCylinder(x, y, z, radius, height, rotationY = 0, renderTarget = null) {
+  createStaticCylinder(x, y, z, radius, height, rotationY = 0, materialType = null) {
     return this.createStaticCompound(
       x, y, z,
-      [{ desc: RAPIER.ColliderDesc.cylinder(height / 2, radius), renderTarget }],
+      [{ desc: RAPIER.ColliderDesc.cylinder(height / 2, radius), materialType }],
       rotationY
     );
   }
