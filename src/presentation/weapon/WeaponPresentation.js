@@ -3,11 +3,11 @@ import { audio } from '../../audio/AudioManager.js';
 import { PresentationColliderRegistry } from '../world/PresentationColliderRegistry.js';
 
 export class WeaponPresentation {
-  constructor({ sceneManager, renderSystem = null, impactSystem = null, colliderRegistry = null } = {}) {
+  constructor({ sceneManager, renderSystem = null, impactSystem = null, colliderRegistry = null, effectStore = null } = {}) {
     this.sceneManager = sceneManager;
     this.renderSystem = renderSystem;
     this.colliderRegistry = colliderRegistry || new PresentationColliderRegistry();
-    this.effects = new WeaponEffects({ sceneManager, impactSystem });
+    this.effects = new WeaponEffects({ sceneManager, impactSystem, effectStore });
   }
 
   getMuzzleWorldPosition() {
@@ -39,8 +39,8 @@ export class WeaponPresentation {
     this.renderSystem?.weaponViewModel?.setWeaponType?.(typeId);
   }
 
-  createBullet(ecsWorld, origin, end, path) {
-    return this.effects.createBullet(ecsWorld, origin, end, path);
+  createBullet(origin, end, path) {
+    return this.effects.createBullet(origin, end, path);
   }
 
   createBloodImpact(ecsWorld, position, normal, renderTarget, entity) {
