@@ -33,6 +33,21 @@ Owns:
 
 The RNG is injectable. Existing `WeaponSystem` calls continue to use `Math.random`, so this phase does not change shot randomness or weapon feel.
 
+### Damage
+
+`src/game/simulation/combat/DamageModel.js`
+
+Owns:
+
+- distance falloff;
+- hit-zone multipliers;
+- terminal-velocity / kinetic-energy scaling;
+- penetration damage loss;
+- final shot damage calculation.
+
+It accepts plain weapon/shot data and has no Three.js dependency. `WeaponSystem` remains responsible for hit detection and authoritative application of the resulting damage.
+
+
 ## Phase 1 boundary
 
 The target dependency direction is:
@@ -82,7 +97,6 @@ Phase 1 includes deterministic tests for:
 The following remain intentionally outside this first migration slice:
 
 - ballistic trace / Rapier query separation;
-- damage calculation separation;
 - ECS component/runtime-binding separation;
 - simulation event bus;
 - full fixed-timestep orchestration.
