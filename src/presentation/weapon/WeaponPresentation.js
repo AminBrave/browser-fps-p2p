@@ -15,9 +15,9 @@ export class WeaponPresentation {
     return this.renderSystem?.weaponViewModel?.getMuzzleWorldPosition?.() || null;
   }
 
-  onWeaponFired(recoil) {
+  onWeaponFired(recoil, sfx = 'pistol') {
     this.renderSystem?.weaponViewModel?.onFired?.(recoil);
-    audio.playShoot?.(this.renderSystem?.weaponViewModel?.currentWeaponSfx || 'pistol');
+    audio.playShoot?.(sfx);
   }
 
   onReloadStart() {
