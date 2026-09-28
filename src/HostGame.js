@@ -14,7 +14,7 @@ import { HealthPresentation } from './presentation/health/HealthPresentation.js'
 import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
 import { WeaponPresentation } from './presentation/weapon/WeaponPresentation.js';
 import { PresentationColliderRegistry } from './presentation/world/PresentationColliderRegistry.js';
-import { RenderSystem } from './ecs/systems/RenderSystem.js';
+import { RenderSystem } from './presentation/render/RenderSystem.js';
 import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
