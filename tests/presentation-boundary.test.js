@@ -13,7 +13,7 @@ function read(relativePath) {
 test('render and impact systems live in presentation', () => {
   assert.equal(fs.existsSync(path.join(root, 'src/presentation/render/RenderSystem.js')), true);
   assert.equal(fs.existsSync(path.join(root, 'src/presentation/impact/ImpactSystem.js')), true);
-  assert.equal(fs.existsSync(path.join(root, 'src/presentation/impact/ImpactEffects.js')), true);
+  assert.equal(fs.existsSync(path.join(root, 'src/presentation/effects/TracerEffects.js')), true);
   assert.equal(fs.existsSync(path.join(root, 'src/ecs/systems/RenderSystem.js')), false);
   assert.equal(fs.existsSync(path.join(root, 'src/ecs/systems/ImpactSystem.js')), false);
   assert.equal(fs.existsSync(path.join(root, 'src/ecs/entities/createBullet.js')), false);
@@ -29,9 +29,9 @@ test('presentation impact code is the only owner of Three.js impact construction
 
 
 test('transient tracer creation does not depend on ECS', () => {
-  const effects = read('src/presentation/impact/ImpactEffects.js');
+  const effects = read('src/presentation/effects/TracerEffects.js');
   assert.match(effects, /effectStore/);
-  assert.doesNotMatch(effects.slice(0, effects.indexOf('export function createImpactDecal(')), /ecsWorld/);
+  assert.doesNotMatch(effects, /ecsWorld/);
   const renderer = read('src/presentation/render/RenderSystem.js');
   assert.doesNotMatch(renderer, /entity\.lifespan/);
   assert.doesNotMatch(renderer, /ecsWorld\.remove\(entity\)/);
