@@ -147,6 +147,19 @@ export class HostGame {
     }
   }
 
+  _flushHealthPresentationEvents() {
+    if (!this.healthPresentation) return;
+    for (const event of this.healthSystem.drainPresentationEvents()) {
+      const entity = Array.from(this.ecsWorld.with('player')).find(
+        (candidate) => candidate.player?.id === event.playerId
+      );
+      this.healthPresentation.handleEvent(event, {
+        mesh: entity?.renderMesh?.mesh || null,
+        pose: entity?.character?.pose || null,
+      });
+    }
+  }
+
   _render(dt, now) {
     this.renderSystem.update(this.ecsWorld, this.localEntity, now);
     this.effectStore.update(dt, now);
