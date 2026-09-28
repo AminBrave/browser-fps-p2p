@@ -9,20 +9,23 @@ The game uses four separate networking layers:
 
 ## Railway deployment
 
-The Railway service runs the built SPA and the server-side /api/ice endpoint from the same Node process.
+The Railway service runs the built SPA and the server-side `/api/ice` endpoint from the same Node process.
 
-Set these Railway service variables:
+TURN is **optional**. The normal connection path is direct WebRTC plus STUN. If you operate your own TURN server, configure it on Railway with:
 
-- METERED_TURN_CREDENTIAL_URL
-  - Example: https://YOUR_APP.metered.live/api/v1/turn/credentials
-- METERED_TURN_API_KEY
-  - The credential-scoped TURN API key from Metered.
+- `TURN_URLS_JSON` — JSON array such as `["turn:turn.example.com:3478","turns:turn.example.com:5349"]`
+- `TURN_USERNAME` — server-issued TURN username
+- `TURN_CREDENTIAL` — server-issued TURN credential
 
-The browser calls /api/ice on the same origin. The Node server calls Metered and returns only the ICE server configuration. The Metered API key never reaches browser JavaScript.
+An optional external TURN provider can be configured as a last-resort infrastructure option with `TURN_CREDENTIAL_URL` and `TURN_API_KEY`.
 
-Railway provides the PORT environment variable to the service; the production start command is `npm start`.
+Do not put TURN credentials in `VITE_*` variables or browser code. The Node server keeps credentials server-side and returns only the ICE configuration.
 
-After adding/changing Railway environment variables, redeploy the service so the new deployment receives them.
+The browser always starts with direct/STUN candidates. WebRTC evaluates all available ICE candidates and automatically selects a working path. If no TURN service is configured, the game continues normally; some restrictive NAT/firewall combinations may still be unable to establish P2P.
+
+Railway provides the `PORT` environment variable to the service; the production start command is `npm start`.
+
+After changing Railway variables, redeploy the service so the new deployment receives them.
 
 ## Signaling server
 
@@ -36,11 +39,18 @@ The PeerJS documentation recommends running your own PeerServer for production/h
 
 A PeerServer can run on a separate persistent service such as Railway. If the game itself is also hosted on Railway, keep the PeerServer as a separate service and point these variables at its public TLS endpoint.
 
-## Why TURN is mandatory for broad Internet coverage
+## Progressive connectivity strategy
 
-STUN can discover public-facing addresses and often enables direct peer-to-peer connections. Some NAT/firewall combinations cannot form a direct path; PeerJS explicitly documents TURN as the workaround for symmetric NAT.
+The networking stack intentionally minimizes third-party dependencies:
 
-The previous implementation used hard-coded public TURN credentials. Those are not a production networking dependency. This implementation removes them from source control and loads the provider's current ICE configuration at runtime.
+1. Direct WebRTC candidates are attempted by the browser.
+2. STUN provides public-address discovery.
+3. Self-hosted TURN is the preferred relay fallback when configured.
+4. An optional external TURN provider can be enabled only when additional relay coverage is needed.
+
+These are ICE candidates rather than application-level sequential reconnects: WebRTC evaluates the candidates and selects a viable network path. A player on a compatible network therefore remains fully peer-to-peer without using TURN.
+
+TURN is a compatibility layer, not a hard application dependency.
 
 ## Debugging
 
