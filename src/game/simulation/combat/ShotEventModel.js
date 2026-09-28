@@ -1,6 +1,6 @@
 import { GAME_CONFIG } from '../../../config/index.js';
 import { EVENT_TYPES } from '../../../network/PacketTypes.js';
-import { createImpactSeed } from '../../../ecs/systems/ImpactSystem.js';
+import { createImpactSeed } from './ImpactSeed.js';
 
 /**
  * Pure conversion of an authoritative ballistic trace into a SHOT event.
