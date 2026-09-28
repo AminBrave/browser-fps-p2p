@@ -20,7 +20,7 @@ import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.j
 import { CircularBuffer } from './utils/CircularBuffer.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
-import { createBullet, createBloodImpact, disposeImpactDecals, updatePlayerImpactMarksForHealth } from './ecs/entities/createBullet.js';
+import { createBullet, createBloodImpact, disposeImpactDecals, updatePlayerImpactMarksForHealth } from './presentation/impact/ImpactEffects.js';
 import { ImpactSystem, createImpactSeed } from './ecs/systems/ImpactSystem.js';
 import { applyWorldManifest } from './network/WorldSync.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
