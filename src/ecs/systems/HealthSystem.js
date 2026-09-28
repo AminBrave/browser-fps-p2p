@@ -155,17 +155,12 @@ export class HealthSystem {
           // This makes the visual state deterministic: every point of healing
           // immediately reduces impact visibility, regardless of frame rate or
           // how many marks exist.
-          updatePlayerImpactMarksForHealth(
-            ecsWorld,
-            entity,
-            player.health,
-            maxHealth
-          );
+          this.presentation?.updateImpactMarks?.(ecsWorld, entity, player.health, maxHealth);
 
           // Once fully healed, remove the mark entities to reclaim GPU/CPU
           // resources instead of keeping invisible decals alive.
           if (player.health >= maxHealth) {
-            clearPlayerImpactMarks(ecsWorld, entity, 1);
+            this.presentation?.clearImpactMarks?.(ecsWorld, entity, 1);
             player.impactMarkClearAccumulator = 0;
           }
         }
@@ -190,7 +185,7 @@ export class HealthSystem {
 
       // Respawn is a hard visual reset: a full-health player must not carry
       // body impact decals from the previous life.
-      clearPlayerImpactMarks(ecsWorld, entity, 1);
+      this.presentation?.clearImpactMarks?.(ecsWorld, entity, 1);
 
       transform.position.x = spawn.x;
       transform.position.y = spawn.y;
