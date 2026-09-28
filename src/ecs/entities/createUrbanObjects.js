@@ -1,29 +1,73 @@
 // src/ecs/entities/createUrbanObjects.js
 //
-// Deterministic civilian/urban props. Every visible solid part is paired with
-// the same Rapier primitive and the exact mesh is registered as the hit target.
-// This keeps visual geometry and bullet collision geometry in one definition.
+// Deterministic civilian/urban props. World definitions are data-only;
+// presentation builds the visible meshes while this module owns ECS/physics
+// registration.
 
 import RAPIER from '@dimforge/rapier3d-compat';
-import * as THREE from 'three';
 import { createTransform } from '../components/Transform.js';
 import { createPhysics } from '../components/Physics.js';
 import { WORLD_CONFIG, generateObjectPlacements } from '../../config/index.js';
 import { URBAN_PROP_LIBRARY } from '../../game/world/UrbanPropDefinitions.js';
+import { createUrbanPropView } from '../../presentation/world/UrbanPropView.js';
 
+function groundY() {
+  return WORLD_CONFIG.GROUND_Y;
+}
 
-const MAT = {
-  concrete: new THREE.MeshStandardMaterial({ color: 0x777b78, roughness: 0.88 }),
-  darkConcrete: new THREE.MeshStandardMaterial({ color: 0x4e5351, roughness: 0.92 }),
-  metal: new THREE.MeshStandardMaterial({ color: 0x3b4144, metalness: 0.72, roughness: 0.34 }),
-  galvanized: new THREE.MeshStandardMaterial({ color: 0x9aa1a4, metalness: 0.82, roughness: 0.28 }),
-  painted: new THREE.MeshStandardMaterial({ color: 0x245f8a, metalness: 0.25, roughness: 0.52 }),
-  yellow: new THREE.MeshStandardMaterial({ color: 0xd69e18, roughness: 0.55 }),
-  wood: new THREE.MeshStandardMaterial({ color: 0x765438, roughness: 0.92 }),
-  rubber: new THREE.MeshStandardMaterial({ color: 0x17191a, roughness: 0.9 }),
-  glass: new THREE.MeshStandardMaterial({ color: 0x254c5d, metalness: 0.25, roughness: 0.16, transparent: true, opacity: 0.68 }),
-  red: new THREE.MeshStandardMaterial({ color: 0x8b2525, roughness: 0.62 }),
-};
+function primitiveCollider(part) {
+  let desc;
+  if (part.kind === 'box') {
+    desc = RAPIER.ColliderDesc.cuboid(part.size.x / 2, part.size.y / 2, part.size.z / 2);
+  } else if (part.kind === 'cylinder') {
+    desc = RAPIER.ColliderDesc.cylinder(part.height / 2, part.radius);
+  } else if (part.kind === 'cone') {
+    desc = RAPIER.ColliderDesc.cone(part.height / 2, part.radius);
+  } else {
+    desc = RAPIER.ColliderDesc.ball(part.radius);
+  }
+  desc.setTranslation(part.position?.x || 0, part.position?.y || 0, part.position?.z || 0);
+  if (part.rotationQuaternion) desc.setRotation(part.rotationQuaternion);
+  return desc;
+}
+
+function addUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec) {
+  const ground = groundY();
+  const view = createUrbanPropView({ ...spec, groundY: ground }, sceneManager);
+  const parts = spec.parts.map((part, index) => ({
+    desc: primitiveCollider(part),
+    renderTarget: view.parts[index].mesh,
+    materialType: view.parts[index].materialType,
+  }));
+
+  const physics = physicsWorld.createStaticCompound(spec.x, ground, spec.z, parts, spec.rotationY || 0);
+  const entity = ecsWorld.add({
+    isMap: true,
+    isSolid: true,
+    isUrbanObject: true,
+    urbanType: spec.type,
+    transform: createTransform(spec.x, ground, spec.z, spec.rotationY || 0),
+    physics: {
+      ...createPhysics(physics.body, physics.collider),
+      colliders: physics.colliders,
+    },
+    renderMesh: { mesh: view.root },
+  });
+
+  for (let i = 0; i < physics.colliders.length; i++) {
+    physicsWorld.registerColliderEntity(
+      physics.colliders[i],
+      entity,
+      physics.colliderTargets?.[i] || null,
+      physics.hitZones?.[i] || null,
+      physics.colliderMaterials?.[i] || null
+    );
+  }
+
+  mapEntities.push(entity);
+  return entity;
+}
+
 export function createUrbanObjects(ecsWorld, physicsWorld, sceneManager, mapEntities) {
   const config = WORLD_CONFIG.OBJECT_PLACEMENT;
   const bounds = {
@@ -38,20 +82,24 @@ export function createUrbanObjects(ecsWorld, physicsWorld, sceneManager, mapEnti
       .map((spec) => addUrbanProp(ecsWorld, physicsWorld, sceneManager, mapEntities, spec));
   }
 
-  // Keep generated props clear of the major authored gameplay geometry.
-  // This makes density changes safe without introducing invisible overlaps.
   const fixedZones = [
     ...(WORLD_CONFIG.OBJECTS.CRATE?.PLACEMENTS || []).map((p) => ({
-      x: p.position.x, z: p.position.z,
+      x: p.position.x,
+      z: p.position.z,
       radius: Math.max(p.size.x, p.size.z) * 0.65 + 1.2,
     })),
     ...(WORLD_CONFIG.OBJECTS.TREE?.POSITIONS || []).map((p) => ({
-      x: p.x, z: p.z,
+      x: p.x,
+      z: p.z,
       radius: (WORLD_CONFIG.OBJECTS.TREE.CANOPY?.BASE_RADIUS || 1) + 1.2,
     })),
     ...(WORLD_CONFIG.OBJECTS.CAR?.PLACEMENTS || []).map((p) => ({
-      x: p.x, z: p.z,
-      radius: Math.max(WORLD_CONFIG.OBJECTS.CAR.COLLIDER.BOUNDS.x, WORLD_CONFIG.OBJECTS.CAR.COLLIDER.BOUNDS.z) * 0.6 + 1.5,
+      x: p.x,
+      z: p.z,
+      radius: Math.max(
+        WORLD_CONFIG.OBJECTS.CAR.COLLIDER.BOUNDS.x,
+        WORLD_CONFIG.OBJECTS.CAR.COLLIDER.BOUNDS.z
+      ) * 0.6 + 1.5,
     })),
   ];
 
