@@ -106,3 +106,20 @@ test('weapon presentation owns interpretation of queued presentation commands', 
   assert.match(presentation, /case 'reloadEnd'/);
   assert.match(presentation, /case 'weaponType'/);
 });
+
+
+test('client networking systems do not depend on legacy movement adapter or presentation objects', () => {
+  const predict = read('src/ecs/systems/network/ClientPredictSystem.js');
+  const reconcile = read('src/ecs/systems/network/ClientReconcileSystem.js');
+  const interpolation = read('src/ecs/systems/network/InterpolationSystem.js');
+  assert.match(predict, /game\/simulation\/movement\/FpsMovement\.js/);
+  assert.match(reconcile, /game\/simulation\/movement\/FpsMovement\.js/);
+  assert.doesNotMatch(predict, /utils\/Movement\.js/);
+  assert.doesNotMatch(reconcile, /utils\/Movement\.js/);
+  assert.doesNotMatch(interpolation, /entity\.character/);
+});
+
+test('presentation collider registry supports primitive network handles', () => {
+  const registry = read('src/presentation/world/PresentationColliderRegistry.js');
+  assert.match(registry, /getTargetByHandle\(handle\)/);
+});
