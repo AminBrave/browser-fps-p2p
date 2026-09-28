@@ -59,6 +59,42 @@ export function createImpactDecal(
   targetEntity = null
 ) {
   const scene = sceneOrManager?.scene ? sceneOrManager.scene : sceneOrManager;
+
+  // Suppress duplicate world-space marks at the same contact. This protects
+  // against a physical trace and its replicated SHOT event both drawing the
+  // same surface contact, which is especially obvious on flat floors.
+  const existingDecals = decalRegistry.get(ecsWorld);
+  if (!targetMesh && existingDecals?.length) {
+    const px = Number(position?.x) || 0;
+    const py = Number(position?.y) || 0;
+    const pz = Number(position?.z) || 0;
+    const incomingNormal = new THREE.Vector3(
+      Number(normal?.x) || 0,
+      Number(normal?.y) || 0,
+      Number(normal?.z) || 0
+    );
+    if (incomingNormal.lengthSq() > 1e-8) incomingNormal.normalize();
+
+    const duplicate = existingDecals.find((entity) => {
+      if (!entity?.isPermanentDecal || entity.isPlayerImpactMark) return false;
+      const mesh = entity.renderMesh?.mesh;
+      const ep = entity.transform?.position;
+      if (!mesh || !ep) return false;
+      const dx = ep.x - px;
+      const dy = ep.y - py;
+      const dz = ep.z - pz;
+      if (dx * dx + dy * dy + dz * dz > 0.035 * 0.035) return false;
+      const storedNormal = mesh.userData?.impactNormal;
+      if (!storedNormal || incomingNormal.lengthSq() < 1e-8) return true;
+      return (
+        storedNormal.x * incomingNormal.x +
+        storedNormal.y * incomingNormal.y +
+        storedNormal.z * incomingNormal.z
+      ) > 0.985;
+    });
+    if (duplicate) return duplicate;
+  }
+
   const n = new THREE.Vector3(normal.x, normal.y, normal.z);
   if (n.lengthSq() < 1e-8) n.set(0, 1, 0);
   n.normalize();
@@ -90,7 +126,8 @@ export function createImpactDecal(
 
   const group = new THREE.Group();
   group.name = 'bulletImpact';
-  group.renderOrder = 20;
+  group.renderOrder = 1000;
+  group.userData.impactNormal = { x: n.x, y: n.y, z: n.z };
 
   const q = new THREE.Quaternion().setFromUnitVectors(
     new THREE.Vector3(0, 0, 1),
@@ -108,8 +145,10 @@ export function createImpactDecal(
         depthTest: true,
         depthWrite: false,
         polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1,
+        // Stronger negative offset keeps the mark in front of the
+        // surface across camera angles and avoids depth flicker.
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
       })
     );
     mesh.position.copy(localPoint);
