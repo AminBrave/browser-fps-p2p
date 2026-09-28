@@ -125,10 +125,7 @@ export class RenderSystem {
               velocity.multiplyScalar(dragFactor);
               velocity.y -= (Number(particle.userData?.gravity) || 0) * dt;
               velocity.multiplyScalar(Math.min(1, 1 + Math.max(0, Number(entity.impactVelocityAfter) || 0) * 0.00002 * dt));
-              particle.position.addScaledVector(
-                velocity,
-                dt * (particle.parent?.userData?.impactMaterial === 'metal' ? 1.35 : 1)
-              );
+              particle.position.addScaledVector(velocity, dt);
             }
             const angularVelocity = particle.userData?.angularVelocity;
             if (angularVelocity) {
