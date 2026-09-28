@@ -1,7 +1,11 @@
 // src/ecs/systems/PhysicsSystem.js
 
 import { applyFpsMovement } from '../../game/simulation/movement/FpsMovement.js';
-import { STANCE } from '../../config/index.js';
+import {
+  STANCE,
+  INPUT_FLAGS,
+  PLAYER_CONFIG,
+} from '../../config/index.js';
 
 export class PhysicsSystem {
   constructor(physicsWorld) {
@@ -32,14 +36,25 @@ export class PhysicsSystem {
         const yaw = input.yaw || 0;
         const stance = input.stance ?? STANCE.STAND;
 
-        physics.isGrounded = applyFpsMovement(
-          input.inputMask || 0,
+        physics.isGrounded = applyFpsMovement({
+          inputMask: input.inputMask || 0,
           yaw,
-          physics.velocity,
-          physics.isGrounded,
+          velocity: physics.velocity,
+          isGrounded: physics.isGrounded,
           dt,
-          stance
-        );
+          stance,
+          inputFlags: INPUT_FLAGS,
+          movementConfig: {
+            speed: PLAYER_CONFIG.SPEED,
+            sprintMultiplier: PLAYER_CONFIG.SPRINT_MULTIPLIER,
+            jumpForce: PLAYER_CONFIG.JUMP_FORCE,
+            gravity: PLAYER_CONFIG.GRAVITY,
+            stanceStand: STANCE.STAND,
+            stanceCrouch: STANCE.CROUCH,
+            stanceProne: STANCE.PRONE,
+            speedMultipliers: PLAYER_CONFIG.SPEED_MULTIPLIERS,
+          },
+        });
 
         if (transform.rotation) {
           transform.rotation.yaw = yaw;
