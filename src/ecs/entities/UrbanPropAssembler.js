@@ -6,30 +6,9 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { createTransform } from '../components/Transform.js';
 import { createPhysics } from '../components/Physics.js';
 
-function primitiveCollider(part) {
-  let desc;
-  switch (part.kind) {
-    case 'box':
-      desc = RAPIER.ColliderDesc.cuboid(part.size.x / 2, part.size.y / 2, part.size.z / 2);
-      break;
-    case 'cylinder':
-      desc = RAPIER.ColliderDesc.cylinder(part.height / 2, part.radius);
-      break;
-    case 'cone':
-      desc = RAPIER.ColliderDesc.cone(part.height / 2, part.radius);
-      break;
-    default:
-      desc = RAPIER.ColliderDesc.ball(part.radius);
-      break;
-  }
-  desc.setTranslation(part.position?.x || 0, part.position?.y || 0, part.position?.z || 0);
-  if (part.rotationQuaternion) desc.setRotation(part.rotationQuaternion);
-  return desc;
-}
-
 export function addUrbanProp(ecsWorld, physicsWorld, mapEntities, spec, view) {
   const parts = spec.parts.map((part, index) => ({
-    desc: primitiveCollider(part),
+    desc: physicsWorld.createPrimitiveCollider(part),
     materialType: view.parts[index].materialType,
   }));
   const physics = physicsWorld.createStaticCompound(
