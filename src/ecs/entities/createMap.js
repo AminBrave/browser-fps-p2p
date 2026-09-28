@@ -1,11 +1,13 @@
 // src/ecs/entities/createMap.js
 
-import RAPIER from '@dimforge/rapier3d-compat';
-
 import { MapObjectView } from '../../presentation/world/MapObjectView.js';
 import { WORLD_CONFIG } from '../../config/index.js';
 import { createUrbanObjects } from './createUrbanObjects.js';
 import { addSolidMapEntity } from './MapEntityAssembler.js';
+
+function primitiveCollider(physicsWorld, part) {
+  return physicsWorld.createPrimitiveCollider(part);
+}
 
 function clampToIsland(x, z, halfExtentX = 0, halfExtentZ = 0) {
   const { WIDTH, LENGTH, OBJECT_PADDING } = WORLD_CONFIG.MAP;
@@ -43,7 +45,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
   });
 
   const compoundParts = [{
-    desc: RAPIER.ColliderDesc.cylinder(config.TRUNK.HEIGHT / 2, config.TRUNK.RADIUS),
+    desc: primitiveCollider(physicsWorld, { kind: 'cylinder', height: config.TRUNK.HEIGHT, radius: config.TRUNK.RADIUS }),
     position: { x: 0, y: config.TRUNK.HEIGHT / 2, z: 0 },
     materialType: 'wood',
   }];
@@ -52,7 +54,7 @@ function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
     const radius = Math.max(0.05, config.CANOPY.BASE_RADIUS - i * config.CANOPY.RADIUS_STEP);
     const centerY = config.CANOPY.START_CENTER_Y + i * config.CANOPY.VERTICAL_STEP;
     compoundParts.push({
-      desc: RAPIER.ColliderDesc.cone(config.CANOPY.HEIGHT / 2, radius),
+      desc: primitiveCollider(physicsWorld, { kind: 'cone', height: config.CANOPY.HEIGHT, radius }),
       position: { x: 0, y: centerY, z: 0 },
       materialType: 'foliage',
     });
@@ -87,15 +89,15 @@ function addCar(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
     { x: -config.WHEELS.OFFSET_X, z: -config.WHEELS.OFFSET_Z },
   ];
   const compoundParts = [
-    { desc: RAPIER.ColliderDesc.cuboid(config.BODY.SIZE.x / 2, config.BODY.SIZE.y / 2, config.BODY.SIZE.z / 2), position: { x: 0, y: config.BODY.CENTER_Y, z: 0 }, materialType: 'metal' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.91, 0.08, 0.45), position: { x: 0, y: 0.79, z: -1.38 }, materialType: 'metal' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.91, 0.075, 0.325), position: { x: 0, y: 0.76, z: 1.35 }, materialType: 'metal' },
-    { desc: RAPIER.ColliderDesc.cuboid(config.CABIN.SIZE.x / 2, config.CABIN.SIZE.y / 2, config.CABIN.SIZE.z / 2), position: { x: 0, y: config.CABIN.CENTER_Y, z: config.CABIN.CENTER_Z }, materialType: 'metal' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.74, 0.19, 0.018), position: { x: 0, y: 1.22, z: -1.01 }, materialType: 'glass' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.74, 0.18, 0.018), position: { x: 0, y: 1.21, z: 0.72 }, materialType: 'glass' },
-    { desc: RAPIER.ColliderDesc.cuboid(0.018, 0.17, 0.69), position: { x: -0.84, y: 1.21, z: -0.14 }, materialType: 'glass' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'box', size: config.BODY.SIZE }), position: { x: 0, y: config.BODY.CENTER_Y, z: 0 }, materialType: 'metal' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'box', size: { x: 1.82, y: 0.16, z: 0.9 } }), position: { x: 0, y: 0.79, z: -1.38 }, materialType: 'metal' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'box', size: { x: 1.82, y: 0.15, z: 0.65 } }), position: { x: 0, y: 0.76, z: 1.35 }, materialType: 'metal' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'box', size: config.CABIN.SIZE }), position: { x: 0, y: config.CABIN.CENTER_Y, z: config.CABIN.CENTER_Z }, materialType: 'metal' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'box', size: { x: 1.48, y: 0.38, z: 0.036 } }), position: { x: 0, y: 1.22, z: -1.01 }, materialType: 'glass' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'box', size: { x: 1.48, y: 0.36, z: 0.036 } }), position: { x: 0, y: 1.21, z: 0.72 }, materialType: 'glass' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'box', size: { x: 0.036, y: 0.34, z: 1.38 } }), position: { x: -0.84, y: 1.21, z: -0.14 }, materialType: 'glass' },
     { desc: RAPIER.ColliderDesc.cuboid(0.018, 0.17, 0.69), position: { x: 0.84, y: 1.21, z: -0.14 }, materialType: 'glass' },
-    ...wheelPositions.map(({ x, z }) => ({ desc: RAPIER.ColliderDesc.cylinder(config.WHEELS.WIDTH / 2, config.WHEELS.RADIUS), position: { x, y: config.WHEELS.RADIUS, z }, rotation: wheelRotation, materialType: 'rubber' })),
+    ...wheelPositions.map(({ x, z }) => ({ desc: primitiveCollider(physicsWorld, { kind: 'cylinder', height: config.WHEELS.WIDTH, radius: config.WHEELS.RADIUS }), position: { x, y: config.WHEELS.RADIUS, z }, rotation: wheelRotation, materialType: 'rubber' })),
   ];
   const physics = physicsWorld.createStaticCompound(safePosition.x, groundY(), safePosition.z, compoundParts, rotationY);
   return addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
@@ -110,10 +112,10 @@ function addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, place
     position: { x: safe.x, y: groundY(), z: safe.z },
   });
   const parts = [
-    { desc: RAPIER.ColliderDesc.cuboid(cfg.BASE.SIZE.x/2, cfg.BASE.SIZE.y/2, cfg.BASE.SIZE.z/2), position:{x:0,y:cfg.BASE.SIZE.y/2,z:0}, materialType:'metal' },
-    { desc: RAPIER.ColliderDesc.cylinder(cfg.POLE.HEIGHT/2, cfg.POLE.RADIUS), position:{x:0,y:cfg.POLE.HEIGHT/2+cfg.BASE.SIZE.y,z:0}, materialType:'metal' },
-    { desc: RAPIER.ColliderDesc.cylinder(cfg.ARM.LENGTH/2, cfg.ARM.RADIUS), position:{x:cfg.ARM.LENGTH/2,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, rotation:{x:0,y:0,z:Math.SQRT1_2,w:Math.SQRT1_2}, materialType:'metal' },
-    { desc: RAPIER.ColliderDesc.ball(0.14), position:{x:cfg.ARM.LENGTH,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, materialType:'glass' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'box', size: cfg.BASE.SIZE }), position:{x:0,y:cfg.BASE.SIZE.y/2,z:0}, materialType:'metal' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'cylinder', height: cfg.POLE.HEIGHT, radius: cfg.POLE.RADIUS }), position:{x:0,y:cfg.POLE.HEIGHT/2+cfg.BASE.SIZE.y,z:0}, materialType:'metal' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'cylinder', height: cfg.ARM.LENGTH, radius: cfg.ARM.RADIUS }), position:{x:cfg.ARM.LENGTH/2,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, rotation:{x:0,y:0,z:Math.SQRT1_2,w:Math.SQRT1_2}, materialType:'metal' },
+    { desc: primitiveCollider(physicsWorld, { kind: 'sphere', radius: 0.14 }), position:{x:cfg.ARM.LENGTH,y:cfg.POLE.HEIGHT+cfg.BASE.SIZE.y-0.12,z:0}, materialType:'glass' },
   ];
   const physics = physicsWorld.createStaticCompound(safe.x, groundY(), safe.z, parts);
   return addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
@@ -128,8 +130,8 @@ function addDumpster(ecsWorld, physicsWorld, sceneManager, mapEntities, placemen
     position: { x: safe.x, y: groundY(), z: safe.z },
   });
   const parts=[
-    {desc:RAPIER.ColliderDesc.cuboid(size.x/2,size.y/2,size.z/2),position:{x:0,y:size.y/2,z:0},materialType:'metal'},
-    {desc:RAPIER.ColliderDesc.cuboid((size.x+0.04)/2,0.04,(size.z+0.04)/2),position:{x:0,y:size.y+0.04,z:0},materialType:'metal'},
+    {desc:primitiveCollider(physicsWorld, { kind: 'box', size }),position:{x:0,y:size.y/2,z:0},materialType:'metal'},
+    {desc:primitiveCollider(physicsWorld, { kind: 'box', size: { x: size.x + 0.04, y: 0.08, z: size.z + 0.04 } }),position:{x:0,y:size.y+0.04,z:0},materialType:'metal'},
   ];
   const physics=physicsWorld.createStaticCompound(safe.x,groundY(),safe.z,parts);
   return addSolidMapEntity(ecsWorld,physicsWorld,mapEntities,{
