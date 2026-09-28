@@ -47,3 +47,18 @@ test('impact presentation owns visual lifecycle without ECS access', () => {
   const healthSystem = read('src/ecs/systems/HealthSystem.js');
   assert.doesNotMatch(healthSystem, /ImpactEffects/);
 });
+
+
+test('impact presentation is split into construction, animation, and orchestration', () => {
+  const factory = read('src/presentation/impact/ImpactVisualFactory.js');
+  const animator = read('src/presentation/impact/ImpactEffectAnimator.js');
+  const system = read('src/presentation/impact/ImpactSystem.js');
+  assert.match(factory, /from ['"]three['"]/);
+  assert.match(factory, /createSurfaceImpact/);
+  assert.match(animator, /update\(/);
+  assert.match(animator, /updatePlayerImpactMarksForHealth/);
+  assert.doesNotMatch(animator, /spawnSurfaceImpact/);
+  assert.doesNotMatch(system, /from ['"]three['"]/);
+  assert.match(system, /ImpactVisualFactory/);
+  assert.match(system, /ImpactEffectAnimator/);
+});
