@@ -273,7 +273,7 @@ export class WeaponSystem {
       const hitZone = hit?.hitZone || null;
       const didHit = !!hit;
 
-      this.presentation?.createBullet?.(ecsWorld, origin, endPos, trace.path);
+      this.presentation?.createBullet?.(origin, endPos, trace.path);
 
       this._emit(buildShotEvent({ shooterId: player.id, weapon, origin, end: endPos, hit, hitEntityId: hitEntity?.player?.id ?? null, hitZone, normal: hitNormal, direction: dir, trace, pelletIndex: p }));
 
