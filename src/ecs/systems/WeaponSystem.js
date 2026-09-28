@@ -5,7 +5,7 @@ import {
   GAME_CONFIG,
 } from '../../config/index.js';
 import { hasFlag } from '../../utils/BitFlags.js';
-import { createImpactSeed } from './ImpactSystem.js';
+import { createImpactSeed } from '../../game/simulation/combat/ImpactSeed.js';
 import { buildShotEvent } from '../../game/simulation/combat/ShotEventModel.js';
 import { copyWeaponState } from '../components/Weapon.js';
 import { getAccuracyState } from '../../utils/AccuracyModel.js';
