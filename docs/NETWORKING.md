@@ -7,18 +7,22 @@ The game uses four separate networking layers:
 3. Data transport — one reliable, ordered binary WebRTC data channel carries the game protocol.
 4. Game protocol — an explicit JOIN_REQUEST/JOIN_ACCEPT handshake gates admission and world initialization.
 
-## Vercel deployment
+## Railway deployment
 
-The Vercel deployment must have these environment variables:
+The Railway service runs the built SPA and the server-side /api/ice endpoint from the same Node process.
+
+Set these Railway service variables:
 
 - METERED_TURN_CREDENTIAL_URL
   - Example: https://YOUR_APP.metered.live/api/v1/turn/credentials
 - METERED_TURN_API_KEY
   - The credential-scoped TURN API key from Metered.
 
-The browser calls /api/ice; the Vercel function calls Metered and returns only the ICE server configuration. Metered documents this credential API as the mechanism for retrieving the ICE server array. Do not put an application Secret Key in browser code.
+The browser calls /api/ice on the same origin. The Node server calls Metered and returns only the ICE server configuration. The Metered API key never reaches browser JavaScript.
 
-After adding/changing Vercel environment variables, redeploy the application.
+Railway provides the PORT environment variable to the service; the production start command is `npm start`.
+
+After adding/changing Railway environment variables, redeploy the service so the new deployment receives them.
 
 ## Signaling server
 
@@ -30,7 +34,7 @@ By default the client uses PeerJS Cloud. For a production deployment, set:
 
 The PeerJS documentation recommends running your own PeerServer for production/high traffic. PeerServer is signaling only; it does not replace TURN.
 
-A PeerServer can run on a persistent service such as Railway. Keep the game frontend on Vercel and point these variables at the PeerServer.
+A PeerServer can run on a separate persistent service such as Railway. If the game itself is also hosted on Railway, keep the PeerServer as a separate service and point these variables at its public TLS endpoint.
 
 ## Why TURN is mandatory for broad Internet coverage
 
@@ -49,7 +53,7 @@ Open DevTools on both players. Successful connections log:
 - selected candidate type
 - RTT
 
-The selected candidate type should normally be host, srflx, or relay. If Internet players fail and the log says TURN=unavailable, configure the Vercel TURN variables first.
+The selected candidate type should normally be host, srflx, or relay. If Internet players fail and the log says TURN=unavailable, verify the Railway TURN variables and request `/api/ice` directly. It should return JSON, not the SPA's `index.html`.
 
 If the error is peer-unavailable, the invitation code is not currently registered with the signaling server. If it is webrtc, signaling succeeded but ICE/WebRTC negotiation failed. PeerJS documents these error classes separately.
 
