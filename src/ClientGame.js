@@ -67,7 +67,7 @@ export class ClientGame {
     window.addEventListener('click', this._audioUnlockHandler);
   }
 
-  async initialize(hostRoomId) {
+  async initialize(hostRoomId, networkMode = null) {
     await this.physicsWorld.init();
 
     this.inputSystem = new InputSystem(this.container);
