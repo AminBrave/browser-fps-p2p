@@ -1,34 +1,46 @@
 /**
- * Vercel Function: returns the current TURN ICE server configuration.
+ * Vercel-compatible /api/ice endpoint.
  *
- * Required environment variables:
- *   METERED_TURN_CREDENTIAL_URL
- *   METERED_TURN_API_KEY
- *
- * Example URL:
- *   https://YOUR_APP.metered.live/api/v1/turn/credentials
- *
- * The Metered credential API returns the ICE server array. The API key is
- * kept server-side here; browsers receive only the resulting ICE config.
+ * TURN is optional. The browser can use direct WebRTC + STUN when no
+ * relay credentials are configured. If self-hosted TURN is configured,
+ * it is preferred; an optional external TURN provider can be used last.
  */
-export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    res.setHeader('Allow', 'GET');
-    return res.status(405).json({ error: 'Method not allowed' });
+function parseJsonEnv(name) {
+  const raw = String(process.env[name] || '').trim();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.warn(`[ICE] Ignoring invalid JSON in ${name}`, error);
+    return null;
+  }
+}
+
+function getSelfHostedTurnServers() {
+  const urls = parseJsonEnv('TURN_URLS_JSON');
+  const username = String(process.env.TURN_USERNAME || '').trim();
+  const credential = String(process.env.TURN_CREDENTIAL || '').trim();
+
+  if (!Array.isArray(urls) || !urls.length || !username || !credential) {
+    return [];
   }
 
-  const endpoint = String(process.env.METERED_TURN_CREDENTIAL_URL || '').trim();
-  const apiKey = String(process.env.METERED_TURN_API_KEY || '').trim();
+  const validUrls = urls.filter((url) => /^turns?:/i.test(String(url)));
+  return validUrls.length ? [{ urls: validUrls, username, credential }] : [];
+}
 
-  if (!endpoint || !apiKey) {
-    return res.status(503).json({
-      error: 'TURN service is not configured',
-      code: 'TURN_NOT_CONFIGURED',
-    });
-  }
+async function getOptionalExternalTurnServers() {
+  const endpoint = String(process.env.TURN_CREDENTIAL_URL || '').trim();
+  const apiKey = String(process.env.TURN_API_KEY || '').trim();
+
+  if (!endpoint || !apiKey) return [];
 
   try {
     const url = new URL(endpoint);
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      throw new Error('TURN credential URL must use HTTP or HTTPS');
+    }
+
     url.searchParams.set('apiKey', apiKey);
 
     const response = await fetch(url, {
@@ -37,33 +49,42 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      console.error('[ICE] Metered request failed', response.status, body.slice(0, 300));
-      return res.status(502).json({
-        error: 'TURN provider unavailable',
-        code: 'TURN_PROVIDER_ERROR',
-      });
+      console.warn('[ICE] Optional external TURN returned HTTP', response.status);
+      return [];
     }
 
-    const iceServers = await response.json();
-
-    if (!Array.isArray(iceServers)) {
-      return res.status(502).json({
-        error: 'TURN provider returned an invalid ICE configuration',
-        code: 'TURN_INVALID_RESPONSE',
-      });
-    }
-
-    res.setHeader('Cache-Control', 'no-store, max-age=0');
-    return res.status(200).json({
-      iceServers,
-      source: 'metered',
-    });
+    const servers = await response.json();
+    return Array.isArray(servers)
+      ? servers.filter((server) => server?.urls)
+      : [];
   } catch (error) {
-    console.error('[ICE] Failed to load TURN configuration', error);
-    return res.status(502).json({
-      error: 'Unable to load TURN configuration',
-      code: 'TURN_FETCH_ERROR',
-    });
+    console.warn(
+      '[ICE] Optional external TURN unavailable; continuing without it',
+      error
+    );
+    return [];
   }
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const selfHosted = getSelfHostedTurnServers();
+  const external = await getOptionalExternalTurnServers();
+  const iceServers = [...selfHosted, ...external];
+
+  const sources = ['stun'];
+  if (selfHosted.length) sources.push('self-hosted-turn');
+  if (external.length) sources.push('external-turn');
+
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+
+  return res.status(200).json({
+    iceServers,
+    hasTurn: iceServers.length > 0,
+    source: sources.join('+'),
+  });
 }
