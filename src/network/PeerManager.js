@@ -16,7 +16,6 @@ export class PeerManager {
     this.peer = null;
     this.connections = new Map();
     this.isHost = false;
-    this.networkMode = networkMode;
     this.hostPeerId = null;
     this.invitationCode = null;
     this.state = STATE.IDLE;
