@@ -1,4 +1,4 @@
-import { createBullet } from '../impact/ImpactEffects.js';
+import { createBullet } from '../effects/TracerEffects.js';
 import { createImpactSeed } from '../../game/simulation/combat/ImpactSeed.js';
 import { audio } from '../../audio/AudioManager.js';
 
