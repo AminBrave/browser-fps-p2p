@@ -43,100 +43,34 @@ function groufunction addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEnti
 
 function addTree(ecsWorld, physicsWorld, sceneManager, mapEntities, position) {
   const config = WORLD_CONFIG.OBJECTS.TREE;
-  const safePosition = clampToIsland(
-    position.x,
-    position.z,
-    config.CANOPY.BASE_RADIUS,
-    config.CANOPY.BASE_RADIUS
-  );
-
-  const group = new THREE.Group();
-  group.position.set(safePosition.x, groundY(), safePosition.z);
-
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(
-      config.TRUNK.RADIUS,
-      config.TRUNK.RADIUS,
-      config.TRUNK.HEIGHT,
-      config.TRUNK.RADIAL_SEGMENTS
-    ),
-    new THREE.MeshStandardMaterial({
-      color: config.COLORS.TRUNK,
-      roughness: 0.92,
-    })
-  );
-  trunk.position.y = config.TRUNK.HEIGHT / 2;
-  trunk.castShadow = true;
-  trunk.receiveShadow = true;
-  group.add(trunk);
-
-  const leafMat = new THREE.MeshStandardMaterial({
-    color: config.COLORS.CANOPY,
-    roughness: 0.9,
+  const safePosition = clampToIsland(position.x, position.z, config.CANOPY.BASE_RADIUS, config.CANOPY.BASE_RADIUS);
+  const view = new MapObjectView(sceneManager).tree({
+    position: { x: safePosition.x, y: groundY(), z: safePosition.z },
   });
 
-  const presentationTargets = [trunk];
-  const compoundParts = [
-    {
-      desc: RAPIER.ColliderDesc.cylinder(
-        config.TRUNK.HEIGHT / 2,
-        config.TRUNK.RADIUS
-      ),
-      position: {
-        x: 0,
-        y: config.TRUNK.HEIGHT / 2,
-        z: 0,
-      },
-      materialType: 'wood',
-    },
-  ];
+  const compoundParts = [{
+    desc: RAPIER.ColliderDesc.cylinder(config.TRUNK.HEIGHT / 2, config.TRUNK.RADIUS),
+    position: { x: 0, y: config.TRUNK.HEIGHT / 2, z: 0 },
+    materialType: 'wood',
+  }];
 
   for (let i = 0; i < config.CANOPY.LAYERS; i++) {
-    const radius = Math.max(
-      0.05,
-      config.CANOPY.BASE_RADIUS - i * config.CANOPY.RADIUS_STEP
-    );
-    const centerY =
-      config.CANOPY.START_CENTER_Y + i * config.CANOPY.VERTICAL_STEP;
-
-    const cone = new THREE.Mesh(
-      new THREE.ConeGeometry(
-        radius,
-        config.CANOPY.HEIGHT,
-        config.CANOPY.RADIAL_SEGMENTS
-      ),
-      leafMat
-    );
-    cone.position.y = centerY;
-    cone.castShadow = true;
-    cone.receiveShadow = true;
-    group.add(cone);
-
+    const radius = Math.max(0.05, config.CANOPY.BASE_RADIUS - i * config.CANOPY.RADIUS_STEP);
+    const centerY = config.CANOPY.START_CENTER_Y + i * config.CANOPY.VERTICAL_STEP;
     compoundParts.push({
       desc: RAPIER.ColliderDesc.cone(config.CANOPY.HEIGHT / 2, radius),
       position: { x: 0, y: centerY, z: 0 },
       materialType: 'foliage',
     });
-    presentationTargets.push(cone);
   }
 
-  addToScene(sceneManager, group);
-
   const physics = physicsWorld.createStaticCompound(
-    safePosition.x,
-    groundY(),
-    safePosition.z,
-    compoundParts
+    safePosition.x, groundY(), safePosition.z, compoundParts
   );
-
   const entity = addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
     position: { x: safePosition.x, y: groundY(), z: safePosition.z },
-    physics,
-    mesh: group,
-    name: 'tree',
-    presentationTargets,
+    physics, mesh: view.root, name: 'tree', presentationTargets: view.targets,
   });
-
   entity.isTree = true;
   return entity;
 }
