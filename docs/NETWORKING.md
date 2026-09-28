@@ -27,6 +27,32 @@ Railway provides the `PORT` environment variable to the service; the production 
 
 After changing Railway variables, redeploy the service so the new deployment receives them.
 
+## Vercel deployment
+
+The same repository can be deployed to Vercel without changing the client networking code.
+
+Vercel serves the Vite `dist/` output and runs `api/ice.js` as the `/api/ice` function. Vercel does **not** run the Railway `server.js` process.
+
+The ICE endpoint supports the same progressive strategy as Railway:
+
+- no TURN variables: direct WebRTC + STUN only;
+- `TURN_URLS_JSON`, `TURN_USERNAME`, `TURN_CREDENTIAL`: self-hosted TURN;
+- `TURN_CREDENTIAL_URL`, `TURN_API_KEY`: optional external TURN as a final relay option.
+
+For Vercel, configure the same environment variables in the Vercel project settings. Never expose TURN credentials through `VITE_*` variables.
+
+### Signaling
+
+The game uses PeerJS for signaling. Vercel hosting the frontend and `/api/ice` does not automatically provide a dedicated PeerServer for this game. If `VITE_PEER_SERVER_HOST` is not set, PeerJS uses its configured/default signaling behavior. For a minimum-third-party production setup, run your own PeerServer on a persistent host such as Railway and point the Vercel frontend at it:
+
+```text
+VITE_PEER_SERVER_HOST=your-peer-server.example.com
+VITE_PEER_SERVER_PORT=443
+VITE_PEER_SERVER_PATH=/
+```
+
+This separates static/API hosting from the persistent signaling service and works with both Vercel and Railway deployments.
+
 ## Signaling server
 
 By default the client uses PeerJS Cloud. For a production deployment, set:
