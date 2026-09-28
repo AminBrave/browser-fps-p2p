@@ -15,13 +15,13 @@ import { BallisticsTracer } from '../../game/simulation/combat/BallisticsTracer.
 import { canReload, completeReload, shouldFire } from '../../game/simulation/combat/WeaponStateModel.js';
 
 export class WeaponSystem {
-  constructor({ physicsWorld, healthSystem = null, isAuthoritative = false, eventSink = null, impactSystem = null, presentation = null } = {}) {
+  constructor({ physicsWorld, healthSystem = null, isAuthoritative = false, eventSink = null, presentation = null } = {}) {
     this.physicsWorld = physicsWorld;
     this.healthSystem = healthSystem;
     this.isAuthoritative = isAuthoritative;
     this.eventSink = eventSink;
-    this.impactSystem = impactSystem;
     this.presentation = presentation;
+    this.presentationEvents = [];
     this.combatResolver = new CombatResolver();
     this.ballisticsTracer = new BallisticsTracer({
       castRay: (...args) => this.physicsWorld?.castRay?.(...args) || null,
@@ -36,6 +36,17 @@ export class WeaponSystem {
 
   _emit(event) {
     this.eventSink?.(event);
+  }
+
+  _emitPresentation(event) {
+    this.presentationEvents.push(Object.freeze(event));
+  }
+
+  drainPresentationEvents() {
+    if (!this.presentationEvents.length) return [];
+    const events = this.presentationEvents;
+    this.presentationEvents = [];
+    return events;
   }
 
   _getMuzzleWorldPosition(entity) {
@@ -101,7 +112,7 @@ export class WeaponSystem {
         if (now - weapon.reloadStartTime >= (weapon.reloadTimeMs || 1600)) {
           this._completeReload(weapon);
           weapon.justReloaded = true;
-          if (player.isLocal) this.presentation?.onReloadEnd?.();
+          this._emitPresentation({ type: 'reloadEnd' });
           this._emit({
             type: EVENT_TYPES.SFX,
             sfx: 'reloadEnd',
@@ -123,9 +134,7 @@ export class WeaponSystem {
           weapon.isReloading = true;
           weapon.reloadStartTime = now;
           weapon.justStartedReload = true;
-          if (player.isLocal) {
-            this.presentation?.onReloadStart?.();
-          }
+          this._emitPresentation({ type: 'reloadStart' });
           this._emit({
             type: EVENT_TYPES.SFX,
             sfx: 'reloadStart',
@@ -141,7 +150,7 @@ export class WeaponSystem {
 
         if (shouldFireNow) {
           if (mag > 0) this._fireShot(ecsWorld, entity, now);
-          else if (player.isLocal && shootPressed) this.presentation?.onEmptyClick?.();
+          else if (player.isLocal && shootPressed) this._emitPresentation({ type: 'emptyClick' });
         }
       }
     }
@@ -152,9 +161,7 @@ export class WeaponSystem {
     const slots = entity.loadout.slots;
     if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= slots.length) return false;
     if (entity.loadout.active === slotIndex) {
-      if (entity.player?.isLocal) {
-        this.presentation?.setWeaponType?.(entity.weapon.typeId);
-      }
+      this._emitPresentation({ type: 'weaponType', playerId: entity.player?.id ?? null, typeId: entity.weapon.typeId });
       return false;
     }
 
@@ -169,10 +176,7 @@ export class WeaponSystem {
     entity.weapon.currentSpread = 0;
     entity.weapon.shootHeldPrev = false;
 
-    if (entity.player?.isLocal) {
-      this.presentation?.setWeaponType?.(entity.weapon.typeId);
-    }
-    entity.character?.setWeaponType?.(entity.weapon.typeId);
+    this._emitPresentation({ type: 'weaponType', playerId: entity.player?.id ?? null, typeId: entity.weapon.typeId });
     return true;
   }
 
@@ -236,7 +240,11 @@ export class WeaponSystem {
     weapon.justFired = true;
 
     if (player.isLocal) {
-      this.presentation?.onWeaponFired?.(0.1 + (weapon.recoilPitch || 0) * 2, weapon.sfx || 'pistol');
+      this._emitPresentation({
+        type: 'weaponFired',
+        recoil: 0.1 + (weapon.recoilPitch || 0) * 2,
+        sfx: weapon.sfx || 'pistol',
+      });
     }
 
     const pelletCount = Math.max(1, weapon.pelletCount || 1);
@@ -310,7 +318,7 @@ export class WeaponSystem {
             sequence: p * 32 + (trace.impacts || []).length * 2 + 7,
           });
         }
-        if (player.isLocal && p === 0) this.presentation?.onImpact?.();
+        if (player.isLocal && p === 0) this._emitPresentation({ type: 'impact' });
       }
 
       if (this.isAuthoritative && this.healthSystem && hitEntity?.player && !hitEntity.player.isDead) {
@@ -341,7 +349,7 @@ export class WeaponSystem {
           targetId: hitEntity.player.id,
           position: endPos,
         });
-        if (player.isLocal && p === 0) this.presentation?.onHit?.();
+        if (player.isLocal && p === 0) this._emitPresentation({ type: 'hit' });
       }
     }
 
