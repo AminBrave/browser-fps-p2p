@@ -20,7 +20,7 @@ import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.j
 import { CircularBuffer } from './utils/CircularBuffer.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
-import { createBullet, createBloodImpact, disposeImpactDecals, updatePlayerImpactMarksForHealth } from './presentation/impact/ImpactEffects.js';
+import { createBullet } from './presentation/impact/ImpactEffects.js';
 import { ImpactSystem } from './presentation/impact/ImpactSystem.js';
 import { PresentationEffectStore } from './presentation/effects/PresentationEffectStore.js';
 import { createImpactSeed } from './game/simulation/combat/ImpactSeed.js';
@@ -34,7 +34,7 @@ export class ClientGame {
     this.physicsWorld = new PhysicsWorld();
     this.sceneManager = new SceneManager(this.container);
     this.effectStore = new PresentationEffectStore();
-    this.impactSystem = new ImpactSystem(this.ecsWorld, this.sceneManager);
+    this.impactSystem = new ImpactSystem(this.effectStore, this.sceneManager);
     this.presentationColliderRegistry = new PresentationColliderRegistry();
     this.peerManager = new PeerManager();
     this.networkTransport = new PeerTransport(this.peerManager);
@@ -193,7 +193,7 @@ export class ClientGame {
     for (const entity of this.ecsWorld.with('player')) {
       const health = Math.max(0, Number(entity.player?.health) || 0);
       const maxHealth = Math.max(1, Number(entity.player?.maxHealth) || GAME_CONFIG.MAX_HEALTH || 100);
-      updatePlayerImpactMarksForHealth(this.ecsWorld, entity, health, maxHealth);
+      this.impactSystem?.updatePlayerImpactMarksForHealth?.(entity.player?.id ?? entity, health, maxHealth);
     }
 
     const inputPayload = this.inputSystem.sample(this.ecsWorld, this.localEntity);
@@ -391,14 +391,7 @@ export class ClientGame {
           target?.character?.parts?.torso ||
           null;
         if (targetMesh) {
-          createBloodImpact(
-            this.ecsWorld,
-            this.sceneManager,
-            end,
-            event.normal,
-            targetMesh,
-            target
-          );
+          this.impactSystem?.spawnBloodImpact?.({ position: end, normal: event.normal, targetMesh, targetEntity: target });
         }
       } else if (event.hit) {
         this.impactSystem?.spawnSurfaceImpact({
@@ -591,7 +584,6 @@ export class ClientGame {
     this.hud.dispose();
     this.impactSystem?.dispose();
     this.effectStore?.dispose();
-    disposeImpactDecals(this.ecsWorld);
     this.presentationColliderRegistry.clear();
     this.sceneManager.dispose();
     this.physicsWorld.dispose();
