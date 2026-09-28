@@ -3,6 +3,7 @@ import { GAME_CONFIG, WORLD_CONFIG, PHYSICS_CONFIG, STANCE } from '../config/ind
 import { ColliderRegistry } from './ColliderRegistry.js';
 import { PhysicsQueries } from './PhysicsQueries.js';
 import { CharacterPhysics } from './CharacterPhysics.js';
+import { StaticPhysics } from './StaticPhysics.js';
 
 export class PhysicsWorld {
   constructor() {
@@ -11,6 +12,7 @@ export class PhysicsWorld {
     this.colliderRegistry = new ColliderRegistry();
     this.queries = new PhysicsQueries(() => this.world, this.colliderRegistry);
     this.characterPhysics = new CharacterPhysics(() => this.world);
+    this.staticPhysics = new StaticPhysics(() => this.world);
   }
 
   async init() {
@@ -52,73 +54,22 @@ export class PhysicsWorld {
     return this.characterPhysics.updatePlayerHitZones(physics, stance);
   }
 
-  createStaticBox(x, y, z, hx, hy, hz, rotationY = 0, renderTarget = null, materialType = null) {
-    return this.createStaticCompound(
-      x, y, z,
-      [{ desc: RAPIER.ColliderDesc.cuboid(hx, hy, hz), renderTarget, materialType }],
-      rotationY
-    );
+  createStaticBox(...args) {
+    return this.staticPhysics.createStaticBox(...args);
   }
 
-  createStaticCompound(x, y, z, parts, rotationY = 0) {
-    if (!this.world) throw new Error('Physics world is not initialized');
-    if (!parts?.length) throw new Error('Static compound requires at least one part');
-
-    const body = this.world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(x, y, z)
-        .setRotation(this._yawQuaternion(rotationY))
-    );
-
-    const colliders = parts.map((part) => {
-      const desc = part.desc ? part.desc : new RAPIER.ColliderDesc(part.shape);
-      desc.setTranslation(part.position?.x ?? 0, part.position?.y ?? 0, part.position?.z ?? 0);
-      if (part.rotation) desc.setRotation(part.rotation);
-      return this.world.createCollider(desc, body);
-    });
-
-    return {
-      body,
-      collider: colliders[0],
-      colliders,
-      colliderTargets: parts.map((part) => part.renderTarget || null),
-      hitZones: parts.map((part) => part.hitZone || null),
-      colliderMaterials: parts.map((part) => part.materialType || null),
-    };
+  createStaticCompound(...args) {
+    return this.staticPhysics.createStaticCompound(...args);
   }
 
-  createStaticCone(x, y, z, radius, height, rotationY = 0, renderTarget = null, materialType = null) {
-    return this.createStaticCompound(
-      x, y, z,
-      [{ desc: RAPIER.ColliderDesc.cone(height / 2, radius), renderTarget, materialType }],
-      rotationY
-    );
+  createStaticCone(...args) {
+    return this.staticPhysics.createStaticCone(...args);
   }
 
-  createStaticCylinder(x, y, z, radius, height, rotationY = 0, renderTarget = null) {
-    return this.createStaticCompound(
-      x, y, z,
-      [{ desc: RAPIER.ColliderDesc.cylinder(height / 2, radius), renderTarget }],
-      rotationY
-    );
+  createStaticCylinder(...args) {
+    return this.staticPhysics.createStaticCylinder(...args);
   }
 
-  _yawQuaternion(rotationY = 0) {
-    return { x: 0, y: Math.sin(rotationY / 2), z: 0, w: Math.cos(rotationY / 2) };
-  }
-
-  createWorldSafetyFloor() {
-    const { WIDTH, LENGTH } = WORLD_CONFIG.MAP;
-    const { Y, THICKNESS } = WORLD_CONFIG.MAP.SAFETY_FLOOR;
-    return this.createStaticBox(0, Y - THICKNESS / 2, 0, WIDTH / 2, THICKNESS / 2, LENGTH / 2);
-  }
-
-  /**
-   * Validate a respawn point against the authoritative physics world.
-   * Render meshes are deliberately not used here: the collision world is the
-   * source of truth, so a spawn cannot place a player inside a crate, car,
-   * wall, mountain, or any other solid prop.
-   */
   isSpawnPositionSafe(ecsWorld, position, radius = GAME_CONFIG.PLAYER_RADIUS, height = GAME_CONFIG.PLAYER_HEIGHT, ignoreEntity = null) {
     if (!this.world || !position) return false;
 
