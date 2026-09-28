@@ -57,7 +57,7 @@ export class WeaponPresentation {
         this.onHit();
         break;
       case 'weaponType': {
-        this.setWeaponType(event.typeId);
+        if (event.isLocal) this.setWeaponType(event.typeId);
         const entity = ecsWorld?.with?.('player')?.find?.(
           (candidate) => candidate.player?.id === event.playerId
         );
