@@ -33,8 +33,7 @@ export function applyFpsMovement(inputMask, yaw, velocity, isGrounded, dt, stanc
     dt,
     stance,
     inputFlags: INPUT_FLAGS,
-    movementConfig: MOVEMENT_CONFIG,
-    hasFlag,
+    movementConfig: MOVEMENT_CONFIG
   });
 }
 
