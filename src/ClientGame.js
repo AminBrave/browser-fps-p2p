@@ -13,7 +13,7 @@ import { InputSystem } from './ecs/systems/InputSystem.js';
 import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
 import { WeaponPresentation } from './presentation/weapon/WeaponPresentation.js';
 import { PresentationColliderRegistry } from './presentation/world/PresentationColliderRegistry.js';
-import { RenderSystem } from './ecs/systems/RenderSystem.js';
+import { RenderSystem } from './presentation/render/RenderSystem.js';
 import { ClientPredictSystem } from './ecs/systems/network/ClientPredictSystem.js';
 import { ClientReconcileSystem } from './ecs/systems/network/ClientReconcileSystem.js';
 import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.js';
