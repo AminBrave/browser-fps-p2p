@@ -45,6 +45,15 @@ Clients may submit input intent, but they cannot submit authoritative transforms
 
 Tests cover the pure input validation boundary. End-to-end network behavior still requires local browser testing with host/client peers.
 
+## Reconciliation correction
+
+`ClientReconcileSystem` now distinguishes two different errors:
+
+1. authoritative-vs-predicted-at-ACK, used to decide whether a correction is necessary;
+2. predicted-current-vs-corrected-current, used for the renderer's visual smoothing offset.
+
+These must not be conflated: the first is a historical simulation comparison, while the second preserves the player's current prediction when the server correction is applied.
+
 ## Remaining Phase 2 work
 
 - separate transport from protocol encoding;
