@@ -20,7 +20,7 @@ test('render and impact systems live in presentation', () => {
 });
 
 test('presentation impact code is the only owner of Three.js impact construction', () => {
-  assert.match(read('src/presentation/impact/ImpactEffects.js'), /from ['"]three['"]/);
+  assert.match(read('src/presentation/effects/TracerEffects.js'), /from ['"]three['"]/);
   assert.match(read('src/presentation/impact/ImpactSystem.js'), /from ['"]three['"]/);
   assert.doesNotMatch(read('src/ecs/entities/PlayerEntityAssembler.js'), /from ['"]three['"]/);
   assert.doesNotMatch(read('src/ecs/entities/MapEntityAssembler.js'), /from ['"]three['"]/);
