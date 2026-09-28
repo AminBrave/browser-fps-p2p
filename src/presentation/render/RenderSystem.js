@@ -116,7 +116,7 @@ export class RenderSystem {
       const renderMesh = entity.renderMesh;
 
       if (!transform || !renderMesh?.mesh) continue;
-            if (entity.player?.isLocal) {
+      if (entity.player?.isLocal) {
         renderMesh.mesh.visible = false;
         continue;
       }
