@@ -260,9 +260,41 @@ See [docs/TESTING.md](docs/TESTING.md) for the testing rules.
 
 ## Production deployment
 
-The Railway production service builds the Vite frontend and runs `npm start`, which serves both the SPA and the `/api/ice` ICE configuration endpoint.
+The repository supports two frontend/API deployment targets:
 
-TURN is optional. For minimum external dependencies, run direct WebRTC + STUN only. For broader connectivity, configure your own TURN server with `TURN_URLS_JSON`, `TURN_USERNAME`, and `TURN_CREDENTIAL`. An external TURN provider can optionally be added with `TURN_CREDENTIAL_URL` and `TURN_API_KEY` as an additional fallback. Keep all TURN credentials server-side.
+- **Vercel:** Vite builds to `dist/`; `api/ice.js` and `api/health.js` run as Vercel Functions.
+- **Railway:** `npm start` builds/serves the SPA through `server.js` and exposes the same `/api/ice` endpoint.
+
+The browser networking layer is identical on both platforms.
+
+For minimum external dependencies, run direct WebRTC + STUN only. For broader connectivity, configure your own TURN server with `TURN_URLS_JSON`, `TURN_USERNAME`, and `TURN_CREDENTIAL`. An external TURN provider can optionally be added with `TURN_CREDENTIAL_URL` and `TURN_API_KEY` as an additional fallback. Keep TURN provider API keys server-side.
+
+### Recommended production topology
+
+For a deployment that works on either Vercel or Railway while minimizing third-party services:
+
+1. Host the game frontend/API on Vercel **or** Railway.
+2. Run the included `peer-server.js` on one persistent Node host such as Railway.
+3. Point the frontend at that PeerServer with `VITE_PEER_SERVER_HOST`, `VITE_PEER_SERVER_PORT`, and `VITE_PEER_SERVER_PATH`.
+4. Add self-hosted TURN only when your connectivity testing shows that direct/STUN is insufficient.
+
+The PeerServer is signaling only. Game data still uses the browser-to-browser WebRTC data channel, while TURN is used only when ICE selects a relay candidate.
+
+### Vercel
+
+Use the repository root as the project root. The checked-in `vercel.json` sets:
+
+- build command: `npm run build`
+- output directory: `dist`
+- framework: Vite
+
+No TURN variables are required for direct/STUN operation. If you configure TURN, use the server-side variables documented in [docs/NETWORKING.md](docs/NETWORKING.md). Do not prefix TURN secrets with `VITE_`.
+
+### Railway
+
+The production start command is `npm start`. Railway provides `PORT` to `server.js`.
+
+If you want Railway to host only the signaling service, create a second Railway service from the same repository and set its start command to `npm run start:peer`. The included `peer-server.js` reads `PORT` and `PEER_SERVER_PATH`, and is designed to sit behind Railway's HTTPS proxy.
 
 ## Production networking
 
