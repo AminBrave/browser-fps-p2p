@@ -607,6 +607,19 @@ export class WeaponSystem {
         hitEntityId: hitEntity?.player?.id ?? null,
         hitZone: hitZone || null,
         normal: hitNormal,
+        direction: dir,
+        material: hitEntity?.player
+          ? null
+          : (hit?.material || this.physicsWorld?.getProjectileMaterial?.(hit) || null),
+        impactSeed: hitEntity?.player
+          ? null
+          : createImpactSeed({
+              shooterId: player.id,
+              weaponId: weapon.typeId ?? 1,
+              position: endPos,
+              material: hit?.material || this.physicsWorld?.getProjectileMaterial?.(hit) || 'default',
+              sequence: p * 32 + (trace.impacts || []).length * 2 + 7,
+            }),
         distance: trace.distance,
         muzzleVelocity,
         ballisticDrop: 0.5 * (Number(GAME_CONFIG.GRAVITY) || -19.62) * Math.pow(trace.distance / muzzleVelocity, 2),
