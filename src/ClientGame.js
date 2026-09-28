@@ -116,7 +116,7 @@ export class ClientGame {
     // Rebuild simulation timing/buffers from the host's authoritative
     // configuration before constructing any prediction/reconciliation system.
     this.fixedDeltaTime =
-      1 / (NETWORK_CONFIG.CLIENT_TICK_RATE || NETWORK_CONFIG.CLIENT_TICK_RATE || GAME_CONFIG.TICK_RATE || 60);
+      1 / (NETWORK_CONFIG.CLIENT_TICK_RATE || GAME_CONFIG.TICK_RATE || 60);
     this.pendingInputBuffer = new CircularBuffer(NETWORK_CONFIG.INPUT_HISTORY_SIZE);
     this.predictSystem = new ClientPredictSystem(
       this.physicsWorld,
@@ -324,9 +324,9 @@ export class ClientGame {
     const snapshot = Protocol.decodeWorldSnapshot(dataView);
     if (!snapshot) return;
 
-    if (this.interpolationSystem) this.interpolationSystem.addSnapshot(snapshot);
-
-    // Ordered delivery is expected, but discard stale packets defensively.
+    // Ordered delivery is expected, but discard stale packets defensively
+    // before they enter the render timeline. Otherwise an out-of-order packet
+    // can temporarily move the interpolation cursor backwards.
     const previousTick = this._latestSnapshot?.serverTick;
     const nextTick = Number(snapshot.serverTick) >>> 0;
     const newer =
@@ -336,6 +336,7 @@ export class ClientGame {
     if (newer) {
       this._pendingSnapshot = snapshot;
       this._latestSnapshot = snapshot;
+      this.interpolationSystem?.addSnapshot(snapshot);
     }
   }
 
