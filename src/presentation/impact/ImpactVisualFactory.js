@@ -167,6 +167,95 @@ const MATERIAL_PRESETS = Object.freeze({
   }),
 });
 
+function safeNormal(normal) {
+  const n = new THREE.Vector3(
+    Number(normal?.x) || 0,
+    Number(normal?.y) || 0,
+    Number(normal?.z) || 0
+  );
+  if (n.lengthSq() < 1e-8) return new THREE.Vector3(0, 1, 0);
+  return n.normalize();
+}
+
+function seededRandom(seed = 0) {
+  let state = (Number(seed) | 0) >>> 0;
+  return () => {
+    state = (Math.imul(state ^ (state >>> 16), 2246822519) + 3266489917) >>> 0;
+    state ^= state >>> 13;
+    return (state >>> 0) / 4294967296;
+  };
+}
+
+function basisFromNormal(normal) {
+  const n = safeNormal(normal);
+  const reference = Math.abs(n.y) < 0.9
+    ? new THREE.Vector3(0, 1, 0)
+    : new THREE.Vector3(1, 0, 0);
+  const tangent = new THREE.Vector3().crossVectors(reference, n).normalize();
+  const bitangent = new THREE.Vector3().crossVectors(n, tangent).normalize();
+  return { tangent, bitangent };
+}
+
+function makeMaterial(color, opacity = 1, additive = false) {
+  return new THREE.MeshBasicMaterial({
+    color,
+    transparent: opacity < 1,
+    opacity,
+    depthTest: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+}
+
+function addParticle(parent, type, position, direction, speed, size, color, life, gravity, drag, rng) {
+  let geometry;
+  let material;
+  if (type === 'smoke') {
+    geometry = new THREE.SphereGeometry(size, 6, 5);
+    material = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+    });
+  } else if (type === 'spark') {
+    geometry = new THREE.SphereGeometry(size, 5, 4);
+    material = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  } else if (type === 'shard' || type === 'splinter') {
+    geometry = new THREE.BoxGeometry(size * 0.45, size * 0.45, size * (type === 'shard' ? 1.8 : 2.6));
+    material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false });
+  } else {
+    geometry = new THREE.TetrahedronGeometry(size, 0);
+    material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false });
+  }
+  const particle = new THREE.Mesh(geometry, material);
+  particle.name = type;
+  particle.position.copy(position);
+  particle.userData.velocity = direction.clone().multiplyScalar(speed);
+  particle.userData.gravity = gravity;
+  particle.userData.drag = drag;
+  particle.userData.life = Math.max(0.05, life);
+  particle.userData.age = 0;
+  particle.userData.baseOpacity = material.opacity;
+  particle.userData.angularVelocity = new THREE.Vector3(
+    (rng() - 0.5) * 14,
+    (rng() - 0.5) * 14,
+    (rng() - 0.5) * 14
+  );
+  parent.add(particle);
+  return particle;
+}
+
 const MAX_ACTIVE = Math.max(32, Number(RENDER_CONFIG.MAX_IMPACT_REACTIONS) || 96);
 const MAX_PARTICLES_PER_IMPACT = Math.max(12, Number(RENDER_CONFIG.MAX_IMPACT_PARTICLES_PER_REACTION) || 28);
 
