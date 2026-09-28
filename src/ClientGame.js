@@ -21,7 +21,8 @@ import { CircularBuffer } from './utils/CircularBuffer.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
 import { createBullet, createBloodImpact, disposeImpactDecals, updatePlayerImpactMarksForHealth } from './presentation/impact/ImpactEffects.js';
-import { ImpactSystem, createImpactSeed } from './presentation/impact/ImpactSystem.js';
+import { ImpactSystem } from './presentation/impact/ImpactSystem.js';
+import { createImpactSeed } from './game/simulation/combat/ImpactSeed.js';
 import { applyWorldManifest } from './network/WorldSync.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
 
