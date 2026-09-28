@@ -63,3 +63,10 @@ This separates two high-churn concerns without changing character-controller beh
 `BallisticsTracer` owns projectile trajectory/penetration and receives physics queries through dependency injection. `CombatResolver` converts an authoritative player hit into a plain damage command using the pure damage model. `WeaponSystem` remains the orchestration layer for weapon state, presentation, shot events, and applying the resulting command through `HealthSystem`.
 
 The next migration target is to reduce `WeaponSystem`'s presentation responsibilities further; gameplay combat logic should remain independent of Three.js and audio.
+
+
+## Phase 5 — Health simulation boundary
+
+Health rules now live in `src/game/simulation/combat/HealthModel.js`. Damage application and regeneration calculations are pure functions; `HealthSystem` remains the ECS orchestration layer for death bookkeeping, kills, respawn, physics resets, impact-mark presentation, audio, and events.
+
+This preserves existing behavior while creating a testable simulation boundary. The next presentation-heavy combat target is weapon presentation/state coupling, not another large subsystem rewrite.
