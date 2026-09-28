@@ -136,7 +136,8 @@ export class ClientGame {
       this.localPlayerId,
       spawn,
       true,
-      false
+      false,
+      this.presentationColliderRegistry
     );
     this.playerEntities.push(this.localEntity);
     this.playerById.set(this.localEntity.player.id, this.localEntity);
@@ -458,7 +459,8 @@ export class ClientGame {
             z: remote.z ?? remote.position?.z ?? 0,
           },
           false,
-          false
+          false,
+          this.presentationColliderRegistry
         );
         entity.player.id = remoteId;
         entity.networkRole = 'remote';
