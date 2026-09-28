@@ -125,6 +125,15 @@ export class ClientReconcileSystem {
       return false;
     }
 
+    // Preserve the client's current predicted state before replacing it
+    // with the authoritative ACK state. This is the baseline for the visual
+    // correction after unacknowledged inputs are replayed.
+    const predictedCurrent = {
+      x: Number(transform.position.x) || 0,
+      y: Number(transform.position.y) || 0,
+      z: Number(transform.position.z) || 0,
+    };
+
     if (physics.velocity == null) {
       physics.velocity = { x: 0, y: 0, z: 0 };
     }
@@ -150,15 +159,6 @@ export class ClientReconcileSystem {
       transform.rotation.yaw = Number(authoritative.yaw ?? authoritative.rotation?.yaw ?? 0);
       transform.rotation.pitch = Number(authoritative.pitch ?? authoritative.rotation?.pitch ?? 0);
     }
-
-    // Preserve the client's current predicted state before replacing it with
-    // the authoritative ACK state. Visual correction is from that current
-    // state to the replayed corrected state, not from the ACK frame itself.
-    const predictedCurrent = {
-      x: Number(transform.position.x) || 0,
-      y: Number(transform.position.y) || 0,
-      z: Number(transform.position.z) || 0,
-    };
 
     // Replay only input sampled after the acknowledged server state.
     for (const frame of this.inputBuffer?.toArray?.() || []) {
