@@ -1,0 +1,8 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';
+import {URBAN_PROP_LIBRARY} from '../../src/game/world/UrbanPropDefinitions.js';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+test('map and player ECS modules remain rendering-independent',()=>{assert.doesNotMatch(read('src/game/world/createMap.js'),/from ['"]three['"]/);assert.doesNotMatch(read('src/ecs/entities/PlayerEntityAssembler.js'),/from ['"]three['"]/);assert.doesNotMatch(read('src/ecs/entities/UrbanPropAssembler.js'),/from ['"]three['"]/);assert.match(read('src/ecs/entities/UrbanPropAssembler.js'),/physicsWorld\.createPrimitiveCollider/)});
+test('world definitions remain independent of ECS physics and presentation',()=>{for(const f of ['src/game/world/MapDefinitions.js','src/game/world/UrbanPropDefinitions.js']){const s=read(f);assert.doesNotMatch(s,/from ['"]three['"]/);assert.doesNotMatch(s,/@dimforge\\/rapier3d-compat/);assert.doesNotMatch(s,/src\\/(ecs|physics|presentation)/)}});
+test('urban prop definitions use known gameplay materials',()=>{const materials=new Set(['concrete','darkConcrete','metal','galvanized','painted','yellow','wood','rubber','glass','red']);assert.ok(URBAN_PROP_LIBRARY.length);for(const spec of URBAN_PROP_LIBRARY){assert.equal(typeof spec.type,'string');for(const part of spec.parts)assert.ok(materials.has(part.material),'unknown material: '+part.material)}})
