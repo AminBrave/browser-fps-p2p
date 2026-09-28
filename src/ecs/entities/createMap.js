@@ -130,24 +130,17 @@ function addStreetLight(ecsWorld, physicsWorld, sceneManager, mapEntities, place
 function addDumpster(ecsWorld, physicsWorld, sceneManager, mapEntities, placement) {
   const size = WORLD_CONFIG.OBJECTS.DUMPSTER.SIZE;
   const safe = clampToIsland(placement.x, placement.z, size.x/2, size.z/2);
-  const group = new THREE.Group();
-  group.position.set(safe.x, groundY(), safe.z);
-  const bodyMat = new THREE.MeshStandardMaterial({ color:0x3f5149, metalness:0.35, roughness:0.65 });
-  const lidMat = new THREE.MeshStandardMaterial({ color:0x26342f, metalness:0.45, roughness:0.55 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(size.x,size.y,size.z), bodyMat);
-  body.position.y=size.y/2; body.castShadow=true; body.receiveShadow=true; group.add(body);
-  const lid = new THREE.Mesh(new THREE.BoxGeometry(size.x+0.04,0.08,size.z+0.04),lidMat);
-  lid.position.set(0,size.y+0.04,0); lid.castShadow=true; group.add(lid);
-  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75,0.06,0.08),lidMat);
-  handle.position.set(0,size.y+0.12,size.z/2+0.04); group.add(handle);
-  const presentationTargets=[body,lid];
+  const view = new MapObjectView(sceneManager).dumpster({
+    position: { x: safe.x, y: groundY(), z: safe.z },
+  });
   const parts=[
     {desc:RAPIER.ColliderDesc.cuboid(size.x/2,size.y/2,size.z/2),position:{x:0,y:size.y/2,z:0},materialType:'metal'},
     {desc:RAPIER.ColliderDesc.cuboid((size.x+0.04)/2,0.04,(size.z+0.04)/2),position:{x:0,y:size.y+0.04,z:0},materialType:'metal'},
   ];
   const physics=physicsWorld.createStaticCompound(safe.x,groundY(),safe.z,parts);
-  addToScene(sceneManager,group);
-  return addSolidMapEntity(ecsWorld,physicsWorld,mapEntities,{position:{x:safe.x,y:groundY(),z:safe.z},physics,mesh:group,name:'dumpster',presentationTargets});
+  return addSolidMapEntity(ecsWorld,physicsWorld,mapEntities,{
+    position:{x:safe.x,y:groundY(),z:safe.z},physics,mesh:view.root,name:'dumpster',presentationTargets:view.targets
+  });
 }
 
 function addBoundaryWalls(ecsWorld, physicsWorld, sceneManager, mapEntities) {
