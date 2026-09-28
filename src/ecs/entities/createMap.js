@@ -571,7 +571,8 @@ export function createMap(ecsWorld, physicsWorld, sceneManager) {
     FLOOR_THICKNESS / 2,
     LENGTH / 2,
     0,
-    floorMesh
+    floorMesh,
+    'dirt'
   );
   floorMesh.position.y = groundY() - FLOOR_THICKNESS / 2;
   floorMesh.receiveShadow = true;
