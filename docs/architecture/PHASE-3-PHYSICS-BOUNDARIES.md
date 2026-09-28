@@ -56,3 +56,10 @@ This separates two high-churn concerns without changing character-controller beh
 ## Known limitation
 
 `PhysicsWorld` still contains character construction, static-body construction, spawn validation, and world lifecycle. Phase 3 is therefore intentionally incomplete after this first boundary extraction.
+
+
+## Phase 4 — Combat boundary
+
+`BallisticsTracer` owns projectile trajectory/penetration and receives physics queries through dependency injection. `CombatResolver` converts an authoritative player hit into a plain damage command using the pure damage model. `WeaponSystem` remains the orchestration layer for weapon state, presentation, shot events, and applying the resulting command through `HealthSystem`.
+
+The next migration target is to reduce `WeaponSystem`'s presentation responsibilities further; gameplay combat logic should remain independent of Three.js and audio.
