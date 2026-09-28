@@ -23,9 +23,11 @@ export class StaticPhysics {
       case 'cone':
         desc = RAPIER.ColliderDesc.cone(part.height / 2, part.radius);
         break;
-      default:
+      case 'sphere':
         desc = RAPIER.ColliderDesc.ball(part.radius);
         break;
+      default:
+        throw new TypeError(`Unsupported primitive collider kind: ${String(part.kind)}`);
     }
     desc.setTranslation(part.position?.x ?? 0, part.position?.y ?? 0, part.position?.z ?? 0);
     if (part.rotationQuaternion) desc.setRotation(part.rotationQuaternion);
