@@ -2,7 +2,11 @@ import * as THREE from 'three';
 import { RENDER_CONFIG } from '../../config/index.js';
 
 export class ImpactEffectAnimator {
-    _updateEffect(effect, dt, now) {
+  update(effect, dt, now) {
+    return this._updateEffect(effect, dt, now);
+  }
+
+  _updateEffect(effect, dt, now) {
     const root = effect?.root;
     if (!root) return false;
     const elapsed = Math.max(0, (now - effect.createdAt) / 1000);
