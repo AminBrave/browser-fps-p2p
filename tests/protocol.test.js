@@ -82,3 +82,10 @@ test('snapshot decoder produces plain protocol data', () => {
   assert.deepEqual(decoded.entities[0].position, { x: 1, y: 2, z: 3 });
   assert.deepEqual(decoded.entities[0].velocity, { x: 4, y: 5, z: 6 });
 });
+
+
+test('variable-length packets enforce transport size limits', () => {
+  const oversized = 'x'.repeat(1024 * 1024);
+  assert.throws(() => Protocol.encodeGameEvent({ oversized }), RangeError);
+  assert.throws(() => Protocol.encodeWorldInit({ oversized }), RangeError);
+});
