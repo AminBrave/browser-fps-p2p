@@ -112,7 +112,7 @@ export class WeaponSystem {
         if (now - weapon.reloadStartTime >= (weapon.reloadTimeMs || 1600)) {
           this._completeReload(weapon);
           weapon.justReloaded = true;
-          this._emitPresentation({ type: 'reloadEnd' });
+          if (player.isLocal) this._emitPresentation({ type: 'reloadEnd' });
           this._emit({
             type: EVENT_TYPES.SFX,
             sfx: 'reloadEnd',
@@ -134,7 +134,7 @@ export class WeaponSystem {
           weapon.isReloading = true;
           weapon.reloadStartTime = now;
           weapon.justStartedReload = true;
-          this._emitPresentation({ type: 'reloadStart' });
+          if (player.isLocal) this._emitPresentation({ type: 'reloadStart' });
           this._emit({
             type: EVENT_TYPES.SFX,
             sfx: 'reloadStart',
@@ -161,7 +161,7 @@ export class WeaponSystem {
     const slots = entity.loadout.slots;
     if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= slots.length) return false;
     if (entity.loadout.active === slotIndex) {
-      this._emitPresentation({ type: 'weaponType', playerId: entity.player?.id ?? null, typeId: entity.weapon.typeId });
+      this._emitPresentation({ type: 'weaponType', playerId: entity.player?.id ?? null, typeId: entity.weapon.typeId, isLocal: !!entity.player?.isLocal });
       return false;
     }
 
