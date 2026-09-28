@@ -4,7 +4,7 @@ import { NETWORK_CONFIG } from '../config/index.js';
  * Resolve ICE servers at runtime.
  *
  * TURN credentials are deployment configuration, not source-code constants.
- * The Vercel /api/ice endpoint returns a short-lived/provider-scoped ICE list.
+ * The deployment /api/ice endpoint returns a short-lived/provider-scoped ICE list.
  * Production builds fail fast when TURN is unavailable because STUN alone
  * cannot provide broad Internet NAT traversal.
  */
@@ -61,7 +61,7 @@ export async function resolveIceServers() {
     if (NETWORK_CONFIG.WEBRTC.REQUIRE_TURN_IN_PRODUCTION) {
       throw new Error(
         'Production TURN configuration is unavailable. ' +
-        'Configure METERED_TURN_CREDENTIAL_URL and METERED_TURN_API_KEY on Vercel. ' +
+        'Configure METERED_TURN_CREDENTIAL_URL and METERED_TURN_API_KEY on the deployment environment. ' +
         message
       );
     }
