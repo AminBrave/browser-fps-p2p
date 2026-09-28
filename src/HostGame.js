@@ -2,6 +2,7 @@ import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, INPUT_FLAGS, WORLD_
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
+import { PeerTransport } from './network/transport/PeerTransport.js';
 import { SceneManager } from './render/SceneManager.js';
 import { HUD } from './ui/HUD.js';
 import { createPlayer } from './ecs/entities/createPlayer.js';
@@ -28,6 +29,7 @@ export class HostGame {
     this.sceneManager = new SceneManager(this.container);
     this.impactSystem = new ImpactSystem(this.ecsWorld, this.sceneManager);
     this.peerManager = new PeerManager();
+    this.networkTransport = new PeerTransport(this.peerManager);
     this.hud = new HUD();
 
     this.localPlayerId = 'host-player';
@@ -60,7 +62,7 @@ export class HostGame {
       null,
       this.impactSystem
     );
-    this.hostNetworkSystem = new HostNetworkSystem(this.peerManager);
+    this.hostNetworkSystem = new HostNetworkSystem(this.networkTransport);
     this.hostNetworkSystem.setJoinHandler((peerId) => {
       const entity = this._ensureClientEntity(peerId);
       this._announceClientEntity(peerId, entity);
@@ -81,10 +83,10 @@ export class HostGame {
       true
     );
 
-    const hostRoomId = await this.peerManager.initHost();
+    const hostRoomId = await this.networkTransport.initializeHost();
     this.invitationCode = String(hostRoomId).toUpperCase();
-    this.peerManager.onConnect((id) => this._handleClientConnect(id));
-    this.peerManager.onDisconnect((id) => this._handleClientDisconnect(id));
+    this.networkTransport.onConnect((id) => this._handleClientConnect(id));
+    this.networkTransport.onDisconnect((id) => this._handleClientDisconnect(id));
 
     this.hud.setVisible(true);
 
@@ -104,7 +106,7 @@ export class HostGame {
     // also covers a connection that became open before the UI callback was
     // installed, eliminating the "client connected but host has no entity"
     // race.
-    for (const peerId of this.peerManager.connections.keys()) {
+    for (const peerId of this.networkTransport.getPeerIds()) {
       this._ensureClientEntity(peerId);
     }
 
@@ -223,12 +225,12 @@ export class HostGame {
   _announceClientEntity(id, entity) {
     if (!entity || this.announcedClients.has(id)) return;
 
-    const connection = this.peerManager.connections.get(id);
+    const connection = null;
     if (!connection?.open) return;
 
     // The world definition and spawn are sent once, before gameplay state.
-    this.peerManager.sendTo(id, Protocol.encodeWorldInit(createWorldManifest()));
-    this.peerManager.sendTo(
+    this.networkTransport.sendTo(id, Protocol.encodeWorldInit(createWorldManifest()));
+    this.networkTransport.sendTo(
       id,
       Protocol.encodeJoinAccept(
         entity.player?.id ?? 0,
@@ -317,7 +319,7 @@ export class HostGame {
     disposeImpactDecals(this.ecsWorld);
     this.sceneManager.dispose();
     this.physicsWorld.dispose();
-    this.peerManager.destroy();
+    this.networkTransport.destroy();
     this.clientEntities.clear();
     this.announcedClients.clear();
     window.removeEventListener('click', this._audioUnlockHandler);
