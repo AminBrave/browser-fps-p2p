@@ -1,4 +1,5 @@
 import { INPUT_FLAGS } from '../config/input.js';
+import { WEAPON_LOADOUT } from '../config/weapons.js';
 
 const KNOWN_INPUT_MASK =
   INPUT_FLAGS.FORWARD |
@@ -13,7 +14,7 @@ const KNOWN_INPUT_MASK =
   INPUT_FLAGS.SPRINT;
 
 const MAX_PITCH = (89 * Math.PI) / 180;
-const MAX_WEAPON_SLOT = 127;
+const MAX_WEAPON_SLOT = Math.max(-1, ...WEAPON_LOADOUT.map((weapon) => Number(weapon?.SLOT)).filter(Number.isInteger));
 
 function isFiniteNumber(value) {
   return typeof value === 'number' && Number.isFinite(value);
@@ -35,7 +36,7 @@ export function validateClientInput(input) {
   const weaponSlot = Number(input.weaponSlot);
 
   if (!Number.isInteger(sequence) || sequence < 0 || sequence > 0xffffffff) return null;
-  if (!Number.isInteger(inputMask) || inputMask < 0 || inputMask > KNOWN_INPUT_MASK) return null;
+  if (!Number.isInteger(inputMask) || inputMask < 0 || (inputMask & ~KNOWN_INPUT_MASK) !== 0) return null;
   if (!isFiniteNumber(yaw) || !isFiniteNumber(pitch)) return null;
   if (Math.abs(pitch) > MAX_PITCH) return null;
   if (!Number.isInteger(weaponSlot) || weaponSlot < -1 || weaponSlot > MAX_WEAPON_SLOT) return null;
