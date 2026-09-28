@@ -107,7 +107,7 @@ export class HealthSystem {
           player.respawnTimer = PLAYER_CONFIG.RESPAWN_TIME_MS || 3000;
           entity.physics?.rigidBody?.setLinvel?.({ x: 0, y: 0, z: 0 }, true);
           entity.physics?.rigidBody?.setAngvel?.({ x: 0, y: 0, z: 0 }, true);
-          this.presentation?.onDeath?.(entity);
+          this.presentation?.onDeath?.({ mesh: entity.renderMesh?.mesh, isLocal: !!player.isLocal });
           this.eventSink?.({
             type: EVENT_TYPES.SFX,
             sfx: 'death',
@@ -129,10 +129,10 @@ export class HealthSystem {
         // Keep impact visuals synchronized even while dead. The old logic only
         // updated living players, so a host-side target could respawn at 100 HP
         // while its old blood/bullet-hole decals remained visible.
-        this.presentation?.updateImpactMarks?.(ecsWorld, entity, health, maxHealth);
+        this.presentation?.updateImpactMarks?.(player.id, health, maxHealth);
 
         if (health >= maxHealth) {
-          this.presentation?.clearImpactMarks?.(ecsWorld, entity, 1);
+          this.presentation?.clearImpactMarks?.(player.id, 1);
         }
       }
 
@@ -155,12 +155,12 @@ export class HealthSystem {
           // This makes the visual state deterministic: every point of healing
           // immediately reduces impact visibility, regardless of frame rate or
           // how many marks exist.
-          this.presentation?.updateImpactMarks?.(ecsWorld, entity, player.health, maxHealth);
+          this.presentation?.updateImpactMarks?.(player.id, player.health, maxHealth);
 
           // Once fully healed, remove the mark entities to reclaim GPU/CPU
           // resources instead of keeping invisible decals alive.
           if (player.health >= maxHealth) {
-            this.presentation?.clearImpactMarks?.(ecsWorld, entity, 1);
+            this.presentation?.clearImpactMarks?.(player.id, 1);
             player.impactMarkClearAccumulator = 0;
           }
         }
@@ -185,7 +185,7 @@ export class HealthSystem {
 
       // Respawn is a hard visual reset: a full-health player must not carry
       // body impact decals from the previous life.
-      this.presentation?.clearImpactMarks?.(ecsWorld, entity, 1);
+      this.presentation?.clearImpactMarks?.(player.id, 1);
 
       transform.position.x = spawn.x;
       transform.position.y = spawn.y;
@@ -198,7 +198,7 @@ export class HealthSystem {
       physics?.rigidBody?.setTranslation?.(spawn, true);
       physics?.rigidBody?.setNextKinematicTranslation?.(spawn);
 
-      this.presentation?.onRespawn?.(entity, spawn);
+      this.presentation?.onRespawn?.({ mesh: entity.renderMesh?.mesh, pose: entity.character?.pose, isLocal: !!player.isLocal }, spawn);
 
       if (entity.weapon) {
         const activeSize = entity.weapon.magazineSize || DEFAULT_WEAPON.MAGAZINE_SIZE || 12;
