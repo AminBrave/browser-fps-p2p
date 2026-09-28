@@ -37,7 +37,10 @@ test('transport exposes network lifecycle without leaking connection objects', (
 
   assert.deepEqual(transport.initializeHost('ROOM'), ['host', 'ROOM']);
   assert.deepEqual(transport.initializeClient('HOST'), ['client', 'HOST']);
-  assert.deepEqual(transport.sendTo('A', new ArrayBuffer(1)), ['send', 'A', manager.sendTo('A', manager.sendTo('A', new ArrayBuffer(0)))[2]]);
+  const packet = new ArrayBuffer(1);
+  assert.deepEqual(transport.sendTo('A', packet), ['send', 'A', packet]);
+  assert.deepEqual(transport.sendToHost(packet), ['host-send', packet]);
+  assert.deepEqual(transport.broadcast(packet), ['broadcast', packet]);
 });
 
 test('transport forwards lifecycle callback registration and peer closure', () => {
