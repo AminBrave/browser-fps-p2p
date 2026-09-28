@@ -20,7 +20,9 @@ export class ColliderRegistry {
     const handle = this._handle(collider);
     this.entity.set(handle, entity);
     if (hitZone) this.hitZone.set(handle, hitZone);
+    else this.hitZone.delete(handle);
     if (materialType) this.material.set(handle, materialType);
+    else this.material.delete(handle);
   }
 
   unregister(collider) {
