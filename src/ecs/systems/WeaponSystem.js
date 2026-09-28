@@ -15,12 +15,11 @@ import { BallisticsTracer } from '../../game/simulation/combat/BallisticsTracer.
 import { canReload, completeReload, shouldFire } from '../../game/simulation/combat/WeaponStateModel.js';
 
 export class WeaponSystem {
-  constructor({ physicsWorld, healthSystem = null, isAuthoritative = false, eventSink = null, presentation = null } = {}) {
+  constructor({ physicsWorld, healthSystem = null, isAuthoritative = false, eventSink = null } = {}) {
     this.physicsWorld = physicsWorld;
     this.healthSystem = healthSystem;
     this.isAuthoritative = isAuthoritative;
     this.eventSink = eventSink;
-    this.presentation = presentation;
     this.presentationEvents = [];
     this.combatResolver = new CombatResolver();
     this.ballisticsTracer = new BallisticsTracer({
@@ -50,27 +49,16 @@ export class WeaponSystem {
   }
 
   _getMuzzleWorldPosition(entity) {
-    const player = entity.player;
     const transform = entity.transform;
     const input = entity.input;
-    if (player?.isLocal) {
-      const muzzle = this.presentation?.getMuzzleWorldPosition?.();
-      if (muzzle) return muzzle;
-    }
-
     const yaw = Number(input?.yaw ?? transform?.rotation?.yaw ?? 0);
     const stance = input?.stance ?? 0;
     const eyeOffset = stance === 2 ? 0.10 : stance === 1 ? 0.45 : 0.73;
     const forward = { x: -Math.sin(yaw), y: 0, z: -Math.cos(yaw) };
     const right = { x: Math.cos(yaw), y: 0, z: -Math.sin(yaw) };
-    const side = 0.22;
-    const forwardDistance = 0.48;
+    const side = 0.22, forwardDistance = 0.48;
     const y = (transform?.position?.y ?? 0) + eyeOffset - 0.55;
-    return {
-      x: (transform?.position?.x ?? 0) + right.x * side + forward.x * forwardDistance,
-      y,
-      z: (transform?.position?.z ?? 0) + right.z * side + forward.z * forwardDistance,
-    };
+    return { x: (transform?.position?.x ?? 0) + right.x * side + forward.x * forwardDistance, y, z: (transform?.position?.z ?? 0) + right.z * side + forward.z * forwardDistance };
   }
 
   update(ecsWorld, nowMs = performance.now(), dt = 1 / 60) {
@@ -161,7 +149,7 @@ export class WeaponSystem {
     const slots = entity.loadout.slots;
     if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= slots.length) return false;
     if (entity.loadout.active === slotIndex) {
-      this._emitPresentation({ type: 'weaponType', playerId: entity.player?.id ?? null, typeId: entity.weapon.typeId, isLocal: !!entity.player?.isLocal });
+      if (entity.player?.isLocal) this._emitPresentation({ type: 'weaponType', typeId: entity.weapon.typeId });
       return false;
     }
 
@@ -176,7 +164,7 @@ export class WeaponSystem {
     entity.weapon.currentSpread = 0;
     entity.weapon.shootHeldPrev = false;
 
-    this._emitPresentation({ type: 'weaponType', playerId: entity.player?.id ?? null, typeId: entity.weapon.typeId, isLocal: !!entity.player?.isLocal });
+    if (entity.player?.isLocal) this._emitPresentation({ type: 'weaponType', typeId: entity.weapon.typeId });
     return true;
   }
 
@@ -277,49 +265,18 @@ export class WeaponSystem {
         z: -dir.z,
       };
       const hitEntity = hit?.entity === entity ? null : (hit?.entity || null);
-      const hitRenderTarget = this.presentation?.getHitRenderTarget?.(hit, hitEntity) || null;
       const hitZone = hit?.hitZone || null;
-      const didHit = !!hit;
-
-      this.presentation?.createBullet?.(origin, endPos, trace.path);
-
-      this._emit(buildShotEvent({ shooterId: player.id, weapon, origin, end: endPos, hit, hitEntityId: hitEntity?.player?.id ?? null, hitZone, normal: hitNormal, direction: dir, trace, pelletIndex: p }));
-
-      // Presentation receives only plain trace data; WeaponSystem does not own VFX.
-      this.presentation?.spawnPenetrationImpacts?.({
-        shooterId: player.id,
-        weaponId: weapon.typeId ?? 1,
-        direction: dir,
-        impacts: trace.impacts || [],
-        sequenceBase: p * 32,
+      const shotEvent = buildShotEvent({
+        shooterId: player.id, weapon, origin, end: endPos, hit,
+        hitEntityId: hitEntity?.player?.id ?? null, hitZone, normal: hitNormal,
+        direction: dir, trace, pelletIndex: p,
       });
-
-      if (didHit) {
-        const isPlayerHit = !!hitEntity?.player;
-        if (isPlayerHit) {
-          this.presentation?.createBloodImpact?.(
-            ecsWorld, endPos, hitNormal, hitRenderTarget, hitEntity
-          );
-        } else {
-          const finalMaterial =
-            hit?.material ||
-            this.physicsWorld?.getProjectileMaterial?.(hit) ||
-            'default';
-          this.presentation?.spawnFinalImpact?.({
-            position: endPos,
-            normal: hitNormal,
-            material: finalMaterial,
-            direction: dir,
-            velocityBefore: trace.velocity || muzzleVelocity,
-            targetMesh: hitRenderTarget,
-            targetEntity: hitEntity,
-            shooterId: player.id,
-            weaponId: weapon.typeId ?? 1,
-            sequence: p * 32 + (trace.impacts || []).length * 2 + 7,
-          });
-        }
-        if (player.isLocal && p === 0) this._emitPresentation({ type: 'impact' });
-      }
+      this._emit(shotEvent);
+      this._emitPresentation({
+        type: 'shot',
+        shot: shotEvent,
+        hitColliderHandle: hit?.collider?.handle ?? null,
+      });
 
       if (this.isAuthoritative && this.healthSystem && hitEntity?.player && !hitEntity.player.isDead) {
         // Kinetic energy scales with v². The pure simulation model keeps
