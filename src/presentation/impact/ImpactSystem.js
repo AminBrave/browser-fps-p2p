@@ -2,8 +2,6 @@ import { RENDER_CONFIG } from '../../config/index.js';
 import { ImpactVisualFactory, disposeObject3D } from './ImpactVisualFactory.js';
 import { ImpactEffectAnimator } from './ImpactEffectAnimator.js';
 
-const MAX_ACTIVE = Math.max(32, Number(RENDER_CONFIG.MAX_IMPACT_REACTIONS) || 96);
-
 export class ImpactSystem {
   constructor(effectStore, sceneManager) {
     this.effectStore = effectStore;
@@ -58,7 +56,8 @@ export class ImpactSystem {
   }
 
   _trimContacts() {
-    while (this.contacts.length > MAX_ACTIVE) this.effectStore?.remove?.(this.contacts.shift()?.effect);
+    const maxActive = this.visualFactory?.maxActive || Math.max(32, Number(RENDER_CONFIG.MAX_IMPACT_REACTIONS) || 96);
+    while (this.contacts.length > maxActive) this.effectStore?.remove?.(this.contacts.shift()?.effect);
   }
 
   updatePlayerImpactMarksForHealth(playerId, health, maxHealth) {
