@@ -1,4 +1,4 @@
-import { createBullet, createBloodImpact } from '../../ecs/entities/createBullet.js';
+import { WeaponEffects } from './WeaponEffects.js';
 import { audio } from '../../audio/AudioManager.js';
 
 /**
@@ -6,9 +6,10 @@ import { audio } from '../../audio/AudioManager.js';
  * boundary instead of importing Three.js-facing factories or audio directly.
  */
 export class WeaponPresentation {
-  constructor({ sceneManager, renderSystem = null } = {}) {
+  constructor({ sceneManager, renderSystem = null, impactSystem = null } = {}) {
     this.sceneManager = sceneManager;
     this.renderSystem = renderSystem;
+    this.effects = new WeaponEffects({ sceneManager, impactSystem });
   }
 
   getMuzzleWorldPosition() {
@@ -34,11 +35,19 @@ export class WeaponPresentation {
   }
 
   onImpact() {
-    audio.playImpact?.();
+    this.effects.playImpactAudio();
   }
 
   onHit() {
-    audio.playHit?.();
+    this.effects.playHitAudio();
+  }
+
+  spawnPenetrationImpacts(args) {
+    return this.effects.spawnPenetrationImpacts(args);
+  }
+
+  spawnFinalImpact(args) {
+    return this.effects.spawnFinalImpact(args);
   }
 
   setWeaponType(typeId) {
@@ -46,17 +55,10 @@ export class WeaponPresentation {
   }
 
   createBullet(ecsWorld, origin, end, path) {
-    return createBullet(ecsWorld, this.sceneManager, origin, end, path);
+    return this.effects.createBullet(ecsWorld, origin, end, path);
   }
 
   createBloodImpact(ecsWorld, position, normal, renderTarget, entity) {
-    return createBloodImpact(
-      ecsWorld,
-      this.sceneManager,
-      position,
-      normal,
-      renderTarget,
-      entity
-    );
+    return this.effects.createBloodImpact(ecsWorld, position, normal, renderTarget, entity);
   }
 }
