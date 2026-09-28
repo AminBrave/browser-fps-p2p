@@ -2,6 +2,7 @@ import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, INPUT_FLAGS, WORLD_
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
+import { PeerTransport } from './network/transport/PeerTransport.js';
 import { SceneManager } from './render/SceneManager.js';
 import { HUD } from './ui/HUD.js';
 import { Protocol } from './network/Protocol.js';
@@ -30,6 +31,7 @@ export class ClientGame {
     this.sceneManager = new SceneManager(this.container);
     this.impactSystem = new ImpactSystem(this.ecsWorld, this.sceneManager);
     this.peerManager = new PeerManager();
+    this.networkTransport = new PeerTransport(this.peerManager);
     this.hud = new HUD();
 
     this.localPlayerId = null;
@@ -55,7 +57,7 @@ export class ClientGame {
 
     // Install the handler before opening the WebRTC connection. The host sends
     // the world manifest immediately when the connection opens.
-    this.peerManager.onData((_id, dataView) => this._handleServerPacket(dataView));
+    this.networkTransport.onData((_id, dataView) => this._handleServerPacket(dataView));
 
     this._audioUnlockHandler = () => audio.unlock();
     window.addEventListener('click', this._audioUnlockHandler);
@@ -75,14 +77,14 @@ export class ClientGame {
       null,
       this.impactSystem
     );
-    this.renderSystem.setEventSink((event) => this.peerManager.sendToHost(Protocol.encodeGameEvent(event)));
+    this.renderSystem.setEventSink((event) => this.networkTransport.sendToHost(Protocol.encodeGameEvent(event)));
 
-    this.localPlayerId = await this.peerManager.initializeClient(hostRoomId);
+    this.localPlayerId = await this.networkTransport.initializeClient(hostRoomId);
 
     // WebRTC transport establishment is not the same thing as admission to
     // the game. Explicitly request admission so the host can validate and
     // initialize the player before sending authoritative world state.
-    const joinSent = this.peerManager.sendToHost(Protocol.encodeJoinRequest());
+    const joinSent = this.networkTransport.sendToHost(Protocol.encodeJoinRequest());
     if (!joinSent) {
       throw new Error('WebRTC transport opened, but the join request could not be sent.');
     }
@@ -198,7 +200,7 @@ export class ClientGame {
     this.physicsWorld.step(dt);
     this.renderSystem.captureFixedState(this.localEntity);
 
-    this.peerManager.sendToHost(Protocol.encodeInput(inputPayload));
+    this.networkTransport.sendToHost(Protocol.encodeInput(inputPayload));
     this.weaponSystem.update(this.ecsWorld, performance.now(), dt);
   }
 
@@ -582,7 +584,7 @@ export class ClientGame {
     disposeImpactDecals(this.ecsWorld);
     this.sceneManager.dispose();
     this.physicsWorld.dispose();
-    this.peerManager.destroy();
+    this.networkTransport.destroy();
     this.pendingInputBuffer.clear();
     this.playerEntities.length = 0;
     this.playerById.clear();
