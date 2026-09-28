@@ -84,3 +84,10 @@ This intentionally extracts rules rather than creating a second weapon system. P
 Weapon rendering, audio, bullet visual creation, and blood-impact visual creation now live behind `WeaponPresentation`. `WeaponSystem` no longer imports the audio manager or Three.js-facing bullet factories and no longer stores a `RenderSystem` reference. The game application constructs the presentation adapter and injects it into the weapon system.
 
 The existing positional constructor arguments are retained temporarily for migration compatibility; the unused scene/render parameters should be removed once all callers are migrated to the explicit dependency boundary.
+
+
+## Phase 8 — Explicit weapon composition
+
+`WeaponSystem` now accepts a dependency object rather than positional constructor arguments. The system depends explicitly on physics, optional authoritative health, event output, impact presentation, and the weapon presentation adapter. Scene/render references and the legacy positional constructor compatibility layer have been removed.
+
+This makes composition errors visible at construction time and completes the weapon presentation dependency cleanup. The next target is the remaining orchestration inside `_fireShot()`: construct a plain shot result from simulation first, then route presentation/network/damage side effects from that result.
