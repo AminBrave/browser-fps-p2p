@@ -1,4 +1,4 @@
-import { createBullet, createBloodImpact } from '../../ecs/entities/createBullet.js';
+import { createBullet, createBloodImpact } from '../impact/ImpactEffects.js';
 import { createImpactSeed } from '../../game/simulation/combat/ImpactSeed.js';
 import { audio } from '../../audio/AudioManager.js';
 
