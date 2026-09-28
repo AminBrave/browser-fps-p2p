@@ -1,7 +1,11 @@
 // src/ecs/systems/network/ClientPredictSystem.js
 
 import { applyFpsMovement } from '../../../game/simulation/movement/FpsMovement.js';
-import { STANCE } from '../../../config/index.js';
+import {
+  STANCE,
+  INPUT_FLAGS,
+  PLAYER_CONFIG,
+} from '../../../config/index.js';
 
 /**
  * ClientPredictSystem (Client-Only)
@@ -43,14 +47,25 @@ export class ClientPredictSystem {
 
     if (!physComp.velocity) physComp.velocity = { x: 0, y: 0, z: 0 };
 
-    physComp.isGrounded = applyFpsMovement(
+    physComp.isGrounded = applyFpsMovement({
       inputMask,
       yaw,
-      physComp.velocity,
-      physComp.isGrounded,
+      velocity: physComp.velocity,
+      isGrounded: physComp.isGrounded,
       dt,
-      stance
-    );
+      stance,
+      inputFlags: INPUT_FLAGS,
+      movementConfig: {
+        speed: PLAYER_CONFIG.SPEED,
+        sprintMultiplier: PLAYER_CONFIG.SPRINT_MULTIPLIER,
+        jumpForce: PLAYER_CONFIG.JUMP_FORCE,
+        gravity: PLAYER_CONFIG.GRAVITY,
+        stanceStand: STANCE.STAND,
+        stanceCrouch: STANCE.CROUCH,
+        stanceProne: STANCE.PRONE,
+        speedMultipliers: PLAYER_CONFIG.SPEED_MULTIPLIERS,
+      },
+    });
 
     const movementDelta = {
       x: physComp.velocity.x * dt,
