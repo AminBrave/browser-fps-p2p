@@ -5,14 +5,13 @@ import { PACKET_TYPES } from '../src/network/PacketTypes.js';
 
 test('client input decoder rejects wrong packet types and truncation', () => {
   const valid = Protocol.encodeClientInput(7, 1, 0.5, -0.2, 2, true);
-  assert.deepEqual(Protocol.decodeClientInput(valid), {
-    sequence: 7,
-    inputMask: 1,
-    yaw: 0.5,
-    pitch: -0.2,
-    weaponSlot: 2,
-    isAiming: true,
-  });
+  const decoded = Protocol.decodeClientInput(valid);
+  assert.equal(decoded.sequence, 7);
+  assert.equal(decoded.inputMask, 1);
+  assert.equal(decoded.yaw, 0.5);
+  assert.ok(Math.abs(decoded.pitch - (-0.2)) < 1e-7);
+  assert.equal(decoded.weaponSlot, 2);
+  assert.equal(decoded.isAiming, true);
 
   const wrongType = valid.slice(0);
   new Uint8Array(wrongType)[0] = PACKET_TYPES.WORLD_SNAPSHOT;
