@@ -21,6 +21,7 @@ import { audio } from './audio/AudioManager.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
 import { disposeImpactDecals } from './presentation/impact/ImpactEffects.js';
 import { ImpactSystem } from './presentation/impact/ImpactSystem.js';
+import { PresentationEffectStore } from './presentation/effects/PresentationEffectStore.js';
 import { Protocol } from './network/Protocol.js';
 import { createWorldManifest } from './network/WorldSync.js';
 
@@ -30,6 +31,7 @@ export class HostGame {
     this.ecsWorld = new World();
     this.physicsWorld = new PhysicsWorld();
     this.sceneManager = new SceneManager(this.container);
+    this.effectStore = new PresentationEffectStore();
     this.impactSystem = new ImpactSystem(this.ecsWorld, this.sceneManager);
     this.presentationColliderRegistry = new PresentationColliderRegistry();
     this.peerManager = new PeerManager();
@@ -63,7 +65,7 @@ export class HostGame {
       isAuthoritative: true,
       eventSink: null,
       impactSystem: this.impactSystem,
-      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem, colliderRegistry: this.presentationColliderRegistry })
+      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem, colliderRegistry: this.presentationColliderRegistry, effectStore: this.effectStore })
     });
     this.hostNetworkSystem = new HostNetworkSystem(this.networkTransport);
     this.hostNetworkSystem.setJoinHandler((peerId) => {
@@ -128,6 +130,7 @@ export class HostGame {
 
   _render(dt, now) {
     this.renderSystem.update(this.ecsWorld, this.localEntity, now);
+    this.effectStore.update(dt, now);
     this.sceneManager.render();
     this._updateHUD();
 
@@ -321,6 +324,7 @@ export class HostGame {
     this.renderSystem?.dispose();
     this.hud.dispose();
     this.impactSystem?.dispose();
+    this.effectStore?.dispose();
     disposeImpactDecals(this.ecsWorld);
     this.presentationColliderRegistry.clear();
     this.sceneManager.dispose();
