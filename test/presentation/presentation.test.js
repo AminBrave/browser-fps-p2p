@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';
+import {PresentationColliderRegistry} from '../../src/presentation/world/PresentationColliderRegistry.js';
+import {PresentationEffectStore} from '../../src/presentation/effects/PresentationEffectStore.js';
+import {WeaponPresentation} from '../../src/presentation/weapon/WeaponPresentation.js';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+test('presentation collider registry uses stable handles and clears bindings',()=>{const r=new PresentationColliderRegistry(),m={name:'impact-target'};r.register({handle:42},m);assert.equal(r.getTarget({handle:42}),m);r.unregister({handle:42});assert.equal(r.getTarget({handle:42}),null);r.register({handle:1},{});r.clear();assert.equal(r.getTarget({handle:1}),null)});
+test('presentation effects have bounded lifecycle and dispose exactly once',()=>{const s=new PresentationEffectStore();let disposed=0,updates=0;const e=s.add({durationMs:100,update:()=>updates++,dispose:()=>disposed++});s.update(.016,e.createdAt+50);assert.equal(updates,1);s.update(.016,e.createdAt+101);assert.equal(s.size,0);assert.equal(disposed,1);assert.equal(s.remove(e),false)});
+test('weapon presentation forwards viewmodel operations',()=>{const calls=[],p=new WeaponPresentation({sceneManager:{},renderSystem:{weaponViewModel:{getMuzzleWorldPosition:()=>({x:1,y:2,z:3}),onFired:v=>calls.push(['fired',v]),onReloadStart:()=>calls.push(['reload']),setWeaponType:id=>calls.push(['weapon',id])}}});assert.deepEqual(p.getMuzzleWorldPosition(),{x:1,y:2,z:3});p.onWeaponFired(.2);p.onReloadStart();p.setWeaponType(3);assert.deepEqual(calls,[['fired',.2],['reload'],['weapon',3]])});
+test('rendering and impact ownership boundaries remain intact',()=>{assert.equal(fs.existsSync(path.join(root,'src/presentation/render/RenderSystem.js')),true);assert.equal(fs.existsSync(path.join(root,'src/presentation/impact/ImpactSystem.js')),true);assert.equal(fs.existsSync(path.join(root,'src/ecs/systems/RenderSystem.js')),false);assert.doesNotMatch(read('src/ecs/systems/WeaponSystem.js'),/this\.presentation\b/);assert.match(read('src/presentation/weapon/WeaponPresentation.js'),/handleEvent\(event/)})
