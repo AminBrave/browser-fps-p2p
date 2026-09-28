@@ -35,8 +35,6 @@ const MOVEMENT_CONFIG = Object.freeze({
   stanceProne: STANCE.PRONE,
 });
 
-const hasFlag = (mask, flag) => (mask & flag) !== 0;
-
 const simulate = (inputMask, options = {}) => {
   const velocity = { x: 0, y: 0, z: 0 };
   const grounded = applyFpsMovement({
@@ -47,7 +45,7 @@ const simulate = (inputMask, options = {}) => {
     dt: options.dt ?? 1 / 60,
     stance: options.stance ?? STANCE.STAND,
     inputFlags: INPUT_FLAGS,
-    movementConfig: MOVEMENT_CONFIG
+    movementConfig: MOVEMENT_CONFIG,
   });
   return { velocity, grounded };
 };
