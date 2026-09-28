@@ -51,7 +51,7 @@ test('shot damage combines falloff, hit zone, velocity and penetration', () => {
     penetrated: 1,
   });
 
-  assert.equal(damage, 34.56);
+  assert.ok(Math.abs(damage - 34.56) < 1e-12);
 });
 
 test('terminal velocity cannot increase damage above muzzle velocity', () => {
