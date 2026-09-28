@@ -64,6 +64,13 @@ function addSolidMapEntity(
     physicsWorld.registerColliderEntity(collider, entity, null, null, 'default');
   }
 
+  const presentationBindings = mapEntities.presentationColliderRegistry;
+  const physicsColliders = physics.colliders || [physics.collider];
+  for (let i = 0; i < physicsColliders.length; i++) {
+    const target = physics.colliderTargets?.[i] || null;
+    if (target) presentationBindings?.register(physicsColliders[i], target);
+  }
+
   mapEntities.push(entity);
   return entity;
 }
@@ -550,8 +557,9 @@ function addPath(ecsWorld, physicsWorld, sceneManager, mapEntities) {
   }
 }
 
-export function createMap(ecsWorld, physicsWorld, sceneManager) {
+export function createMap(ecsWorld, physicsWorld, sceneManager, presentationColliderRegistry = null) {
   const mapEntities = [];
+  mapEntities.presentationColliderRegistry = presentationColliderRegistry;
   const { WIDTH, LENGTH, FLOOR_THICKNESS } = WORLD_CONFIG.MAP;
 
   // Build the render surface before constructing the collider so the
