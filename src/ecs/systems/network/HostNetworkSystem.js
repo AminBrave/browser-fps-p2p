@@ -21,7 +21,7 @@ export class HostNetworkSystem {
     this.lastReceivedSequence = new Map();
     this.lastProcessedSequence = new Map();
     this.incomingGameEvents = new Map();
-    this.maxGameEventsPerPeer = 32;
+    this.maxGameEventsPerPeer = NETWORK_CONFIG.MAX_GAME_EVENT_QUEUE;
     this.serverTick = 0;
     this.lastBroadcastTime = 0;
     this.broadcastIntervalMs = 1000 / Math.max(1, NETWORK_CONFIG.SNAPSHOT_BROADCAST_RATE);
