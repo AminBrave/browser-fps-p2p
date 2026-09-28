@@ -151,7 +151,7 @@ Browser / UI
 | ECS | Miniplex |
 | Networking | PeerJS / WebRTC DataChannels |
 | Testing | Node.js built-in test runner |
-| Deployment | Vercel-compatible frontend/API |
+| Deployment | Railway (SPA + runtime API) |
 | ICE/TURN | Runtime-configured ICE provider |
 
 ## Project structure
@@ -257,6 +257,10 @@ Tests are organized by architectural responsibility rather than browser screen:
 - cross-module architecture/determinism invariants.
 
 See [docs/TESTING.md](docs/TESTING.md) for the testing rules.
+
+## Production deployment
+
+The Railway production service builds the Vite frontend and runs `npm start`, which serves both the SPA and the server-side `/api/ice` TURN configuration endpoint. Set `METERED_TURN_CREDENTIAL_URL` and `METERED_TURN_API_KEY` as Railway service variables; these remain server-side.
 
 ## Production networking
 
