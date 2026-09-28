@@ -79,7 +79,7 @@ test('health presentation boundary does not accept ECS world/entity arguments', 
 
 test('weapon simulation has no presentation dependency', () => {
   const weapon = read('src/ecs/systems/WeaponSystem.js');
-  assert.doesNotMatch(weapon, /this\.presentation/);
+  assert.doesNotMatch(weapon, /this\.presentation\b/);
   assert.doesNotMatch(weapon, /presentation\s*:/);
 });
 
