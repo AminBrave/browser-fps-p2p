@@ -1,116 +1,318 @@
 # P2P Browser FPS Arena
 
-A browser-native multiplayer FPS using **WebRTC P2P** (PeerJS), **Rapier3D** physics, **Three.js** rendering, and a **Miniplex ECS** game loop.
+A browser-native multiplayer FPS built around **authoritative host simulation**, **WebRTC peer-to-peer networking**, deterministic game rules, Rapier physics, Three.js rendering, and a modular presentation layer.
+
+**Current architecture version: 2.0.0**  
+**Development branch: `architecture-overhaul`**
+
+## Overview
+
+P2P Browser FPS Arena is a listen-host multiplayer FPS:
+
+- one player hosts the authoritative simulation;
+- other players connect directly over WebRTC;
+- clients predict their own movement and reconcile against authoritative snapshots;
+- remote players are interpolated;
+- gameplay rules are separated from rendering and browser-specific systems;
+- physics, networking, simulation, and presentation communicate through explicit boundaries.
+
+The project is designed so the core gameplay rules can be tested in Node without starting a browser, Three.js scene, or live WebRTC session.
 
 ## Features
 
-- **Listen-host P2P** — no dedicated game server; host runs the authoritative simulation
-- **Hitscan combat** — muzzle-origin rays, first-shot accuracy, progressive bloom on full-auto
-- **4 weapons** — Pistol, SMG, Shotgun, Rifle with distinct meshes, rates, SFX, and handling
-- **Stances** — stand / crouch / prone with speed and camera height changes
-- **Movement sway** — bob and micro-shake affect weapon viewmodel and accuracy while moving
-- **World** — sunny outdoor map, trees, cars, mountains, crates; boundary walls; permanent bullet holes (max 100)
-- **Netcode** — client prediction, reconciliation, interpolation, binary snapshots
-- **Audio** — procedural SFX for fire, reload, footsteps, impacts, etc.
+### Multiplayer
 
-## Tech stack
+- WebRTC P2P networking through PeerJS.
+- Listen-host authoritative simulation.
+- Explicit join/admission handshake.
+- Binary game protocol.
+- Client-side movement prediction.
+- Server reconciliation.
+- Remote-player snapshot interpolation.
+- Per-client input acknowledgement.
+- Bounded network queues and stale-input rejection.
+- Transport lifecycle/error handling and deterministic shutdown.
 
-| Layer | Choice |
-|--------|--------|
-| ECS | Miniplex |
-| Physics | `@dimforge/rapier3d-compat` |
-| Graphics | Three.js |
-| Network | PeerJS / WebRTC DataChannels |
+### Combat
+
+- Four weapons: pistol, SMG, shotgun, and rifle.
+- Weapon-specific fire rate, recoil, spread, ammo, reload, and presentation behavior.
+- Muzzle-origin bullet tracing aligned toward the crosshair target.
+- Shared accuracy model used by both gameplay dispersion and crosshair presentation.
+- Accuracy changes with stance, movement, sprinting, and ADS.
+- Ballistic drop and distance-aware damage.
+- Projectile drag and material penetration.
+- Residual penetration damage loss.
+- Material-aware projectile collisions.
+- Authoritative entry/exit impact surfaces and penetration normals.
+
+### Player movement
+
+- Camera-relative FPS movement.
+- Sprint.
+- Crouch.
+- Prone.
+- Jump restrictions while prone.
+- Stance-specific movement speed.
+- Fixed-step simulation.
+- Movement sway/bob and stance-aware camera motion.
+- Weapon sway tied to movement state.
+
+### World & physics
+
+- Outdoor arena with grass, paths, crates, trees, cars, barriers, mountains, and boundaries.
+- Declarative world definitions in `src/config/world.js`.
+- Shared dimensions for rendered geometry and physical colliders.
+- Compound physical objects for cars and trees.
+- Stable collider-to-entity mapping.
+- Physics-safe spawn validation.
+- Invisible safety floor below the playable world.
+- Rapier-backed collision and ray queries.
+
+### Impact & presentation
+
+- Material-specific bullet impact reactions.
+- Impact particles and sparks.
+- Persistent bullet decals.
+- Surface-normal-aligned decals.
+- Car impacts mapped to the exact visible body/cabin/wheel part.
+- Transient tracer/particle lifecycle owned by presentation.
+- Player blood/impact presentation synchronized with health state.
+- Configurable render budgets for impact effects.
+
+### Audio & HUD
+
+- Procedural Web Audio effects.
+- Weapon-specific firing audio.
+- Reload, empty-click, footsteps, jump/land, impact, hit, and death feedback.
+- Health and ammunition HUD.
+- Weapon/slot information.
+- Reload and fire-mode state.
+- Control hints.
+- Dynamic accuracy-driven crosshair.
+
+## Architecture
+
+The project is intentionally divided into layers.
+
+```text
+Browser / UI
+    |
+    +-- HostGame / ClientGame
+    |
+    +-- ECS orchestration
+    |
+    +-- Simulation models
+    |     movement
+    |     combat
+    |     health
+    |     weapons
+    |     ballistics
+    |     prediction / reconciliation
+    |
+    +-- Networking
+    |     transport
+    |     binary protocol
+    |     snapshots
+    |
+    +-- Physics
+    |     Rapier world
+    |     character physics
+    |     ray queries
+    |     spawn safety
+    |
+    +-- Presentation
+          Three.js rendering
+          weapon viewmodels
+          impact effects
+          tracers
+          player/world views
+```
+
+### Core architectural rules
+
+1. **Simulation does not depend on rendering.** Pure gameplay rules live under `src/game/simulation/`.
+2. **Networking is a boundary.** PeerJS/WebRTC lifecycle is not the gameplay protocol.
+3. **Physics is a boundary.** Rapier-specific implementation stays under `src/physics/`.
+4. **Presentation owns visuals.** Three.js, transient effects, decals, and viewmodels stay under `src/presentation/` and `src/render/`.
+5. **World definitions are data.** Map/object dimensions and placements are centralized in configuration/world definitions.
+6. **Host authority is explicit.** Clients predict and render locally, but the host remains authoritative for simulation results.
+7. **Fixed-step simulation is deterministic.** Rendering frequency must not change gameplay progression.
+8. **Every regression should have a test.** Boundary and protocol behavior is tested without requiring a live browser session.
+
+## Technology stack
+
+| Layer | Technology |
+|---|---|
+| Language | JavaScript (ES modules) |
 | Build | Vite |
+| Rendering | Three.js |
+| Physics | `@dimforge/rapier3d-compat` |
+| ECS | Miniplex |
+| Networking | PeerJS / WebRTC DataChannels |
+| Testing | Node.js built-in test runner |
+| Deployment | Vercel-compatible frontend/API |
+| ICE/TURN | Runtime-configured ICE provider |
 
-## Quick start
+## Project structure
+
+```text
+src/
+├── config/                  Shared gameplay, world, network and render configuration
+├── core/                    Fixed-step game loop
+├── ecs/
+│   ├── components/          Simulation components
+│   ├── entities/            ECS composition
+│   └── systems/             Gameplay and network orchestration
+├── game/
+│   ├── simulation/          Pure movement, combat, health and network models
+│   ├── player/              Player composition
+│   └── world/               World definitions and composition
+├── network/                 Protocol, transport, peers and world sync
+├── physics/                 Rapier world, queries, collision and spawn safety
+├── presentation/            Rendering-facing gameplay presentation
+├── render/                  Scene and weapon viewmodels
+├── audio/                   Procedural audio
+├── ui/                      Lobby and HUD
+└── utils/                   Shared deterministic utilities
+
+test/
+├── combat/
+├── config/
+├── integration/
+├── network/
+├── physics/
+├── presentation/
+├── simulation/
+└── utils/
+
+docs/
+├── architecture/            Architecture phase contracts
+├── NETWORKING.md             Production networking and WebRTC deployment
+└── TESTING.md                Testing strategy and conventions
+```
+
+## Requirements
+
+- Node.js 20+ recommended.
+- A modern browser with WebRTC, Web Audio, WebGL, and Pointer Lock support.
+- For broad Internet multiplayer coverage, production deployment should provide a functioning TURN service.
+
+## Local development
+
+Clone the repository and switch to the architecture branch:
 
 ```bash
 git clone https://github.com/AminBrave/browser-fps-p2p.git
 cd browser-fps-p2p
-git checkout qwen-code   # active development branch
+git checkout architecture-overhaul
 npm install
 npm run dev
 ```
 
-Open the URL Vite prints (e.g. `http://localhost:5173`).
+Open the local Vite URL in your browser.
 
-### Play
+## Playing locally
 
-1. **Host** — click Host, copy Room ID  
-2. **Client** — second tab/window, paste ID, Join  
-3. Click the canvas for pointer lock  
+1. Open the game in one browser tab/window.
+2. Choose **Host**.
+3. Copy the generated invitation code.
+4. Open a second tab/window.
+5. Choose **Join** and enter the invitation code.
+6. Click the game canvas to acquire pointer lock.
 
 ### Controls
 
 | Input | Action |
-|--------|--------|
-| WASD | Move |
+|---|---|
+| W / A / S / D | Move |
+| Shift | Sprint |
 | Mouse | Look |
-| LMB | Fire |
+| Left mouse | Fire |
+| Right mouse | Aim / zoom |
 | R | Reload |
-| 1–4 | Pistol / SMG / Shotgun / Rifle |
-| C | Toggle crouch |
-| Z | Toggle prone |
-| Space | Jump (not while prone) |
+| 1–4 | Switch weapons |
+| C | Crouch |
+| Z | Prone |
+| Space | Jump |
 
-## Project layout (high level)
+## Testing
 
-```text
-src/
-  config/          constants, keybindings
-  audio/           procedural SFX
-  ecs/
-    components/    Transform, Physics, Player, Weapon, Input
-    entities/      createPlayer, createMap, createBullet
-    systems/       Input, Physics, Weapon, Health, Render, network/*
-  network/         PeerManager, Protocol, PacketTypes
-  physics/         PhysicsWorld (Rapier + hitscan normals)
-  render/          SceneManager, WeaponViewModel
-  ui/              HUD, LobbyUI
-  HostGame.js / ClientGame.js / index.js
+The project uses Node's built-in test runner.
+
+```bash
+npm test
+npm run test:coverage
+npm run test:watch
 ```
 
-See **CHANGELOG.md** for a full history of gameplay and systems work on this branch.
+Tests are organized by architectural responsibility rather than browser screen:
 
-## Architecture notes
+- simulation and movement;
+- combat and ballistics;
+- protocol and network systems;
+- physics boundaries;
+- presentation ownership;
+- configuration and deterministic utilities;
+- cross-module architecture/determinism invariants.
 
-- **Simulation is fixed-step** at the configured server/client tick rate; rendering runs independently. This prevents high-refresh displays from advancing gameplay faster and bounds catch-up after tab suspension.
-- **Input is sampled once per simulation tick**, not once per render frame.
-- **WebRTC lifecycle is explicit**: connection errors/close are idempotent, unsupported payloads are ignored, sends are guarded, and shutdown clears transports/callbacks.
-- **Binary input uses a 16-bit input mask** so crouch/prone flags are transmitted correctly. Weapon-slot selection is also serialized.
-- **Host acknowledgements are per client**, avoiding one player's input sequence from acknowledging another player's prediction buffer.
-- **Remote interpolation uses indexed snapshots** and keeps remote physics proxies aligned with rendered positions.
-- **Resource ownership is session-scoped**: Three.js scene resources, Rapier state, and impact decals are released when a match stops.
-- **World object transforms use a ground-origin convention**: ECS render roots are placed at GROUND_Y; visible geometry is offset upward locally, while Rapier colliders use the same configured dimensions and world offsets. This prevents floating trees/cars and invisible colliders.
-- **Every solid prop is declarative**: crate, tree, car, barrier, mountain and boundary dimensions/placements live together in src/config/world.js; visual geometry and collision geometry are derived from those definitions.
-- **Every world solid uses one physical-object model**: each object has one Rapier rigid body; composite assets use multiple child colliders on that same body, while single-shape assets are one-part compounds. Trees are trunk + canopy compounds, and cars are body + cabin + four wheel compounds. All child colliders map back to the same ECS entity for player collision and hitscan impacts.
+See [docs/TESTING.md](docs/TESTING.md) for the testing rules.
 
+## Production networking
 
-- **Host** simulates physics, weapons, and damage; broadcasts world snapshots.
-- **Clients** predict movement, play local weapon FX, and reconcile against host state.
-- Hitscan uses Rapier `castRayAndGetNormal` when available so decals lie on the correct face, and compound world colliders retain a mapping to the exact visible mesh part hit by the ray.
+The application separates:
+
+1. **Signaling** — PeerJS exchanges connection metadata.
+2. **ICE/STUN/TURN** — WebRTC establishes a network path.
+3. **Data transport** — the reliable ordered data channel carries game packets.
+4. **Game protocol** — explicit join/admission messages initialize the game session.
+
+For production deployment, configure the ICE/TURN environment variables described in [docs/NETWORKING.md](docs/NETWORKING.md). Do not put provider secret keys in browser code.
+
+A TURN service is important for peers behind restrictive NAT/firewall configurations. PeerServer is signaling infrastructure; it does not replace TURN.
+
+## Testing philosophy
+
+This project favors deterministic, boundary-focused tests:
+
+- inject randomness where simulation needs it;
+- test binary packets as byte-level contracts;
+- test stale/duplicate network input;
+- test prediction and reconciliation mathematically;
+- keep Three.js, DOM, WebRTC, and Rapier integration separate from pure unit tests;
+- add a regression test for every important bug;
+- avoid real wall-clock timing in deterministic tests.
+
+## Resource lifecycle
+
+A game session owns its simulation, physics, networking, and presentation resources. Shutdown paths explicitly release:
+
+- WebRTC transports and callbacks;
+- ECS/session references;
+- Rapier worlds and collider mappings;
+- Three.js scenes, geometries, materials, textures, and renderer resources;
+- presentation effects and collider bindings.
+
+This prevents old matches from retaining objects from previous sessions.
 
 ## Limitations
 
-- Host disconnect ends the match for everyone.
-- Decals are local (not fully shared as world state over the network).
-- NAT/firewall may block some WebRTC peers without a TURN server.
+- The host is authoritative; if the host disconnects, the current match ends.
+- Bullet decals and some presentation effects are local visual state rather than replicated world state.
+- P2P connectivity depends on browser/WebRTC networking conditions.
+- Broad Internet coverage requires correctly configured TURN infrastructure.
+- The current test suite focuses on deterministic core logic and architectural boundaries; full browser/WebRTC end-to-end testing remains a separate integration layer.
+
+## Documentation
+
+- [Changelog](changelog.md)
+- [Testing guide](docs/TESTING.md)
+- [Networking guide](docs/NETWORKING.md)
+- [Architecture contracts](docs/architecture/PHASE-0-CONTRACTS.md)
+- [Core simulation](docs/architecture/PHASE-1-CORE-SIMULATION.md)
+- [Networking boundaries](docs/architecture/PHASE-2-NETWORKING.md)
+- [Physics boundaries](docs/architecture/PHASE-3-PHYSICS-BOUNDARIES.md)
 
 ## License
 
-MIT — see `LICENSE` if present.
-
-## World and object conventions
-
-The world geometry is centralized in `src/config/world.js`. It is the single source of truth for:
-
-- Ground height, island dimensions, boundary walls, object padding and the safety floor.
-- Player spawn points and grounded player placement.
-- Crate, tree, car, barrier, path and mountain dimensions and layouts.
-- Shared object placement rules that clamp world objects inside the playable island.
-- Object definitions also contain their collision dimensions and visual offsets; there are no separate per-factory size/position constants for trees and cars. Cars use a compound collider made from the same body, cabin and wheel dimensions as the visible model.
-
-Rendering and Rapier physics consume the same dimensions. Ground objects are created with solid static colliders, and composite objects use the same local offsets and rotations as their rendered parts. Rapier 0.11.x does not expose `ColliderDesc.compound()`, so compound assets are implemented as multiple colliders attached to one fixed rigid body; this preserves a single physical object while remaining compatible with the pinned dependency. An invisible safety floor provides a final containment layer below the playable ground.
-
-To modify map scale or object placement, edit `src/config/world.js` rather than changing geometry literals in entity factories.
+MIT.
