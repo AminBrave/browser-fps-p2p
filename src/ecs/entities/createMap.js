@@ -2,7 +2,7 @@
 
 import RAPIER from '@dimforge/rapier3d-compat';
 
-import * as THREE from 'three';
+import { MapObjectView } from '../../presentation/world/MapObjectView.js';
 import { createTransform } from '../components/Transform.js';
 import { createPhysics } from '../components/Physics.js';
 import { WORLD_CONFIG } from '../../config/index.js';
@@ -23,60 +23,21 @@ function clampToIsland(x, z, halfExtentX = 0, halfExtentZ = 0) {
   };
 }
 
-function groundY() {
-  return WORLD_CONFIG.GROUND_Y;
-}
-
-function addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
-  position,
-  size,
-  color,
-  roughness = 0.7,
-  name = 'box',
-  rotationY = 0,
-  materialType = 'wood',
+function groufunction addStaticBox(ecsWorld, physicsWorld, sceneManager, mapEntities, {
+  position, size, color, roughness = 0.7, name = 'box', rotationY = 0, materialType = 'wood',
 }) {
-  const safePosition = clampToIsland(
-    position.x,
-    position.z,
-    size.x / 2,
-    size.z / 2
-  );
-
-  const root = new THREE.Group();
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(size.x, size.y, size.z),
-    new THREE.MeshStandardMaterial({
-      color,
-      roughness,
-      metalness: 0.05,
-    })
-  );
-  mesh.position.y = size.y / 2;
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  root.add(mesh);
-  root.position.set(safePosition.x, groundY(), safePosition.z);
-  root.rotation.y = rotationY;
-
+  const safePosition = clampToIsland(position.x, position.z, size.x / 2, size.z / 2);
+  const view = new MapObjectView(sceneManager).staticBox({
+    position: { x: safePosition.x, y: groundY(), z: safePosition.z },
+    size, color, roughness, rotationY, name,
+  });
   const physics = physicsWorld.createStaticBox(
-    safePosition.x,
-    groundY() + size.y / 2,
-    safePosition.z,
-    size.x / 2,
-    size.y / 2,
-    size.z / 2,
-    rotationY,
-    materialType
+    safePosition.x, groundY() + size.y / 2, safePosition.z,
+    size.x / 2, size.y / 2, size.z / 2, rotationY, materialType
   );
-
-  addToScene(sceneManager, root);
   return addSolidMapEntity(ecsWorld, physicsWorld, mapEntities, {
     position: { x: safePosition.x, y: groundY(), z: safePosition.z },
-    physics,
-    mesh: root,
-    name,
-    presentationTargets: [mesh],
+    physics, mesh: view.root, name, presentationTargets: view.targets,
   });
 }
 
