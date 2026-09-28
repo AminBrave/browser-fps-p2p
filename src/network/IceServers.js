@@ -1,21 +1,28 @@
 import { NETWORK_CONFIG } from '../config/index.js';
 
 /**
- * Resolve ICE servers at runtime.
+ * Build the ICE server list without making TURN a hard dependency.
  *
- * TURN credentials are deployment configuration, not source-code constants.
- * The deployment /api/ice endpoint returns a short-lived/provider-scoped ICE list.
- * Production builds fail fast when TURN is unavailable because STUN alone
- * cannot provide broad Internet NAT traversal.
+ * Connectivity is progressive by design:
+ *   1. browser host candidates;
+ *   2. configured/public STUN discovery;
+ *   3. optional self-hosted TURN;
+ *   4. optional external TURN provider.
+ *
+ * WebRTC itself decides which candidate path works. If an optional TURN
+ * source is unavailable, the game continues with the candidates already
+ * available instead of failing the session.
  */
 export async function resolveIceServers() {
   const servers = [...NETWORK_CONFIG.WEBRTC.STUN_SERVERS];
+  const sources = ['stun'];
 
   if (import.meta.env.DEV) {
     return {
       iceServers: servers,
       hasTurn: false,
       source: 'development-stun-only',
+      sources,
     };
   }
 
@@ -39,38 +46,37 @@ export async function resolveIceServers() {
 
     const payload = await response.json();
     const turnServers = Array.isArray(payload?.iceServers)
-      ? payload.iceServers
+      ? payload.iceServers.filter((server) => server?.urls)
       : [];
 
-    for (const server of turnServers) {
-      if (!server?.urls) continue;
-      servers.push(server);
+    servers.push(...turnServers);
+
+    if (turnServers.length) {
+      sources.push(payload?.source || 'turn');
     }
 
     return {
       iceServers: servers,
       hasTurn: turnServers.some((server) =>
-        String(server?.urls || '').startsWith('turn')
+        Array.isArray(server?.urls)
+          ? server.urls.some((url) => String(url).startsWith('turn'))
+          : String(server?.urls || '').startsWith('turn')
       ),
-      source: payload?.source || 'runtime',
+      source: sources.join('+'),
+      sources,
     };
   } catch (error) {
-    console.warn('[Network] TURN configuration unavailable.', error);
-    const message = error instanceof Error ? error.message : String(error);
-
-    if (NETWORK_CONFIG.WEBRTC.REQUIRE_TURN_IN_PRODUCTION) {
-      throw new Error(
-        'Production TURN configuration is unavailable. ' +
-        'Configure METERED_TURN_CREDENTIAL_URL and METERED_TURN_API_KEY on the deployment environment. ' +
-        message
-      );
-    }
+    console.info(
+      '[Network] Optional ICE fallback unavailable; continuing with direct/STUN WebRTC.',
+      error
+    );
 
     return {
       iceServers: servers,
       hasTurn: false,
       source: 'stun-fallback',
-      error: message,
+      sources,
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }
