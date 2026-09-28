@@ -20,7 +20,7 @@ import { InterpolationSystem } from './ecs/systems/network/InterpolationSystem.j
 import { CircularBuffer } from './utils/CircularBuffer.js';
 import { GameLoop } from './core/GameLoop.js';
 import { audio } from './audio/AudioManager.js';
-import { createBloodImpact, disposeImpactDecals, updatePlayerImpactMarksForHealth } from './presentation/impact/ImpactEffects.js';
+import { createBullet, createBloodImpact, disposeImpactDecals, updatePlayerImpactMarksForHealth } from './presentation/impact/ImpactEffects.js';
 import { ImpactSystem } from './presentation/impact/ImpactSystem.js';
 import { PresentationEffectStore } from './presentation/effects/PresentationEffectStore.js';
 import { createImpactSeed } from './game/simulation/combat/ImpactSeed.js';
@@ -340,21 +340,7 @@ export class ClientGame {
       const origin = event.origin;
       const end = event.end;
       if (!origin || !end) return;
-      this.effectStore?.add?.({
-        root: (() => {
-          const points = [origin, end];
-          const geometry = new THREE.BufferGeometry().setFromPoints(points.map((point) => new THREE.Vector3(point.x, point.y, point.z)));
-          const material = new THREE.LineBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.95, depthWrite: false });
-          const line = new THREE.Line(geometry, material);
-          line.renderOrder = 10;
-          this.sceneManager.scene.add(line);
-          line.userData._tracerMaterial = material;
-          return line;
-        })(),
-        durationMs: 60,
-        update: ({ root, progress }) => { root.userData._tracerMaterial.opacity = 0.95 * (1 - progress); },
-        dispose: ({ root }) => { root.parent?.remove?.(root); root.geometry?.dispose?.(); root.material?.dispose?.(); },
-      });
+      createBullet(this.effectStore, this.sceneManager, origin, end);;
 
       // Reconstruct every penetration reaction from authoritative
       // contact data. No client-side ballistic trace is needed or trusted.
