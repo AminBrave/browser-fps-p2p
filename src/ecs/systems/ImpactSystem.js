@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COMBAT_CONFIG, GAME_CONFIG } from '../../config/index.js';
+import { RENDER_CONFIG } from '../../config/index.js';
 
 const registry = new WeakMap();
 
@@ -168,8 +168,8 @@ const MATERIAL_PRESETS = Object.freeze({
   }),
 });
 
-const MAX_ACTIVE = 96;
-const MAX_PARTICLES_PER_IMPACT = 28;
+const MAX_ACTIVE = Math.max(32, Number(RENDER_CONFIG.MAX_IMPACT_REACTIONS) || 96);
+const MAX_PARTICLES_PER_IMPACT = Math.max(12, Number(RENDER_CONFIG.MAX_IMPACT_PARTICLES_PER_REACTION) || 28);
 
 function hashSeed(seed) {
   let h = Number(seed) >>> 0;
@@ -339,7 +339,7 @@ export class ImpactSystem {
     const speed = Math.max(0, Number(velocityBefore) || 0);
     const residual = Math.max(0, Number(velocityAfter) || 0);
     const energy01 = THREE.MathUtils.clamp(
-      speed > 0 ? speed / Math.max(speed, 650) : 0.35,
+      speed > 0 ? speed / 650 : 0.35,
       0.12,
       1
     );
