@@ -269,7 +269,7 @@ export class WeaponSystem {
         z: -dir.z,
       };
       const hitEntity = hit?.entity === entity ? null : (hit?.entity || null);
-      const hitRenderTarget = hit?.renderTarget || null;
+      const hitRenderTarget = this.presentation?.getHitRenderTarget?.(hit, hitEntity) || null;
       const hitZone = hit?.hitZone || null;
       const didHit = !!hit;
 
