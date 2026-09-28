@@ -30,10 +30,17 @@ export const NETWORK_CONFIG = Object.freeze({
       RELAY_TCP_TLS: 'relay-tcp-tls',
     }),
     CONNECTION_MODE_STORAGE_KEY: 'p2p-fps-network-mode',
+    // Public STUN services. These only help discover public/NAT-mapped
+    // addresses; they do not provide relay fallback like TURN does.
     STUN_SERVERS: Object.freeze([
+      // Google
       Object.freeze({ urls: 'stun:stun.l.google.com:19302' }),
       Object.freeze({ urls: 'stun:stun1.l.google.com:19302' }),
       Object.freeze({ urls: 'stun:stun2.l.google.com:19302' }),
+      // Cloudflare (free STUN)
+      Object.freeze({ urls: 'stun:stun.cloudflare.com:3478' }),
+      // Twilio (free STUN; TURN requires credentials)
+      Object.freeze({ urls: 'stun:global.stun.twilio.com:3478' }),
     ]),
     ICE_TRANSPORT_POLICY: 'all',
     DEFAULT_CONNECTION_MODE: 'auto',
