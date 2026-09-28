@@ -91,3 +91,8 @@ The existing positional constructor arguments are retained temporarily for migra
 `WeaponSystem` now accepts a dependency object rather than positional constructor arguments. The system depends explicitly on physics, optional authoritative health, event output, impact presentation, and the weapon presentation adapter. Scene/render references and the legacy positional constructor compatibility layer have been removed.
 
 This makes composition errors visible at construction time and completes the weapon presentation dependency cleanup. The next target is the remaining orchestration inside `_fireShot()`: construct a plain shot result from simulation first, then route presentation/network/damage side effects from that result.
+
+
+## Phase 9 — Shot result construction
+
+`WeaponSystem` now isolates authoritative SHOT packet construction in `_buildShotEvent()`. The method converts a trace and plain shot context into the network event payload, keeping the main firing loop focused on simulation orchestration and side effects. The next refinement is to move this pure packet mapping into the simulation/network boundary and add direct tests for its serialization contract.
