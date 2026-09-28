@@ -1,19 +1,25 @@
 import { WeaponEffects } from './WeaponEffects.js';
 import { audio } from '../../audio/AudioManager.js';
+import { PresentationColliderRegistry } from '../world/PresentationColliderRegistry.js';
 
 /**
  * Presentation adapter for weapon effects. Gameplay systems call this small
  * boundary instead of importing Three.js-facing factories or audio directly.
  */
 export class WeaponPresentation {
-  constructor({ sceneManager, renderSystem = null, impactSystem = null } = {}) {
+  constructor({ sceneManager, renderSystem = null, impactSystem = null, colliderRegistry = null } = {}) {
     this.sceneManager = sceneManager;
     this.renderSystem = renderSystem;
+    this.colliderRegistry = colliderRegistry || new PresentationColliderRegistry();
     this.effects = new WeaponEffects({ sceneManager, impactSystem });
   }
 
   getMuzzleWorldPosition() {
     return this.renderSystem?.weaponViewModel?.getMuzzleWorldPosition?.() || null;
+  }
+
+  getHitRenderTarget(hit, entity = null) {
+    return this.colliderRegistry.getTarget(hit?.collider) || entity?.renderMesh?.mesh || hit?.renderTarget || null;
   }
 
   onWeaponFired(recoil, sfx = 'pistol') {
@@ -26,29 +32,12 @@ export class WeaponPresentation {
     audio.playReloadStart?.();
   }
 
-  onReloadEnd() {
-    audio.playReloadEnd?.();
-  }
-
-  onEmptyClick() {
-    audio.playEmptyClick?.();
-  }
-
-  onImpact() {
-    this.effects.playImpactAudio();
-  }
-
-  onHit() {
-    this.effects.playHitAudio();
-  }
-
-  spawnPenetrationImpacts(args) {
-    return this.effects.spawnPenetrationImpacts(args);
-  }
-
-  spawnFinalImpact(args) {
-    return this.effects.spawnFinalImpact(args);
-  }
+  onReloadEnd() { audio.playReloadEnd?.(); }
+  onEmptyClick() { audio.playEmptyClick?.(); }
+  onImpact() { this.effects.playImpactAudio(); }
+  onHit() { this.effects.playHitAudio(); }
+  spawnPenetrationImpacts(args) { return this.effects.spawnPenetrationImpacts(args); }
+  spawnFinalImpact(args) { return this.effects.spawnFinalImpact(args); }
 
   setWeaponType(typeId) {
     this.renderSystem?.weaponViewModel?.setWeaponType?.(typeId);
