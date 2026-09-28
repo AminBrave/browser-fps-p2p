@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createTransform } from '../components/Transform.js';
+import { createTransform } from '../../ecs/components/Transform.js';
 import { GAME_CONFIG, RENDER_CONFIG } from '../../config/index.js';
 
 // Scope decal ownership to an ECS world. A module-global array would retain
