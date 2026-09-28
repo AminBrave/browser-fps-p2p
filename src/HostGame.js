@@ -13,6 +13,7 @@ import { HealthSystem } from './ecs/systems/HealthSystem.js';
 import { HealthPresentation } from './presentation/health/HealthPresentation.js';
 import { WeaponSystem } from './ecs/systems/WeaponSystem.js';
 import { WeaponPresentation } from './presentation/weapon/WeaponPresentation.js';
+import { PresentationColliderRegistry } from './presentation/world/PresentationColliderRegistry.js';
 import { RenderSystem } from './ecs/systems/RenderSystem.js';
 import { HostNetworkSystem } from './ecs/systems/network/HostNetworkSystem.js';
 import { GameLoop } from './core/GameLoop.js';
@@ -30,6 +31,7 @@ export class HostGame {
     this.physicsWorld = new PhysicsWorld();
     this.sceneManager = new SceneManager(this.container);
     this.impactSystem = new ImpactSystem(this.ecsWorld, this.sceneManager);
+    this.presentationColliderRegistry = new PresentationColliderRegistry();
     this.peerManager = new PeerManager();
     this.networkTransport = new PeerTransport(this.peerManager);
     this.hud = new HUD();
@@ -61,7 +63,7 @@ export class HostGame {
       isAuthoritative: true,
       eventSink: null,
       impactSystem: this.impactSystem,
-      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem })
+      presentation: new WeaponPresentation({ sceneManager: this.sceneManager, renderSystem: this.renderSystem, colliderRegistry: this.presentationColliderRegistry })
     });
     this.hostNetworkSystem = new HostNetworkSystem(this.networkTransport);
     this.hostNetworkSystem.setJoinHandler((peerId) => {
@@ -72,7 +74,7 @@ export class HostGame {
     this.weaponSystem.setEventSink((event) => this.hostNetworkSystem.emitGameEvent(event));
     this.renderSystem.setEventSink((event) => this.hostNetworkSystem.emitGameEvent(event));
 
-    createMap(this.ecsWorld, this.physicsWorld, this.sceneManager);
+    createMap(this.ecsWorld, this.physicsWorld, this.sceneManager, this.presentationColliderRegistry);
 
     this.localEntity = createPlayer(
       this.ecsWorld,
