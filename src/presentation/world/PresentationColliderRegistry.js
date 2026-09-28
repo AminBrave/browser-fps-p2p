@@ -22,6 +22,11 @@ export class PresentationColliderRegistry {
     return this.targets.get(this._handle(collider)) || null;
   }
 
+  getTargetByHandle(handle) {
+    if (handle == null) return null;
+    return this.targets.get(handle) || null;
+  }
+
   clear() {
     this.targets.clear();
   }
