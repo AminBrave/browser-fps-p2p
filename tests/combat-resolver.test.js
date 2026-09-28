@@ -65,7 +65,7 @@ test('resolver rejects invalid computed damage', () => {
   const result = resolver.resolvePlayerHit({
     attackerId: 'attacker',
     targetEntity: { player: { id: 'target', isDead: false } },
-    weapon: { damage: NaN },
+    weapon: { damage: Infinity },
     distance: 0,
     terminalVelocity: 500,
     muzzleVelocity: 500,
