@@ -17,10 +17,8 @@ import { canReload, completeReload, shouldFire } from '../../game/simulation/com
 export class WeaponSystem {
   constructor(physicsWorld, sceneManager, healthSystem = null, isAuthoritative = false, renderSystem = null, eventSink = null, impactSystem = null, presentation = null) {
     this.physicsWorld = physicsWorld;
-    this.sceneManager = sceneManager;
     this.healthSystem = healthSystem;
     this.isAuthoritative = isAuthoritative;
-    this.renderSystem = renderSystem;
     this.eventSink = eventSink;
     this.impactSystem = impactSystem;
     this.presentation = presentation;
@@ -62,10 +60,6 @@ export class WeaponSystem {
       y,
       z: (transform?.position?.z ?? 0) + right.z * side + forward.z * forwardDistance,
     };
-  }
-
-  setRenderSystem(rs) {
-    this.renderSystem = rs;
   }
 
   update(ecsWorld, nowMs = performance.now(), dt = 1 / 60) {
