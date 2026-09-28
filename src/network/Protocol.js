@@ -88,7 +88,7 @@ export class Protocol {
     const view = asDataView(data);
     if (!view || view.byteLength < PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE || view.getUint8(0) !== PACKET_TYPES.WORLD_INIT) return null;
     const length = view.getUint32(1, true);
-    if (length > view.byteLength - PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE) return null;
+    if (length !== view.byteLength - PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE) return null;
     try {
       return JSON.parse(new TextDecoder().decode(new Uint8Array(view.buffer, view.byteOffset + PROTOCOL_CONFIG.WORLD_INIT_HEADER_SIZE, length)));
     } catch {
@@ -167,7 +167,7 @@ export class Protocol {
     const view = asDataView(data);
     if (!view || view.byteLength < PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE || view.getUint8(0) !== PACKET_TYPES.GAME_EVENT) return null;
     const length = view.getUint32(1, true);
-    if (length > view.byteLength - PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE) return null;
+    if (length !== view.byteLength - PROTOCOL_CONFIG.GAME_EVENT_HEADER_SIZE) return null;
     try {
       return JSON.parse(
         new TextDecoder().decode(
