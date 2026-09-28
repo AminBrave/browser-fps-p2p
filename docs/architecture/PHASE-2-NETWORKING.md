@@ -74,3 +74,14 @@ The timeline rejects stale snapshots and bounds history. Sampling uses a render-
 - add remote snapshot interpolation buffering guarantees;
 - isolate network packet schemas from ECS entity objects;
 - add protocol fuzz/negative tests for malformed binary packets.
+
+
+## Transport boundary
+
+The concrete WebRTC/PeerJS implementation remains in `PeerManager`, but gameplay/network systems consume `PeerTransport` instead. The transport exposes only connection lifecycle, peer identity, and raw packet delivery. `Protocol` remains responsible for binary packet encoding/decoding; the transport never interprets packet contents.
+
+This keeps the dependency direction explicit: `PeerJS -> PeerManager -> PeerTransport -> network systems -> Protocol/simulation`. Game code does not access PeerJS connection objects.
+
+## Reconciliation ordering
+
+When a correction is required, the client captures its current predicted position before applying the authoritative ACK state. It then replays unacknowledged inputs and computes visual correction from the pre-reconciliation prediction to the corrected current state.
