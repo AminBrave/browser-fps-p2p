@@ -109,3 +109,74 @@ If the error is peer-unavailable, the invitation code is not currently registere
 ## Architecture rule
 
 Do not make the game simulation depend on PeerJS lifecycle events. A transport opening only establishes a network channel. The explicit game handshake is responsible for admission and world initialization.
+
+
+## Regional / national-network deployment
+
+Treat global and locally reachable infrastructure as two interchangeable infrastructure planes rather than hard-coding a country-specific mode into gameplay.
+
+A deployment that must remain usable when international routes are unavailable needs all three of these reachable from the isolated network:
+
+1. **Game origin** — the HTML/JS/assets must be mirrored on a locally reachable HTTPS origin.
+2. **Signaling** — a locally reachable PeerServer must broker the SDP/ICE handshake. The browser still needs signaling even when players are on the same LAN; the gameplay data channel is what becomes direct after signaling.
+3. **TURN** — a locally reachable TURN service should be available for CGNAT, client isolation, firewall restrictions, or UDP blocking. Use TURN/TLS on a locally reachable TLS endpoint when the network only permits TCP/TLS.
+
+The application should select infrastructure by endpoint reachability, not by country detection:
+
+- auto: try the configured local/regional bootstrap first, then the global bootstrap when reachable;
+- local: use only the locally reachable game/signaling/ICE services;
+- global: use only the global services.
+
+The current WebRTC connection mode (auto, direct, relay, relay-tcp-tls) remains a separate per-device transport preference. It must not be synchronized between players.
+
+A practical isolated-network topology is:
+
+local HTTPS origin -> local PeerServer -> WebRTC direct host/client path -> local TURN fallback
+
+For a same-LAN match, the selected ICE path will commonly be host-to-host. For harder NAT/firewall cases, the local TURN server becomes the relay. STUN is optional for same-LAN connectivity but useful when direct public/NAT-mapped candidates are needed.
+
+Do not assume that a specific network permits WebRTC UDP, TCP, or TLS traffic. Validate the actual network policy and provide a TURN/TLS option if required.
+
+## Multiplayer identity, presence and telemetry
+
+The match protocol now separates **simulation state** from **session state**:
+
+- WORLD_SNAPSHOT remains authoritative gameplay state.
+- SESSION_STATE is a low-frequency roster/presence/telemetry snapshot.
+- Player display names are supplied during JOIN_REQUEST and sanitized locally.
+- The host is authoritative for online/left presence and broadcasts the roster.
+- Each connection exposes WebRTC RTCPeerConnection.getStats() telemetry.
+
+The telemetry currently records:
+
+- RTT/ping in milliseconds;
+- selected ICE path: lan-direct, internet-direct, or relay;
+- local and remote candidate type;
+- selected transport protocol;
+- PeerConnection state;
+- ICE state;
+- transport packet/byte counters when exposed by the browser.
+
+The HUD shows the roster continuously and Tab toggles it. DevTools also receive periodic [Multiplayer] telemetry logs.
+
+The displayed RTT is the RTT of the host/client WebRTC connection, not a claim that every pair of clients has a direct path. This distinction matters because the current authoritative topology is star-shaped: clients connect to the host, not to every other player. WebRTC's selected ICE candidate pair exposes currentRoundTripTime, and the selected candidate type distinguishes host, server-reflexive, and relay paths.
+
+## Multiplayer feature roadmap
+
+The next protocol additions should remain separate from the high-frequency simulation snapshot:
+
+- match lifecycle: waiting -> starting -> live -> ending -> finished;
+- ready state / team assignment / spectator state;
+- join/leave/reconnect events;
+- kill feed and combat event feed;
+- score/objective state;
+- reconnect with session token and player identity restoration;
+- explicit connection-quality states (good, degraded, critical) based on measured telemetry;
+- server tick / snapshot age / interpolation delay diagnostics;
+- application-level heartbeat RTT for cases where ICE stats are unavailable;
+- optional chat and voice as separate channels;
+- abuse/rate-limit validation for all client-originated metadata.
+
+Keep chat, presence and diagnostics off the 60 Hz gameplay packet path. The current one-second SESSION_STATE cadence is intentionally low frequency so the lobby/HUD can stay informative without competing with input and snapshot traffic.
+
+PeerJS exposes the underlying RTCPeerConnection on a DataConnection, so the telemetry layer can inspect WebRTC stats without replacing the transport abstraction.
