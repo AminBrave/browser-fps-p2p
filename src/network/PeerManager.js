@@ -1,5 +1,5 @@
 import { Peer } from 'peerjs';
-import { NETWORK_CONFIG, PROTOCOL_CONFIG } from '../config/index.js';
+import { NETWORK_CONFIG, PROTOCOL_CONFIG, normalizeNetworkConnectionMode } from '../config/index.js';
 import { resolveIceServers } from './IceServers.js';
 
 const STATE = Object.freeze({
@@ -72,6 +72,7 @@ export class PeerManager {
   async initClient(hostPeerId, networkMode = NETWORK_CONFIG.WEBRTC.DEFAULT_CONNECTION_MODE) {
     this._resetForInitialization();
     this.isHost = false;
+    this.networkMode = normalizeNetworkConnectionMode(networkMode);
     this.hostPeerId = PeerManager.normalizePeerId(hostPeerId);
 
     if (!this.hostPeerId) throw new Error('Host invitation code is required');
@@ -455,6 +456,95 @@ export class PeerManager {
       );
     }
     return null;
+  }
+
+  async getConnectionTelemetry(peerId) {
+    const id = String(peerId);
+    const connection = this.connections.get(id);
+    const pc = connection?.peerConnection;
+    const base = {
+      peerId: id,
+      connected: !!connection?.open,
+      connectionState: pc?.connectionState || (connection?.open ? 'connected' : 'closed'),
+      iceState: pc?.iceConnectionState || 'unknown',
+      gatheringState: pc?.iceGatheringState || 'unknown',
+      path: 'unknown',
+      protocol: 'unknown',
+      pingMs: null,
+      packetsLost: null,
+      packetsReceived: null,
+      bytesSent: null,
+      bytesReceived: null,
+      timestamp: Date.now(),
+    };
+    if (!pc?.getStats) return base;
+
+    try {
+      const stats = await pc.getStats();
+      let selectedPair = null;
+      stats.forEach((report) => {
+        if (report.type === 'transport' && report.selectedCandidatePairId) {
+          selectedPair = stats.get(report.selectedCandidatePairId);
+        }
+      });
+      if (!selectedPair) {
+        stats.forEach((report) => {
+          if (report.type === 'candidate-pair' && (report.selected || report.nominated)) {
+            selectedPair = report;
+          }
+        });
+      }
+
+      const local = selectedPair ? stats.get(selectedPair.localCandidateId) : null;
+      const remote = selectedPair ? stats.get(selectedPair.remoteCandidateId) : null;
+      const inbound = [];
+      const outbound = [];
+      stats.forEach((report) => {
+        if (report.type === 'inbound-rtp') inbound.push(report);
+        if (report.type === 'outbound-rtp') outbound.push(report);
+      });
+
+      const localType = local?.candidateType || 'unknown';
+      const remoteType = remote?.candidateType || 'unknown';
+      const path = localType === 'relay' || remoteType === 'relay'
+        ? 'relay'
+        : localType === 'srflx' || remoteType === 'srflx'
+          ? 'internet-direct'
+          : localType === 'host' && remoteType === 'host'
+            ? 'lan-direct'
+            : 'direct';
+
+      const lost = inbound.reduce((sum, item) => sum + (Number(item.packetsLost) || 0), 0);
+      const received = inbound.reduce((sum, item) => sum + (Number(item.packetsReceived) || 0), 0);
+
+      return {
+        ...base,
+        path,
+        localCandidateType: localType,
+        remoteCandidateType: remoteType,
+        protocol: selectedPair?.protocol || 'unknown',
+        pingMs: Number.isFinite(selectedPair?.currentRoundTripTime)
+          ? Math.round(selectedPair.currentRoundTripTime * 1000)
+          : null,
+        packetsLost: lost,
+        packetsReceived: received,
+        bytesSent: outbound.reduce((sum, item) => sum + (Number(item.bytesSent) || 0), 0),
+        bytesReceived: inbound.reduce((sum, item) => sum + (Number(item.bytesReceived) || 0), 0),
+        timestamp: Date.now(),
+      };
+    } catch {
+      return base;
+    }
+  }
+
+  async getAllConnectionTelemetry() {
+    const entries = await Promise.all(
+      Array.from(this.connections.keys(), async (peerId) => [
+        peerId,
+        await this.getConnectionTelemetry(peerId),
+      ])
+    );
+    return Object.fromEntries(entries);
   }
 
   sendTo(peerId, buffer) {
