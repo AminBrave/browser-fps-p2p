@@ -33,14 +33,10 @@ export const NETWORK_CONFIG = Object.freeze({
     // Public STUN services. These only help discover public/NAT-mapped
     // addresses; they do not provide relay fallback like TURN does.
     STUN_SERVERS: Object.freeze([
-      // Google
-      Object.freeze({ urls: 'stun:stun.l.google.com:19302' }),
-      Object.freeze({ urls: 'stun:stun1.l.google.com:19302' }),
-      Object.freeze({ urls: 'stun:stun2.l.google.com:19302' }),
-      // Cloudflare (free STUN)
-      Object.freeze({ urls: 'stun:stun.cloudflare.com:3478' }),
-      // Twilio (free STUN; TURN requires credentials)
-      Object.freeze({ urls: 'stun:global.stun.twilio.com:3478' }),
+      // Keep the default list intentionally small. Multiple STUN/TURN servers
+    // increase ICE discovery work and can slow candidate gathering.
+    Object.freeze({ urls: 'stun:stun.l.google.com:19302' }),
+    Object.freeze({ urls: 'stun:stun.cloudflare.com:3478' }),
     ]),
     ICE_TRANSPORT_POLICY: 'all',
     DEFAULT_CONNECTION_MODE: 'auto',
@@ -83,14 +79,17 @@ export const NETWORK_CONFIG = Object.freeze({
 });
 
 export const PROTOCOL_CONFIG = Object.freeze({
-  JOIN_REQUEST_SIZE: 3,
+  JOIN_REQUEST_SIZE: 4,
+  JOIN_REQUEST_HEADER_SIZE: 4,
+  JOIN_REQUEST_MAX_BYTES: 64,
   CLIENT_INPUT_SIZE: 17,
   SNAPSHOT_HEADER_SIZE: 10,
   SNAPSHOT_ENTITY_SIZE: 45,
   JOIN_ACCEPT_SIZE: 18,
   WORLD_INIT_HEADER_SIZE: 5,
   GAME_EVENT_HEADER_SIZE: 5,
-  PROTOCOL_VERSION: 1,
+  SESSION_STATE_HEADER_SIZE: 5,
+  PROTOCOL_VERSION: 2,
   MAX_SNAPSHOT_ENTITIES: 255,
   MAX_UINT8: 255,
   MAX_UINT16: 65535,
