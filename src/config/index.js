@@ -66,4 +66,7 @@ export {
   setSavedNetworkConnectionMode,
   normalizeNetworkConnectionMode,
   NETWORK_CONNECTION_MODES,
+  getSavedPlayerName,
+  setSavedPlayerName,
+  normalizePlayerName,
 } from './networkMode.js';
