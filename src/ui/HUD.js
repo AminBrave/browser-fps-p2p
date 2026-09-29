@@ -41,6 +41,8 @@ export class HUD {
         <span style="color:#7bed9f;">KILLS <b id="hud-kills">0</b></span>
         <span style="color:#ff6b81;">DEATHS <b id="hud-deaths">0</b></span>
         <span style="color:#dfe4ea;">K/D <b id="hud-kd">0.00</b></span>
+      </div>
+
       <div id="hud-multiplayer-panel" style="position:absolute;top:60px;left:18px;width:min(390px,calc(100vw - 36px));background:rgba(0,0,0,0.48);border:1px solid rgba(255,255,255,.10);border-radius:9px;backdrop-filter:blur(8px);overflow:hidden;">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 11px;border-bottom:1px solid rgba(255,255,255,.08);font-size:10px;letter-spacing:1px;font-weight:800;color:#70a1ff;">
           <span>MATCH PLAYERS</span>
@@ -48,8 +50,6 @@ export class HUD {
         </div>
         <div id="hud-player-list"></div>
         <div id="hud-network-summary" style="padding:7px 11px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:#a4b0be;">NETWORK — waiting for telemetry</div>
-      </div>
-
       </div>
 
       <div style="position:absolute;top:16px;right:20px;text-align:right;background:rgba(0,0,0,0.35);padding:10px 14px;border-radius:8px;backdrop-filter:blur(6px);line-height:1.55;">
