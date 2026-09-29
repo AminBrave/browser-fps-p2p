@@ -32,7 +32,7 @@ export class PeerManager {
   async initHost(customRoomId = null, networkMode = NETWORK_CONFIG.WEBRTC.DEFAULT_CONNECTION_MODE) {
     this._resetForInitialization();
     this.isHost = true;
-    this.networkMode = networkMode;
+    this.networkMode = normalizeNetworkConnectionMode(networkMode);
     this._setState(STATE.SIGNALING);
 
     const requestedRoomId = String(customRoomId || '').trim();
