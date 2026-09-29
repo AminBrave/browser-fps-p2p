@@ -1,4 +1,4 @@
-import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, INPUT_FLAGS, WORLD_CONFIG, validateConfig } from './config/index.js';
+import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, INPUT_FLAGS, WORLD_CONFIG, validateConfig, getSavedPlayerName, normalizePlayerName } from './config/index.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
@@ -38,9 +38,13 @@ export class HostGame {
     this.hud = new HUD();
 
     this.localPlayerId = 'host-player';
+    this.playerName = getSavedPlayerName();
     this.localEntity = null;
     this.clientEntities = new Map();
     this.announcedClients = new Set();
+    this.departedPlayers = new Map();
+    this.lastSessionTelemetryAt = 0;
+    this.lastNetworkLogAt = 0;
     this.isRunning = false;
 
     this.fixedDeltaTime =
@@ -50,7 +54,8 @@ export class HostGame {
     window.addEventListener('click', this._audioUnlockHandler);
   }
 
-  async initialize(networkMode = null) {
+  async initialize(networkMode = null, playerName = null) {
+    this.playerName = normalizePlayerName(playerName || getSavedPlayerName());
     validateConfig();
     await this.physicsWorld.init();
 
@@ -73,8 +78,10 @@ export class HostGame {
       eventSink: null,
     });
     this.hostNetworkSystem = new HostNetworkSystem(this.networkTransport);
-    this.hostNetworkSystem.setJoinHandler((peerId) => {
+    this.hostNetworkSystem.setJoinHandler((peerId, request) => {
       const entity = this._ensureClientEntity(peerId);
+      entity.player.displayName = normalizePlayerName(request?.displayName);
+      this.departedPlayers.delete(String(peerId));
       this._announceClientEntity(peerId, entity);
     });
     this.healthSystem.setEventSink((event) => this.hostNetworkSystem.emitGameEvent(event));
@@ -93,6 +100,7 @@ export class HostGame {
       true,
       this.presentationColliderRegistry
     );
+    this.localEntity.player.displayName = this.playerName;
 
     const hostRoomId = await this.networkTransport.initializeHost(null, networkMode);
     this.invitationCode = String(hostRoomId).toUpperCase();
@@ -133,6 +141,7 @@ export class HostGame {
     // Network snapshots are emitted on the fixed tick, after Rapier commits
     // movement, so every snapshot describes an actual authoritative state.
     this.hostNetworkSystem.postUpdate(this.ecsWorld, performance.now());
+    this._updateMultiplayerTelemetry(performance.now());
   }
 
 
@@ -286,8 +295,104 @@ export class HostGame {
 
     for (const entity of this.ecsWorld.with('player')) {
       if (entity.player?.peerId !== peerId) continue;
+      this.departedPlayers.set(String(peerId), {
+        playerId: entity.player.id,
+        displayName: normalizePlayerName(entity.player.displayName),
+        kills: entity.player.kills || 0,
+        deaths: entity.player.deaths || 0,
+        leftAt: Date.now(),
+      });
       this._removePlayerEntity(entity);
       break;
+    }
+  }
+
+  async _updateMultiplayerTelemetry(now) {
+    if (now - this.lastSessionTelemetryAt < NETWORK_CONFIG.MULTIPLAYER.SESSION_TELEMETRY_INTERVAL_MS) return;
+    this.lastSessionTelemetryAt = now;
+
+    const telemetry = await this.networkTransport.getAllConnectionTelemetry();
+    const current = new Map();
+
+    const host = this.localEntity?.player;
+    if (host) {
+      current.set('host', {
+        playerId: host.id,
+        displayName: this.playerName,
+        isHost: true,
+        status: 'online',
+        health: host.health,
+        kills: host.kills || 0,
+        deaths: host.deaths || 0,
+        pingMs: 0,
+        path: 'host',
+        protocol: 'local',
+        connectionState: 'connected',
+        lastSeen: Date.now(),
+      });
+    }
+
+    for (const entity of this.ecsWorld.with('player')) {
+      const player = entity.player;
+      if (!player || player.isHost) continue;
+      const peerId = String(player.peerId || '');
+      const stats = telemetry[peerId] || {};
+      current.set(peerId, {
+        playerId: player.id,
+        displayName: normalizePlayerName(player.displayName),
+        isHost: false,
+        status: stats.connected ? 'online' : 'connecting',
+        health: player.health,
+        kills: player.kills || 0,
+        deaths: player.deaths || 0,
+        pingMs: stats.pingMs ?? null,
+        path: stats.path || 'unknown',
+        protocol: stats.protocol || 'unknown',
+        connectionState: stats.connectionState || 'unknown',
+        iceState: stats.iceState || 'unknown',
+        lastSeen: Date.now(),
+      });
+    }
+
+    const cutoff = Date.now() - NETWORK_CONFIG.MULTIPLAYER.DISCONNECT_GRACE_MS;
+    for (const [peerId, departed] of this.departedPlayers) {
+      if (departed.leftAt < cutoff) {
+        this.departedPlayers.delete(peerId);
+        continue;
+      }
+      current.set(peerId, {
+        ...departed,
+        status: 'left',
+        path: '—',
+        protocol: '—',
+        pingMs: null,
+        connectionState: 'closed',
+        lastSeen: departed.leftAt,
+      });
+    }
+
+    const players = Array.from(current.values()).slice(0, NETWORK_CONFIG.MULTIPLAYER.MAX_ROSTER_PLAYERS);
+    const state = {
+      version: 1,
+      serverTime: Date.now(),
+      hostPlayerId: host?.id ?? 0,
+      playerCount: players.filter((p) => p.status === 'online').length,
+      maxPlayers: GAME_CONFIG.MAX_PLAYERS,
+      players,
+    };
+
+    this.networkTransport.broadcast(Protocol.encodeSessionState(state));
+
+    if (Date.now() - this.lastNetworkLogAt >= NETWORK_CONFIG.MULTIPLAYER.NETWORK_LOG_INTERVAL_MS) {
+      this.lastNetworkLogAt = Date.now();
+      console.info('[Multiplayer] Session telemetry', players.map((p) => ({
+        name: p.displayName,
+        status: p.status,
+        pingMs: p.pingMs,
+        path: p.path,
+        protocol: p.protocol,
+        connection: p.connectionState,
+      })));
     }
   }
 
