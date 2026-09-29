@@ -7,6 +7,7 @@
 export const PlayerComponent = {
   id: 0,
   peerId: '',
+  displayName: 'Player',
   isLocal: false,
   isHost: false,
   health: 100,
@@ -28,10 +29,11 @@ export const PlayerComponent = {
  * @param {number} [maxHealth=100] - Initial starting health.
  * @returns {typeof PlayerComponent}
  */
-export function createPlayer(id, peerId = '', isLocal = false, isHost = false, maxHealth = 100) {
+export function createPlayer(id, peerId = '', isLocal = false, isHost = false, maxHealth = 100, displayName = 'Player') {
   return {
     id,
     peerId,
+    displayName: String(displayName || 'Player').slice(0, 16),
     isLocal,
     isHost,
     health: maxHealth,
