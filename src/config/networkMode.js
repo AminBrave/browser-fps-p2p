@@ -28,3 +28,33 @@ export function setSavedNetworkConnectionMode(value) {
   }
   return mode;
 }
+
+
+export function normalizePlayerName(value) {
+  const fallback = NETWORK_CONFIG.MULTIPLAYER.DEFAULT_PLAYER_NAME;
+  const normalized = String(value ?? '')
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, NETWORK_CONFIG.MULTIPLAYER.MAX_PLAYER_NAME_LENGTH);
+  return normalized || fallback;
+}
+
+export function getSavedPlayerName() {
+  if (typeof localStorage === 'undefined') return NETWORK_CONFIG.MULTIPLAYER.DEFAULT_PLAYER_NAME;
+  try {
+    return normalizePlayerName(localStorage.getItem(NETWORK_CONFIG.MULTIPLAYER.PLAYER_NAME_STORAGE_KEY));
+  } catch {
+    return NETWORK_CONFIG.MULTIPLAYER.DEFAULT_PLAYER_NAME;
+  }
+}
+
+export function setSavedPlayerName(value) {
+  const name = normalizePlayerName(value);
+  try {
+    localStorage.setItem(NETWORK_CONFIG.MULTIPLAYER.PLAYER_NAME_STORAGE_KEY, name);
+  } catch {
+    // Storage may be disabled; the current selection remains valid in memory.
+  }
+  return name;
+}
