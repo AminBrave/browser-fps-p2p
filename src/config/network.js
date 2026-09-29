@@ -34,16 +34,18 @@ export const NETWORK_CONFIG = Object.freeze({
     // addresses; they do not provide relay fallback like TURN does.
     STUN_SERVERS: Object.freeze([
       // Keep the default list intentionally small. Multiple STUN/TURN servers
-    // increase ICE discovery work and can slow candidate gathering.
-    Object.freeze({ urls: 'stun:stun.l.google.com:19302' }),
-    Object.freeze({ urls: 'stun:stun.cloudflare.com:3478' }),
+      // increase ICE discovery work and can slow candidate gathering.
+      Object.freeze({ urls: 'stun:stun.l.google.com:19302' }),
+      Object.freeze({ urls: 'stun:stun.cloudflare.com:3478' }),
     ]),
+
     ICE_TRANSPORT_POLICY: 'all',
     DEFAULT_CONNECTION_MODE: 'auto',
     SDP_SEMANTICS: 'unified-plan',
     SIGNALING_TIMEOUT_MS: 10000,
     DATA_CONNECTION_TIMEOUT_MS: 30000,
     TURN_CONFIG_TIMEOUT_MS: 5000,
+    MAX_ICE_SERVERS: 4,
     ICE_GATHERING_GRACE_MS: 1000,
     STATS_SAMPLE_DELAY_MS: 1500,
     REQUIRE_TURN_IN_PRODUCTION: false,
