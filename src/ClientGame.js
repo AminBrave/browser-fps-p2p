@@ -43,6 +43,8 @@ export class ClientGame {
     this.playerEntities = [];
     this.playerById = new Map();
     this.multiplayerState = { players: [], updatedAt: 0 };
+    this.lastNetworkTelemetryAt = 0;
+    this.lastNetworkLogAt = 0;
     this.pendingInputBuffer = new CircularBuffer(NETWORK_CONFIG.INPUT_HISTORY_SIZE);
     this.fixedDeltaTime = 1 / (NETWORK_CONFIG.CLIENT_TICK_RATE || PLAYER_CONFIG.TICK_RATE || 60);
     this.isRunning = false;
@@ -244,6 +246,7 @@ export class ClientGame {
     this.effectStore.update(_dt, now);
     this.sceneManager.render();
     this._updateHUD();
+    this._updateLocalNetworkTelemetry(now);
     const velocity = this.localEntity?.physics?.velocity;
     const speed = Math.hypot(Number(velocity?.x) || 0, Number(velocity?.z) || 0);
     const input = this.localEntity?.input;
@@ -285,6 +288,52 @@ export class ClientGame {
       speed01: accuracy.speedT,
       isSprinting,
     });
+  }
+
+  async _updateLocalNetworkTelemetry(now) {
+    if (now - this.lastNetworkTelemetryAt < NETWORK_CONFIG.MULTIPLAYER.SESSION_TELEMETRY_INTERVAL_MS) return;
+    this.lastNetworkTelemetryAt = now;
+
+    const hostPeerId = this.peerManager?.hostPeerId;
+    if (!hostPeerId) return;
+
+    const telemetry = await this.networkTransport.getConnectionTelemetry(hostPeerId);
+    if (!telemetry) return;
+
+    const players = Array.isArray(this.multiplayerState?.players)
+      ? this.multiplayerState.players.map((player) => ({ ...player }))
+      : [];
+    const localId = this.localEntity?.player?.id;
+    const local = players.find((player) => Number(player.playerId) === Number(localId));
+    if (local) {
+      local.status = telemetry.connected ? 'online' : local.status;
+      local.pingMs = telemetry.pingMs;
+      local.path = telemetry.path;
+      local.protocol = telemetry.protocol;
+      local.connectionState = telemetry.connectionState;
+      local.iceState = telemetry.iceState;
+      local.lastSeen = Date.now();
+    }
+
+    this.multiplayerState = {
+      ...this.multiplayerState,
+      players,
+      updatedAt: now,
+    };
+    this.hud.updateMultiplayerState?.(this.multiplayerState);
+
+    if (now - this.lastNetworkLogAt >= NETWORK_CONFIG.MULTIPLAYER.NETWORK_LOG_INTERVAL_MS) {
+      this.lastNetworkLogAt = now;
+      console.info('[Multiplayer] Local network telemetry', {
+        pingMs: telemetry.pingMs,
+        path: telemetry.path,
+        localCandidateType: telemetry.localCandidateType,
+        remoteCandidateType: telemetry.remoteCandidateType,
+        protocol: telemetry.protocol,
+        connection: telemetry.connectionState,
+        ice: telemetry.iceState,
+      });
+    }
   }
 
   _handleServerPacket(dataView) {
