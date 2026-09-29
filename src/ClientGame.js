@@ -1,4 +1,4 @@
-import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, INPUT_FLAGS, WORLD_CONFIG, validateConfig } from './config/index.js';
+import { GAME_CONFIG, PLAYER_CONFIG, NETWORK_CONFIG, STANCE, INPUT_FLAGS, WORLD_CONFIG, validateConfig, getSavedPlayerName, normalizePlayerName } from './config/index.js';
 import { World } from 'miniplex';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { PeerManager } from './network/PeerManager.js';
@@ -42,6 +42,7 @@ export class ClientGame {
     this.localEntity = null;
     this.playerEntities = [];
     this.playerById = new Map();
+    this.multiplayerState = { players: [], updatedAt: 0 };
     this.pendingInputBuffer = new CircularBuffer(NETWORK_CONFIG.INPUT_HISTORY_SIZE);
     this.fixedDeltaTime = 1 / (NETWORK_CONFIG.CLIENT_TICK_RATE || PLAYER_CONFIG.TICK_RATE || 60);
     this.isRunning = false;
@@ -67,7 +68,7 @@ export class ClientGame {
     window.addEventListener('click', this._audioUnlockHandler);
   }
 
-  async initialize(hostRoomId, networkMode = null) {
+  async initialize(hostRoomId, networkMode = null, playerName = null) {
     await this.physicsWorld.init();
 
     this.inputSystem = new InputSystem(this.container);
@@ -92,7 +93,10 @@ export class ClientGame {
     // WebRTC transport establishment is not the same thing as admission to
     // the game. Explicitly request admission so the host can validate and
     // initialize the player before sending authoritative world state.
-    const joinSent = this.networkTransport.sendToHost(Protocol.encodeJoinRequest());
+    const joinName = normalizePlayerName(playerName || getSavedPlayerName());
+    const joinSent = this.networkTransport.sendToHost(
+      Protocol.encodeJoinRequest(undefined, joinName)
+    );
     if (!joinSent) {
       throw new Error('WebRTC transport opened, but the join request could not be sent.');
     }
@@ -306,6 +310,19 @@ export class ClientGame {
       return;
     }
 
+    if (packetType === PACKET_TYPES.SESSION_STATE) {
+      const state = Protocol.decodeSessionState(dataView);
+      if (state) {
+        this.multiplayerState = {
+          ...state,
+          updatedAt: performance.now(),
+        };
+        this._applyRosterNames(state.players);
+        this.hud.updateMultiplayerState?.(this.multiplayerState);
+      }
+      return;
+    }
+
     if (packetType === PACKET_TYPES.JOIN_ACCEPT) {
       const accepted = Protocol.decodeJoinAccept(dataView);
       if (!accepted) return;
@@ -371,6 +388,16 @@ export class ClientGame {
       else if (event.sfx === 'land') audio.playLandAt?.(event.position);
       else if (event.sfx === 'hit') audio.playHitAt?.(event.position);
       else if (event.sfx === 'death') audio.playDeathAt?.(event.position);
+    }
+  }
+
+  _applyRosterNames(players = []) {
+    for (const info of players) {
+      const id = Number(info.playerId);
+      const entity = this.playerById.get(id);
+      if (entity?.player) {
+        entity.player.displayName = normalizePlayerName(info.displayName);
+      }
     }
   }
 
