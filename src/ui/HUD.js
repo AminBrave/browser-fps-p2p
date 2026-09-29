@@ -348,6 +348,10 @@ export class HUD {
       ? Math.round(onlinePlayers.reduce((sum, p) => sum + p.pingMs, 0) / onlinePlayers.length)
       : null;
     if (this.networkSummaryEl) {
+      if (state.matchConnection === 'host-left') {
+        this.networkSummaryEl.textContent = 'MATCH CONNECTION LOST · HOST LEFT';
+        return;
+      }
       this.networkSummaryEl.textContent = onlinePlayers.length
         ? `NETWORK · avg ${avgPing}ms · ${relayCount} relay · telemetry ${new Date(state.serverTime || Date.now()).toLocaleTimeString()}`
         : 'NETWORK · waiting for telemetry';
