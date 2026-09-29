@@ -16,6 +16,7 @@ export const PACKET_TYPES = {
   DISCONNECT: 7,
   // Authoritative match definition sent before a client builds its world.
   WORLD_INIT: 8,
+  SESSION_STATE: 9,
 };
 
 export const EVENT_TYPES = {
