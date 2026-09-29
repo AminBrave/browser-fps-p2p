@@ -42,7 +42,7 @@ export class HostNetworkSystem {
           });
           return;
         }
-        this.onJoinRequest?.(peerId);
+        this.onJoinRequest?.(peerId, request);
         return;
       }
 
