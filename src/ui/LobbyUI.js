@@ -1,4 +1,4 @@
-import { NETWORK_CONFIG, UI_CONFIG, PERFORMANCE_PROFILES, getSavedPerformanceProfile, resolvePerformanceProfile, setSavedPerformanceProfile, NETWORK_CONNECTION_MODES, getSavedNetworkConnectionMode, setSavedNetworkConnectionMode } from '../config/index.js';
+import { NETWORK_CONFIG, UI_CONFIG, PERFORMANCE_PROFILES, getSavedPerformanceProfile, resolvePerformanceProfile, setSavedPerformanceProfile, NETWORK_CONNECTION_MODES, getSavedNetworkConnectionMode, setSavedNetworkConnectionMode, getSavedPlayerName, setSavedPlayerName, normalizePlayerName } from '../config/index.js';
 
 /**
  * Pre-game lobby and local graphics/performance selection.
@@ -34,6 +34,7 @@ export class LobbyUI {
   _createDOMStructure() {
     const savedProfile = getSavedPerformanceProfile();
     const savedNetworkMode = getSavedNetworkConnectionMode();
+    const savedPlayerName = getSavedPlayerName();
     const profileOptions = [
       '<option value="auto">Auto — recommended</option>',
       ...Object.values(PERFORMANCE_PROFILES).map((profile) =>
@@ -56,6 +57,9 @@ export class LobbyUI {
         <p style="margin:0 0 24px;font-size:13px;color:#888;">Listen-Host WebRTC Network Architecture</p>
 
         <div style="margin-bottom:16px;text-align:left;padding:14px;border-radius:8px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.08);">
+          <label for="player-name" style="display:block;font-size:11px;color:#aaa;letter-spacing:1px;margin-bottom:8px;">PLAYER NAME</label>
+          <input id="player-name" maxlength="${NETWORK_CONFIG.MULTIPLAYER.MAX_PLAYER_NAME_LENGTH}" autocomplete="nickname" value="${savedPlayerName.replace(/"/g, '&quot;')}" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:10px;background:#182128;color:white;border:1px solid rgba(255,255,255,.18);border-radius:6px;font-size:14px;outline:none;margin-bottom:12px;">
+          <div style="font-size:10px;color:#666;margin-top:-5px;margin-bottom:10px;">Shown to everyone in the match scoreboard.</div>
           <label for="network-mode" style="display:block;font-size:11px;color:#aaa;letter-spacing:1px;margin-bottom:8px;">NETWORK CONNECTION</label>
           <select id="network-mode" style="width:100%;padding:10px;background:#182128;color:white;border:1px solid rgba(255,255,255,.18);border-radius:6px;font-size:14px;"><option value="auto">Automatic — recommended</option>
       <option value="direct">Direct — STUN / no relay</option>
@@ -95,6 +99,7 @@ export class LobbyUI {
     this.hostBtn = this.container.querySelector('#btn-host');
     this.joinBtn = this.container.querySelector('#btn-join');
     this.roomIdInput = this.container.querySelector('#input-room-id');
+    this.playerName = this.container.querySelector('#player-name');
     this.invitationPanel = this.container.querySelector('#host-invitation');
     this.hostCodeInput = this.container.querySelector('#host-code');
     this.copyCodeBtn = this.container.querySelector('#btn-copy-code');
@@ -102,6 +107,10 @@ export class LobbyUI {
     this.networkModeHelp = this.container.querySelector('#network-mode-help');
     this.graphicsProfile = this.container.querySelector('#graphics-profile');
     this.graphicsProfileHelp = this.container.querySelector('#graphics-profile-help');
+    this.playerName.value = savedPlayerName;
+    this.playerName.addEventListener('change', () => {
+      this.playerName.value = setSavedPlayerName(this.playerName.value);
+    });
     this.networkMode.value = savedNetworkMode;
     this._updateNetworkModeHelp();
     this.graphicsProfile.value = savedProfile;
@@ -120,7 +129,7 @@ export class LobbyUI {
     this.hostBtn.addEventListener('click', () => {
       if (this.busy) return;
       this.setBusy(true);
-      this.callbacks?.onHostGame?.(this.getPerformanceProfile(), this.getNetworkConnectionMode());
+      this.callbacks?.onHostGame?.(this.getPerformanceProfile(), this.getNetworkConnectionMode(), this.getPlayerName());
     });
 
     this.joinBtn.addEventListener('click', () => {
@@ -128,7 +137,7 @@ export class LobbyUI {
       const roomId = this.roomIdInput?.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || '';
       if (!roomId) return;
       this.setBusy(true);
-      this.callbacks?.onJoinGame?.(roomId, this.getPerformanceProfile(), this.getNetworkConnectionMode());
+      this.callbacks?.onJoinGame?.(roomId, this.getPerformanceProfile(), this.getNetworkConnectionMode(), this.getPlayerName());
     });
 
     this.roomIdInput.addEventListener('keydown', (event) => {
@@ -146,6 +155,12 @@ export class LobbyUI {
         document.execCommand('copy');
       }
     });
+  }
+
+  getPlayerName() {
+    const value = normalizePlayerName(this.playerName?.value || getSavedPlayerName());
+    if (this.playerName) this.playerName.value = value;
+    return setSavedPlayerName(value);
   }
 
   getNetworkConnectionMode() {
@@ -183,6 +198,7 @@ export class LobbyUI {
     if (this.joinBtn) this.joinBtn.disabled = busy;
     if (this.graphicsProfile) this.graphicsProfile.disabled = busy;
     if (this.networkMode) this.networkMode.disabled = busy;
+    if (this.playerName) this.playerName.disabled = busy;
   }
 
   showInvitationCode(code) {
