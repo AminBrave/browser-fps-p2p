@@ -65,6 +65,7 @@ export class ClientGame {
     // Install the handler before opening the WebRTC connection. The host sends
     // the world manifest immediately when the connection opens.
     this.networkTransport.onData((_id, dataView) => this._handleServerPacket(dataView));
+    this.networkTransport.onDisconnect((peerId) => this._handleNetworkDisconnect(peerId));
 
     this._audioUnlockHandler = () => audio.unlock();
     window.addEventListener('click', this._audioUnlockHandler);
@@ -287,6 +288,27 @@ export class ClientGame {
       recoil,
       speed01: accuracy.speedT,
       isSprinting,
+    });
+  }
+
+  _handleNetworkDisconnect(peerId) {
+    if (String(peerId) !== String(this.peerManager?.hostPeerId || '')) return;
+    const players = Array.isArray(this.multiplayerState?.players)
+      ? this.multiplayerState.players.map((player) => (
+        Number(player.playerId) === Number(this.multiplayerState.hostPlayerId)
+          ? { ...player, status: 'left', connectionState: 'closed', pingMs: null, path: 'unknown' }
+          : player
+      ))
+      : [];
+    this.multiplayerState = {
+      ...this.multiplayerState,
+      players,
+      matchConnection: 'host-left',
+      updatedAt: performance.now(),
+    };
+    this.hud.updateMultiplayerState?.(this.multiplayerState);
+    console.warn('[Multiplayer] Host connection closed; authoritative session is no longer active.', {
+      hostPeerId: peerId,
     });
   }
 
