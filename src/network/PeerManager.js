@@ -497,13 +497,6 @@ export class PeerManager {
 
       const local = selectedPair ? stats.get(selectedPair.localCandidateId) : null;
       const remote = selectedPair ? stats.get(selectedPair.remoteCandidateId) : null;
-      const inbound = [];
-      const outbound = [];
-      stats.forEach((report) => {
-        if (report.type === 'inbound-rtp') inbound.push(report);
-        if (report.type === 'outbound-rtp') outbound.push(report);
-      });
-
       const localType = local?.candidateType || 'unknown';
       const remoteType = remote?.candidateType || 'unknown';
       const path = localType === 'relay' || remoteType === 'relay'
@@ -514,9 +507,6 @@ export class PeerManager {
             ? 'lan-direct'
             : 'direct';
 
-      const lost = inbound.reduce((sum, item) => sum + (Number(item.packetsLost) || 0), 0);
-      const received = inbound.reduce((sum, item) => sum + (Number(item.packetsReceived) || 0), 0);
-
       return {
         ...base,
         path,
@@ -526,10 +516,11 @@ export class PeerManager {
         pingMs: Number.isFinite(selectedPair?.currentRoundTripTime)
           ? Math.round(selectedPair.currentRoundTripTime * 1000)
           : null,
-        packetsLost: lost,
-        packetsReceived: received,
-        bytesSent: outbound.reduce((sum, item) => sum + (Number(item.bytesSent) || 0), 0),
-        bytesReceived: inbound.reduce((sum, item) => sum + (Number(item.bytesReceived) || 0), 0),
+        packetsLost: null,
+        packetsReceived: Number.isFinite(selectedPair?.packetsReceived) ? selectedPair.packetsReceived : null,
+        packetsSent: Number.isFinite(selectedPair?.packetsSent) ? selectedPair.packetsSent : null,
+        bytesSent: Number.isFinite(selectedPair?.bytesSent) ? selectedPair.bytesSent : null,
+        bytesReceived: Number.isFinite(selectedPair?.bytesReceived) ? selectedPair.bytesReceived : null,
         timestamp: Date.now(),
       };
     } catch {
