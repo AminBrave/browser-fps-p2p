@@ -20,11 +20,20 @@ export class Protocol {
     return view && view.byteLength >= 1 ? view.getUint8(0) : 0;
   }
 
-  static encodeJoinRequest(protocolVersion = PROTOCOL_CONFIG.PROTOCOL_VERSION) {
-    const buffer = new ArrayBuffer(PROTOCOL_CONFIG.JOIN_REQUEST_SIZE);
+  static encodeJoinRequest(protocolVersion = PROTOCOL_CONFIG.PROTOCOL_VERSION, displayName = 'Player') {
+    const name = String(displayName || 'Player')
+      .replace(/[\\u0000-\\u001F\\u007F]/g, '')
+      .trim()
+      .replace(/\\s+/g, ' ')
+      .slice(0, 16);
+    const payload = new TextEncoder().encode(name);
+    const length = Math.min(255, payload.byteLength);
+    const buffer = new ArrayBuffer(PROTOCOL_CONFIG.JOIN_REQUEST_HEADER_SIZE + length);
     const view = new DataView(buffer);
     view.setUint8(0, PACKET_TYPES.JOIN_REQUEST);
     view.setUint16(1, Number(protocolVersion) >>> 0, true);
+    view.setUint8(3, length);
+    new Uint8Array(buffer, PROTOCOL_CONFIG.JOIN_REQUEST_HEADER_SIZE).set(payload.subarray(0, length));
     return buffer;
   }
 
@@ -32,11 +41,20 @@ export class Protocol {
     const view = asDataView(data);
     if (
       !view ||
-      view.byteLength !== PROTOCOL_CONFIG.JOIN_REQUEST_SIZE ||
+      view.byteLength < PROTOCOL_CONFIG.JOIN_REQUEST_HEADER_SIZE ||
+      view.byteLength > PROTOCOL_CONFIG.JOIN_REQUEST_MAX_BYTES ||
       view.getUint8(0) !== PACKET_TYPES.JOIN_REQUEST
     ) return null;
+    const length = view.getUint8(3);
+    if (length !== view.byteLength - PROTOCOL_CONFIG.JOIN_REQUEST_HEADER_SIZE) return null;
+    const bytes = new Uint8Array(view.buffer, view.byteOffset + PROTOCOL_CONFIG.JOIN_REQUEST_HEADER_SIZE, length);
+    let displayName = 'Player';
+    try {
+      displayName = new TextDecoder().decode(bytes).trim().slice(0, 16) || displayName;
+    } catch {}
     return {
       protocolVersion: view.getUint16(1, true),
+      displayName,
     };
   }
 
@@ -155,6 +173,37 @@ export class Protocol {
 
   static decodeInput(data) {
     return this.decodeClientInput(data);
+  }
+
+  static encodeSessionState(state = {}) {
+    const payload = new TextEncoder().encode(JSON.stringify(state));
+    const totalLength = PROTOCOL_CONFIG.SESSION_STATE_HEADER_SIZE + payload.byteLength;
+    if (totalLength > MAX_PACKET_BYTES) throw new RangeError('SESSION_STATE packet exceeds maximum size');
+    const buffer = new ArrayBuffer(totalLength);
+    const view = new DataView(buffer);
+    view.setUint8(0, PACKET_TYPES.SESSION_STATE);
+    view.setUint32(1, payload.byteLength, true);
+    new Uint8Array(buffer, PROTOCOL_CONFIG.SESSION_STATE_HEADER_SIZE).set(payload);
+    return buffer;
+  }
+
+  static decodeSessionState(data) {
+    const view = asDataView(data);
+    if (
+      !view ||
+      view.byteLength < PROTOCOL_CONFIG.SESSION_STATE_HEADER_SIZE ||
+      view.byteLength > MAX_PACKET_BYTES ||
+      view.getUint8(0) !== PACKET_TYPES.SESSION_STATE
+    ) return null;
+    const length = view.getUint32(1, true);
+    if (length !== view.byteLength - PROTOCOL_CONFIG.SESSION_STATE_HEADER_SIZE) return null;
+    try {
+      return JSON.parse(new TextDecoder().decode(
+        new Uint8Array(view.buffer, view.byteOffset + PROTOCOL_CONFIG.SESSION_STATE_HEADER_SIZE, length)
+      ));
+    } catch {
+      return null;
+    }
   }
 
   static encodeGameEvent(event = {}) {
