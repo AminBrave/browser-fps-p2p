@@ -381,6 +381,7 @@ export class HostGame {
       players,
     };
 
+    this.hud.updateMultiplayerState?.(state);
     this.networkTransport.broadcast(Protocol.encodeSessionState(state));
 
     if (Date.now() - this.lastNetworkLogAt >= NETWORK_CONFIG.MULTIPLAYER.NETWORK_LOG_INTERVAL_MS) {
