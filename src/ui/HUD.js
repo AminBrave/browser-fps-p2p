@@ -330,10 +330,12 @@ export class HUD {
       const path = String(player.path || 'unknown');
       const pathLabel = path === 'lan-direct' ? 'LAN' : path === 'internet-direct' ? 'DIRECT' : path === 'relay' ? 'RELAY' : path === 'host' ? 'LOCAL' : '—';
       net.textContent = player.status === 'left' ? 'LEFT' : `${ping} · ${pathLabel}`;
+      const pingValue = Number(player.pingMs);
       net.style.cssText = 'font-variant-numeric:tabular-nums;color:' + (
         player.status === 'left' ? '#7f8c8d' :
-        Number(player.pingMs) < 70 ? '#7bed9f' :
-        Number(player.pingMs) < 140 ? '#f6c85f' : '#ff6b81'
+        !Number.isFinite(pingValue) ? '#a4b0be' :
+        pingValue < 70 ? '#7bed9f' :
+        pingValue < 140 ? '#f6c85f' : '#ff6b81'
       ) + ';';
 
       row.append(name, kd, net);
