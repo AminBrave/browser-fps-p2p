@@ -26,7 +26,7 @@ export async function resolveIceServers(requestedMode = NETWORK_CONFIG.WEBRTC.DE
 
   if (import.meta.env.DEV) {
     return {
-      iceServers: isRelay ? [] : servers,
+      iceServers: isRelay ? [] : servers.slice(0, NETWORK_CONFIG.WEBRTC.MAX_ICE_SERVERS),
       hasTurn: false,
       mode,
       source: isRelay ? 'development-no-turn' : 'development-stun-only',
@@ -67,7 +67,15 @@ export async function resolveIceServers(requestedMode = NETWORK_CONFIG.WEBRTC.DE
       }).filter(Boolean);
     }
 
-    const iceServers = isRelay ? turnServers : [...servers, ...turnServers];
+    const candidateServers = isRelay ? turnServers : [...servers, ...turnServers];
+    const iceServers = candidateServers.slice(0, NETWORK_CONFIG.WEBRTC.MAX_ICE_SERVERS);
+
+    if (candidateServers.length > iceServers.length) {
+      console.info('[Network] ICE server list capped to avoid slow candidate discovery.', {
+        configured: candidateServers.length,
+        used: iceServers.length,
+      });
+    }
 
     if (turnServers.length) {
       sources.push(payload?.source || 'turn');
