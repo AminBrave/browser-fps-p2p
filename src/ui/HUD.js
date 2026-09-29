@@ -41,6 +41,15 @@ export class HUD {
         <span style="color:#7bed9f;">KILLS <b id="hud-kills">0</b></span>
         <span style="color:#ff6b81;">DEATHS <b id="hud-deaths">0</b></span>
         <span style="color:#dfe4ea;">K/D <b id="hud-kd">0.00</b></span>
+      <div id="hud-multiplayer-panel" style="position:absolute;top:60px;left:18px;width:min(390px,calc(100vw - 36px));background:rgba(0,0,0,0.48);border:1px solid rgba(255,255,255,.10);border-radius:9px;backdrop-filter:blur(8px);overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 11px;border-bottom:1px solid rgba(255,255,255,.08);font-size:10px;letter-spacing:1px;font-weight:800;color:#70a1ff;">
+          <span>MATCH PLAYERS</span>
+          <span id="hud-player-count">0/0</span>
+        </div>
+        <div id="hud-player-list"></div>
+        <div id="hud-network-summary" style="padding:7px 11px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:#a4b0be;">NETWORK — waiting for telemetry</div>
+      </div>
+
       </div>
 
       <div style="position:absolute;top:16px;right:20px;text-align:right;background:rgba(0,0,0,0.35);padding:10px 14px;border-radius:8px;backdrop-filter:blur(6px);line-height:1.55;">
@@ -92,6 +101,18 @@ export class HUD {
     this.killsEl = this.container.querySelector('#hud-kills');
     this.deathsEl = this.container.querySelector('#hud-deaths');
     this.kdEl = this.container.querySelector('#hud-kd');
+    this.multiplayerPanel = this.container.querySelector('#hud-multiplayer-panel');
+    this.playerCountEl = this.container.querySelector('#hud-player-count');
+    this.playerListEl = this.container.querySelector('#hud-player-list');
+    this.networkSummaryEl = this.container.querySelector('#hud-network-summary');
+    this._scoreboardVisible = true;
+    this._scoreboardKeyHandler = (event) => {
+      if (event.key !== 'Tab') return;
+      event.preventDefault();
+      this._scoreboardVisible = !this._scoreboardVisible;
+      if (this.multiplayerPanel) this.multiplayerPanel.style.display = this._scoreboardVisible ? 'block' : 'none';
+    };
+    window.addEventListener('keydown', this._scoreboardKeyHandler);
     this.crosshair = this.container.querySelector('#crosshair');
     this.crosshairParts = [
       this.crosshair?.querySelector('[data-crosshair-part="top"]'),
@@ -279,11 +300,64 @@ export class HUD {
     if (this.kdEl) this.kdEl.textContent = (d > 0 ? k / d : k).toFixed(2);
   }
 
+  updateMultiplayerState(state = {}) {
+    const players = Array.isArray(state.players) ? state.players : [];
+    const online = players.filter((p) => p.status === 'online').length;
+    if (this.playerCountEl) {
+      this.playerCountEl.textContent = `${online}/${state.maxPlayers ?? players.length}`;
+    }
+    if (!this.playerListEl) return;
+
+    this.playerListEl.replaceChildren();
+    for (const player of players) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:7px 11px;border-bottom:1px solid rgba(255,255,255,.045);font-size:11px;';
+
+      const name = document.createElement('span');
+      name.textContent = String(player.displayName || 'Player').slice(0, 16);
+      name.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;';
+      if (player.status === 'left') name.style.opacity = '0.45';
+      if (player.isHost) name.textContent += '  HOST';
+
+      const kd = document.createElement('span');
+      const kills = Number(player.kills) || 0;
+      const deaths = Number(player.deaths) || 0;
+      kd.textContent = `${kills}/${deaths}`;
+      kd.style.cssText = 'font-variant-numeric:tabular-nums;color:#dfe4ea;';
+
+      const net = document.createElement('span');
+      const ping = Number.isFinite(player.pingMs) ? `${Math.max(0, Math.round(player.pingMs))}ms` : '—';
+      const path = String(player.path || 'unknown');
+      const pathLabel = path === 'lan-direct' ? 'LAN' : path === 'internet-direct' ? 'DIRECT' : path === 'relay' ? 'RELAY' : path === 'host' ? 'LOCAL' : '—';
+      net.textContent = player.status === 'left' ? 'LEFT' : `${ping} · ${pathLabel}`;
+      net.style.cssText = 'font-variant-numeric:tabular-nums;color:' + (
+        player.status === 'left' ? '#7f8c8d' :
+        Number(player.pingMs) < 70 ? '#7bed9f' :
+        Number(player.pingMs) < 140 ? '#f6c85f' : '#ff6b81'
+      ) + ';';
+
+      row.append(name, kd, net);
+      this.playerListEl.appendChild(row);
+    }
+
+    const onlinePlayers = players.filter((p) => p.status === 'online' && Number.isFinite(p.pingMs));
+    const relayCount = onlinePlayers.filter((p) => p.path === 'relay').length;
+    const avgPing = onlinePlayers.length
+      ? Math.round(onlinePlayers.reduce((sum, p) => sum + p.pingMs, 0) / onlinePlayers.length)
+      : null;
+    if (this.networkSummaryEl) {
+      this.networkSummaryEl.textContent = onlinePlayers.length
+        ? `NETWORK · avg ${avgPing}ms · ${relayCount} relay · telemetry ${new Date(state.serverTime || Date.now()).toLocaleTimeString()}`
+        : 'NETWORK · waiting for telemetry';
+    }
+  }
+
   setDeathOverlay(isDead) {
     this.deathOverlay.style.display = isDead ? 'block' : 'none';
   }
 
   dispose() {
+    window.removeEventListener('keydown', this._scoreboardKeyHandler);
     this.container?.parentNode?.removeChild(this.container);
   }
 }
