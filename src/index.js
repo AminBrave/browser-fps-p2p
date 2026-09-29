@@ -21,8 +21,8 @@ class App {
    */
   init() {
     this.lobbyUI = new LobbyUI({
-      onHostGame: (profile, networkMode) => this.startHostSession(profile, networkMode),
-      onJoinGame: (roomId, profile, networkMode) => this.startClientSession(roomId, profile, networkMode),
+      onHostGame: (profile, networkMode, playerName) => this.startHostSession(profile, networkMode, playerName),
+      onJoinGame: (roomId, profile, networkMode, playerName) => this.startClientSession(roomId, profile, networkMode, playerName),
     });
 
     this.lobbyUI.setStatus('Ready to Host or Join game.', UI_CONFIG.STATUS.READY);
@@ -31,7 +31,7 @@ class App {
   /**
    * Instantiates and runs an Authoritative Host game session.
    */
-  async startHostSession(profile = null, networkMode = null) {
+  async startHostSession(profile = null, networkMode = null, playerName = null) {
     if (profile) setSavedPerformanceProfile(profile);
     if (networkMode) setSavedNetworkConnectionMode(networkMode);
     try {
@@ -40,7 +40,7 @@ class App {
       const hostGame = new HostGame(document.body);
       this.gameInstance = hostGame;
 
-      const hostRoomId = await hostGame.initialize(networkMode);
+      const hostRoomId = await hostGame.initialize(networkMode, playerName);
 
       this.lobbyUI.showInvitationCode(hostRoomId);
       this.lobbyUI.setStatus('Host Active! Share the 5-character invitation code.', UI_CONFIG.STATUS.SUCCESS);
@@ -62,7 +62,7 @@ class App {
    * 
    * @param {string} roomId - Host WebRTC Peer ID.
    */
-  async startClientSession(roomId, profile = null, networkMode = null) {
+  async startClientSession(roomId, profile = null, networkMode = null, playerName = null) {
     if (profile) setSavedPerformanceProfile(profile);
     if (networkMode) setSavedNetworkConnectionMode(networkMode);
     try {
@@ -77,7 +77,7 @@ class App {
       const clientGame = new ClientGame(document.body);
       this.gameInstance = clientGame;
 
-      await clientGame.initialize(invitationCode, networkMode);
+      await clientGame.initialize(invitationCode, networkMode, playerName);
 
       this.lobbyUI.setStatus('Connected! Starting session...', UI_CONFIG.STATUS.SUCCESS);
       this.lobbyUI.setVisible(false);
