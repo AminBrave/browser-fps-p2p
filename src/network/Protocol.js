@@ -22,9 +22,9 @@ export class Protocol {
 
   static encodeJoinRequest(protocolVersion = PROTOCOL_CONFIG.PROTOCOL_VERSION, displayName = 'Player') {
     const name = String(displayName || 'Player')
-      .replace(/[\\u0000-\\u001F\\u007F]/g, '')
+      .replace(/[\u0000-\u001F\u007F]/g, '')
       .trim()
-      .replace(/\\s+/g, ' ')
+      .replace(/\s+/g, ' ')
       .slice(0, 16);
     const payload = new TextEncoder().encode(name);
     const length = Math.min(255, payload.byteLength);
