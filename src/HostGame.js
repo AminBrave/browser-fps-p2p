@@ -354,12 +354,7 @@ export class HostGame {
       });
     }
 
-    const cutoff = Date.now() - NETWORK_CONFIG.MULTIPLAYER.DISCONNECT_GRACE_MS;
     for (const [peerId, departed] of this.departedPlayers) {
-      if (departed.leftAt < cutoff) {
-        this.departedPlayers.delete(peerId);
-        continue;
-      }
       current.set(peerId, {
         ...departed,
         status: 'left',
