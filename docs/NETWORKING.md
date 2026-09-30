@@ -26,12 +26,28 @@ A client records each local input with its sequence number, simulation tick, inp
 
 The authoritative host keeps a bounded history of simplified combat hitboxes. A shot is resolved against the historical frame associated with the shot tick, clamped to the configured rewind window. Movement physics is not rewound.
 
-This keeps historical hit registration proportional to player count and avoids mutating the complete physics world for every shot.
+Static-world occlusion is checked separately, so rewinding a target cannot make a shot pass through a wall that existed on the authoritative map.
 
 ## Metrics
 
 Track RTT, jitter, packet loss, snapshot age, interpolation underruns, prediction correction magnitude, and pending input count. Use p50/p95 values for tuning instead of averages alone.
 
-## TURN
+## TURN and ICE
 
 TURN remains a production compatibility layer for restrictive NAT/firewall combinations. Keep credentials server-side and inject only the resulting ICE configuration into the browser.
+
+The browser starts with direct/STUN candidates and WebRTC selects a viable ICE path. Without TURN, some symmetric-NAT/firewall combinations cannot establish a direct P2P connection.
+
+## Deployment
+
+The repository supports:
+
+- Railway: server.js serves the built SPA and /api/ice from one Node process.
+- Vercel: Vite serves dist/ and api/ice.js provides the ICE endpoint.
+- A separate PeerServer service: peer-server.js can run with npm run start:peer.
+
+For a self-hosted PeerServer, configure VITE_PEER_SERVER_HOST, VITE_PEER_SERVER_PORT and VITE_PEER_SERVER_PATH. Keep TURN credentials out of VITE_* variables.
+
+## Architecture rule
+
+Do not make simulation depend on PeerJS lifecycle events. A transport opening establishes a network path; the explicit game handshake is responsible for admission and world initialization.
