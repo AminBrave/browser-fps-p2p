@@ -96,6 +96,10 @@ export class PhysicsWorld {
     return this.queries.castRay(origin, direction, maxDistance, excludeCollider);
   }
 
+  castRayStatic(origin, direction, maxDistance = PHYSICS_CONFIG.DEFAULT_RAY_DISTANCE, excludeCollider = null) {
+    return this.queries.castRayStatic(origin, direction, maxDistance, excludeCollider);
+  }
+
   dispose() {
     if (!this.initialized) return;
     this.colliderRegistry.clear();
