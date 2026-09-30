@@ -2,7 +2,8 @@ import { PACKET_TYPES, EVENT_TYPES } from '../../../network/PacketTypes.js';
 import { Protocol } from '../../../network/Protocol.js';
 import { GAME_CONFIG, INPUT_FLAGS, NETWORK_CONFIG, PROTOCOL_CONFIG, STANCE } from '../../../config/index.js';
 import { validateClientInput } from '../../../network/InputValidator.js';
-import { isNewerSequence } from '../../../network/Sequence.js';
+import { isNewerSequence, sequenceDistance } from '../../../network/Sequence.js';
+import { NetworkMetrics } from '../../../network/NetworkMetrics.js';
 
 const CONTINUOUS_INPUT_MASK =
   INPUT_FLAGS.FORWARD |
@@ -28,6 +29,7 @@ export class HostNetworkSystem {
     this.lastBroadcastTime = 0;
     this.broadcastIntervalMs = 1000 / Math.max(1, NETWORK_CONFIG.SNAPSHOT_BROADCAST_RATE);
     this.onJoinRequest = null;
+    this.metrics = new NetworkMetrics();
 
     this.peerTransport.onData((peerId, dataView) => {
       if (dataView.byteLength < 1) return;
@@ -70,6 +72,11 @@ export class HostNetworkSystem {
 
       const previous = this.lastReceivedSequence.get(peerId);
       if (!isNewerSequence(validatedInput.sequence, previous)) return;
+      this.metrics.recordPacketReceived();
+      if (previous != null) {
+        const gap = sequenceDistance(validatedInput.sequence, previous);
+        if (gap > 1 && gap < 0x80000000) this.metrics.recordPacketLost(gap - 1);
+      }
 
       const input = { ...validatedInput };
       if (!this.peerTickOffset.has(peerId)) {
@@ -193,6 +200,10 @@ export class HostNetworkSystem {
     console.warn('[Network] Rejecting peer:', peerId, reason);
     this.removePeer(peerId);
     this.peerTransport.closePeer(peerId);
+  }
+
+  getMetrics() {
+    return this.metrics.snapshot();
   }
 
   setJoinHandler(callback) {
