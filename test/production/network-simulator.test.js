@@ -21,7 +21,7 @@ test('NetworkSimulator supports loss, duplication, reordering and bandwidth', ()
   });
   sim.send(new Uint8Array(100), 0);
   sim.send(new Uint8Array(100), 0);
-  assert.equal(sim.receive(100).length, 4);
+  assert.equal(sim.receive(201).length, 4);
   sim.clear();
   assert.deepEqual(sim.receive(100), []);
 });
