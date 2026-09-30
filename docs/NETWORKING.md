@@ -6,11 +6,11 @@ The authoritative host and clients use integer simulation ticks at 60 Hz. Gamepl
 
 ## Transport lanes
 
-The logical protocol is split into three traffic classes:
+The protocol is classified into three traffic classes. The current PeerJS transport keeps a compatibility-safe reliable connection, while realtime packets use sequence semantics and aggressive backpressure; the channel policy is explicit so a dual-data-channel transport can be enabled without changing simulation code.
 
 1. Control: reliable + ordered. Join, world initialization, match state, and other state transitions.
-2. Input: unreliable + sequence-numbered. A newer input supersedes stale input; the simulation never waits for an old packet.
-3. Snapshot: unreliable + newest-state-wins. Remote interpolation consumes a short history rather than blocking on missing snapshots.
+2. Input: sequence-numbered realtime traffic. A newer input supersedes stale input; when the WebRTC buffer is high, the newest state is prioritized over queued state.
+3. Snapshot: newest-state-wins realtime traffic. Remote interpolation consumes a short history rather than blocking on missing snapshots.
 
 PeerJS exposes the underlying data-channel reliability on each DataConnection. The reliable option is appropriate for reliable control traffic, while gaming/streaming traffic should use unreliable delivery. The transport abstraction keeps these modes explicit so the underlying connection implementation can evolve without leaking PeerJS into simulation code.
 
