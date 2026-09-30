@@ -1,5 +1,6 @@
 import { GAME_CONFIG, NETWORK_CONFIG } from '../../../config/index.js';
 import { insertSnapshot, sampleSnapshotPair, lerpAngle } from '../../../game/simulation/network/SnapshotTimeline.js';
+import { AdaptiveInterpolation } from '../../../game/simulation/network/AdaptiveInterpolation.js';
 
 /**
  * Client-only snapshot interpolation.
@@ -14,6 +15,11 @@ export class InterpolationSystem {
       GAME_CONFIG.INTERPOLATION_DELAY_MS ??
       NETWORK_CONFIG.INTERPOLATION_BUFFER_MS ??
       100;
+    this.adaptiveDelay = new AdaptiveInterpolation({
+      minMs: NETWORK_CONFIG.INTERPOLATION_MIN_MS ?? 50,
+      maxMs: NETWORK_CONFIG.INTERPOLATION_MAX_MS ?? 200,
+      initialMs: this.renderDelayMs,
+    });
 
     this.snapshotBuffer = [];
     this.serverClockOffsetMs = null;
@@ -24,6 +30,7 @@ export class InterpolationSystem {
     if (!snapshot) return;
 
     const arrivalTime = performance.now();
+    this.renderDelayMs = this.adaptiveDelay.observeSnapshot(arrivalTime);
     const tickRate = Math.max(1, NETWORK_CONFIG.SERVER_TICK_RATE || 60);
     const serverTime =
       Number.isFinite(snapshot.serverTick)
@@ -128,5 +135,6 @@ export class InterpolationSystem {
 
   dispose() {
     this.snapshotBuffer.length = 0;
+    this.adaptiveDelay.reset();
   }
 }
