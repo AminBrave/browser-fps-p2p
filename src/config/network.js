@@ -32,7 +32,7 @@ export const NETWORK_CONFIG = Object.freeze({
   }),
   TRANSPORT: Object.freeze({
     LABEL: 'p2p-fps-game', SERIALIZATION: 'binary',
-    RELIABLE: false, MAX_BUFFERED_BYTES: 512 * 1024,
+    RELIABLE: true, MAX_BUFFERED_BYTES: 512 * 1024,
     MAX_PACKET_BYTES: 64 * 1024,
     BUFFER_HIGH_WATERMARK_BYTES: 256 * 1024,
     BUFFER_LOW_WATERMARK_BYTES: 64 * 1024,
