@@ -14,7 +14,8 @@ test('adaptive interpolation tracks snapshot cadence and clamps bounds', () => {
   assert.equal(a.getDelayMs(), 120);
 });
 
-test('invalid observations do not alter delay', () => {
+test('constructor validates bounds and invalid observations do not alter delay', () => {
+  assert.throws(() => new AdaptiveInterpolation({ minMs: 200, maxMs: 100 }), RangeError);
   const a = new AdaptiveInterpolation();
   const before = a.getDelayMs();
   assert.equal(a.observeSnapshot(NaN), before);
