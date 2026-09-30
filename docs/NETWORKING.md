@@ -30,7 +30,15 @@ Static-world occlusion is checked separately, so rewinding a target cannot make 
 
 ## Metrics
 
-Track RTT, jitter, packet loss, snapshot age, interpolation underruns, prediction correction magnitude, and pending input count. Use p50/p95 values for tuning instead of averages alone.
+Track RTT, jitter, packet loss, snapshot age, interpolation underruns, prediction correction magnitude, pending input count, frame-time p95, simulation p95, and render p95. Use p50/p95 values for tuning instead of averages alone. `ClientGame.getNetworkDiagnostics()` exposes the current transport, performance, clock-offset, interpolation, and pending-input state for developer tooling.
+
+## Clock synchronization
+
+The client maintains a smoothed server-tick-to-local-monotonic-clock mapping. Snapshot interpolation is scheduled against authoritative server ticks rather than raw packet arrival time, while the mapping adapts slowly to clock/jitter drift. This keeps network jitter from moving an already-buffered render timeline.
+
+## Reconciliation quality
+
+Local prediction is reconciled against the exact input sequence acknowledged by the host, never against the client's current predicted state. Small errors below the configured threshold are ignored; larger errors are replayed from the authoritative ACK state and rendered with a bounded visual correction so gameplay state stays authoritative without camera-visible rubber-banding.
 
 ## TURN and ICE
 
