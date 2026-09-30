@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=src/core/SimulationClock.js --test-coverage-include=src/network/Sequence.js --test-coverage-include=src/network/NetworkMetrics.js --test-coverage-include=src/network/NetworkSimulator.js --test-coverage-include=src/game/simulation/network/AdaptiveInterpolation.js --test-coverage-include=src/game/simulation/combat/HitboxHistory.js --test-coverage-include=src/game/simulation/combat/RayGeometry.js --test-coverage-include=src/game/simulation/combat/LagCompensation.js --test-coverage-lines=100 --test-coverage-functions=100",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=src/core/SimulationClock.js --test-coverage-include=src/network/Sequence.js --test-coverage-include=src/network/NetworkMetrics.js --test-coverage-include=src/network/NetworkSimulator.js --test-coverage-include=src/game/simulation/network/AdaptiveInterpolation.js --test-coverage-include=src/game/simulation/combat/HitboxHistory.js --test-coverage-include=src/game/simulation/combat/RayGeometry.js --test-coverage-include=src/game/simulation/combat/LagCompensation.js --test-coverage-include=src/game/simulation/network/NetworkClock.js --test-coverage-include=src/network/NetworkDiagnostics.js --test-coverage-lines=100 --test-coverage-functions=100",
     "test:watch": "node --test --watch",
     "start": "node server.js",
     "start:peer": "node peer-server.js",

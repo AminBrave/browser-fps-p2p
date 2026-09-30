@@ -1,6 +1,7 @@
 import { GAME_CONFIG, NETWORK_CONFIG } from '../../../config/index.js';
 import { insertSnapshot, sampleSnapshotPair, lerpAngle } from '../../../game/simulation/network/SnapshotTimeline.js';
 import { AdaptiveInterpolation } from '../../../game/simulation/network/AdaptiveInterpolation.js';
+import { NetworkClock } from '../../../game/simulation/network/NetworkClock.js';
 
 /**
  * Client-only snapshot interpolation.
@@ -9,7 +10,7 @@ import { AdaptiveInterpolation } from '../../../game/simulation/network/Adaptive
  * performing an Array.find for every entity on every render frame.
  */
 export class InterpolationSystem {
-  constructor(renderDelayMs) {
+  constructor(renderDelayMs, { networkClock = null, metrics = null } = {}) {
     this.renderDelayMs =
       renderDelayMs ??
       GAME_CONFIG.INTERPOLATION_DELAY_MS ??
@@ -22,7 +23,11 @@ export class InterpolationSystem {
     });
 
     this.snapshotBuffer = [];
-    this.serverClockOffsetMs = null;
+    this.networkClock = networkClock || new NetworkClock({
+      tickRate: NETWORK_CONFIG.SERVER_TICK_RATE || 60,
+      smoothing: NETWORK_CONFIG.NETWORK_CLOCK_SMOOTHING ?? 0.08,
+    });
+    this.metrics = metrics;
     this.maxSnapshots = Math.max(8, NETWORK_CONFIG.MAX_SNAPSHOT_HISTORY || Math.ceil((this.renderDelayMs / 1000) * NETWORK_CONFIG.SNAPSHOT_BROADCAST_RATE) + 4);
   }
 
@@ -31,24 +36,8 @@ export class InterpolationSystem {
 
     const arrivalTime = performance.now();
     this.renderDelayMs = this.adaptiveDelay.observeSnapshot(arrivalTime);
-    const tickRate = Math.max(1, NETWORK_CONFIG.SERVER_TICK_RATE || 60);
-    const serverTime =
-      Number.isFinite(snapshot.serverTick)
-        ? (Number(snapshot.serverTick) / tickRate) * 1000
-        : arrivalTime;
-
-    // Map the host's simulation clock onto this client's monotonic clock once,
-    // then keep using server ticks. Packet arrival jitter therefore does not
-    // change the spacing between snapshots.
-    // Establish the server->client clock mapping once. Re-estimating the
-    // offset for every packet moves the interpolation timeline underneath
-    // already-buffered snapshots and can create tiny visible changes in alpha.
-    // Server ticks already provide a stable simulation timeline.
-    if (this.serverClockOffsetMs == null) {
-      this.serverClockOffsetMs = arrivalTime - serverTime;
-    }
-
-    const timestamp = serverTime + this.serverClockOffsetMs;
+    this.networkClock.observe(snapshot.serverTick, arrivalTime);
+    const timestamp = this.networkClock.serverTickToLocalMs(snapshot.serverTick) ?? arrivalTime;
 
     const normalized = {
       ...snapshot,
@@ -67,7 +56,10 @@ export class InterpolationSystem {
     // teleports. The local player remains client-predicted.
     const targetTime = (typeof _currentTime === 'number' ? _currentTime : performance.now()) - this.renderDelayMs;
     const sample = sampleSnapshotPair(this.snapshotBuffer, targetTime);
-    if (!sample) return;
+    if (!sample) {
+      this.metrics?.recordInterpolationUnderrun();
+      return;
+    }
     const { older, newer, alpha } = sample;
     const olderById = this._indexPlayers(older.players);
     const newerById = this._indexPlayers(newer.players);
@@ -136,5 +128,6 @@ export class InterpolationSystem {
   dispose() {
     this.snapshotBuffer.length = 0;
     this.adaptiveDelay.reset();
+    this.networkClock.reset();
   }
 }
