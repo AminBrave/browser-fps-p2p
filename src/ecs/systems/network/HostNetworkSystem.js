@@ -62,15 +62,16 @@ export class HostNetworkSystem {
       if (packetType !== PACKET_TYPES.CLIENT_INPUT) return;
 
       const decodedInput = Protocol.decodeClientInput(dataView);
-      const input = validateClientInput(decodedInput);
-      if (!input) {
+      const validatedInput = validateClientInput(decodedInput);
+      if (!validatedInput) {
         this._rejectPeer(peerId, 'invalid client input');
         return;
       }
 
       const previous = this.lastReceivedSequence.get(peerId);
-      if (!isNewerSequence(input.sequence, previous)) return;
+      if (!isNewerSequence(validatedInput.sequence, previous)) return;
 
+      const input = { ...validatedInput };
       if (!this.peerTickOffset.has(peerId)) {
         this.peerTickOffset.set(peerId, this.serverTick - input.sequence);
       }
