@@ -4,7 +4,7 @@ import { NetworkMetrics } from '../../src/network/NetworkMetrics.js';
 
 test('NetworkMetrics records percentiles and loss', () => {
   const m = new NetworkMetrics({ sampleLimit: 8 });
-  [20, 30, 40, 50].forEach((v) => m.recordRtt(v));
+  [20, 30, 40, 50, 60, 70, 80, 90, 100].forEach((v) => m.recordRtt(v));
   m.recordCorrection(0.1);
   m.recordCorrection(0.4);
   m.recordSnapshotAge(90);
@@ -13,8 +13,8 @@ test('NetworkMetrics records percentiles and loss', () => {
   m.recordPacketLost();
   m.recordInterpolationUnderrun();
   const s = m.snapshot();
-  assert.equal(s.rttMs, 30);
-  assert.equal(s.rttP95Ms, 50);
+  assert.equal(s.rttMs, 60);
+  assert.equal(s.rttP95Ms, 100);
   assert.equal(s.correctionP95, 0.4);
   assert.equal(s.snapshotAgeMs, 90);
   assert.equal(s.packetLossRatio, 1 / 3);
