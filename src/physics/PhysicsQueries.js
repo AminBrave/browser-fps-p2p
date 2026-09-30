@@ -34,6 +34,24 @@ export class PhysicsQueries {
     return excluded;
   }
 
+  castRayStatic(origin, direction, maxDistance = PHYSICS_CONFIG.DEFAULT_RAY_DISTANCE, excludeCollider = null) {
+    const world = this.getWorld();
+    if (!world || !origin || !direction) return null;
+    const dir = this._normalizeDirection(direction);
+    const excluded = this._excludedHandles(excludeCollider);
+    const ray = new RAPIER.Ray({ x: origin.x, y: origin.y, z: origin.z }, dir);
+    const filterPredicate = (collider) => {
+      const handle = collider?.handle ?? collider;
+      if (excluded.has(handle)) return false;
+      if (this.registry.isPlayerMovementCollider(collider)) return false;
+      return !this.registry.getHitZone(collider);
+    };
+    const hit = typeof world.castRayAndGetNormal === 'function'
+      ? world.castRayAndGetNormal(ray, maxDistance, true, undefined, undefined, undefined, undefined, filterPredicate)
+      : world.castRay(ray, maxDistance, true, undefined, undefined, undefined, undefined, filterPredicate);
+    return hit ? this._formatHit(origin, dir, hit) : null;
+  }
+
   castRay(origin, direction, maxDistance = PHYSICS_CONFIG.DEFAULT_RAY_DISTANCE, excludeCollider = null) {
     const world = this.getWorld();
     if (!world || !origin || !direction) return null;

@@ -1,5 +1,6 @@
 import { Peer } from 'peerjs';
 import { NETWORK_CONFIG, PROTOCOL_CONFIG } from '../config/index.js';
+import { PACKET_TYPES } from './PacketTypes.js';
 import { resolveIceServers } from './IceServers.js';
 
 const STATE = Object.freeze({
@@ -460,6 +461,16 @@ export class PeerManager {
         peerId: id,
         bytes: buffer.byteLength,
       });
+      return false;
+    }
+
+    const packetType = new Uint8Array(buffer, 0, 1)[0];
+    const isRealtime = packetType === PACKET_TYPES.CLIENT_INPUT || packetType === PACKET_TYPES.WORLD_SNAPSHOT;
+    const bufferedAmount = Number(connection.dataChannel?.bufferedAmount ?? 0);
+    if (isRealtime && bufferedAmount >= NETWORK_CONFIG.TRANSPORT.BUFFER_HIGH_WATERMARK_BYTES) {
+      // Realtime state is disposable: never let a reliable WebRTC buffer turn
+      // into unbounded application-level latency. The next input/snapshot
+      // supersedes this packet.
       return false;
     }
 

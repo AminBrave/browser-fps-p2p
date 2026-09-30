@@ -23,6 +23,7 @@ import { ImpactSystem } from './presentation/impact/ImpactSystem.js';
 import { PresentationEffectStore } from './presentation/effects/PresentationEffectStore.js';
 import { Protocol } from './network/Protocol.js';
 import { createWorldManifest } from './network/WorldSync.js';
+import { LagCompensationSystem } from './game/simulation/combat/LagCompensationSystem.js';
 
 export class HostGame {
   constructor(containerElement) {
@@ -36,6 +37,11 @@ export class HostGame {
     this.peerManager = new PeerManager();
     this.networkTransport = new PeerTransport(this.peerManager);
     this.hud = new HUD();
+    this.lagCompensationSystem = new LagCompensationSystem({
+      tickRate: NETWORK_CONFIG.SERVER_TICK_RATE,
+      maxRewindMs: NETWORK_CONFIG.LAG_COMPENSATION_MAX_MS,
+      historyTicks: NETWORK_CONFIG.HITBOX_HISTORY_TICKS,
+    });
 
     this.localPlayerId = 'host-player';
     this.localEntity = null;
@@ -71,6 +77,7 @@ export class HostGame {
       healthSystem: this.healthSystem,
       isAuthoritative: true,
       eventSink: null,
+      lagCompensation: this.lagCompensationSystem,
     });
     this.hostNetworkSystem = new HostNetworkSystem(this.networkTransport);
     this.hostNetworkSystem.setJoinHandler((peerId) => {
@@ -125,6 +132,7 @@ export class HostGame {
     this.hostNetworkSystem.preUpdate(this.ecsWorld);
 
     this.physicsSystem.update(this.ecsWorld, dt);
+    this.lagCompensationSystem.record(this.ecsWorld, this.hostNetworkSystem.serverTick);
     this.weaponSystem.update(this.ecsWorld, performance.now(), dt);
     this._flushWeaponPresentationEvents();
     this.healthSystem.update(this.ecsWorld);
@@ -362,6 +370,7 @@ export class HostGame {
     this.sceneManager.dispose();
     this.physicsWorld.dispose();
     this.networkTransport.destroy();
+    this.lagCompensationSystem.clear();
     this.clientEntities.clear();
     this.announcedClients.clear();
     window.removeEventListener('click', this._audioUnlockHandler);

@@ -1,31 +1,51 @@
-name: Unit Tests
+name: Production CI
 
 on:
   push:
-    branches:
-      - architecture-overhaul
+    branches: [production-hardening]
   pull_request:
-    branches:
-      - architecture-overhaul
+    branches: [architecture-overhaul, production-hardening]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  unit-tests:
+  test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-
+          node-version: 22
       - name: Install dependencies
-        run: npm ci
-
-      - name: Run unit tests
+        run: npm install --no-audit --no-fund
+      - name: Unit and integration tests
         run: npm test
+      - name: Deterministic core coverage (100% lines/functions)
+        run: npm run test:coverage
+      - name: Production build
+        run: npm run build
 
-      - name: Run test coverage
-        run: node --test --experimental-test-coverage
+  network-simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run network-focused tests
+        run: node --test test/network test/production/network-simulator.test.js test/production/sequence.test.js test/production/network-metrics.test.js

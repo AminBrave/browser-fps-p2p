@@ -4,6 +4,7 @@ import {
   STANCE,
   INPUT_FLAGS,
   PLAYER_CONFIG,
+  NETWORK_CONFIG,
 } from '../../../config/index.js';
 import { applyFpsMovement } from '../../../game/simulation/movement/FpsMovement.js';
 import { calculatePositionError, magnitude, calculateVisualCorrection } from '../../../game/simulation/network/ReconciliationModel.js';
@@ -29,9 +30,10 @@ function isNewerSequence(next, previous) {
  * client-side prediction model and avoids a prediction/snapshot tug-of-war.
  */
 export class ClientReconcileSystem {
-  constructor(physicsWorld, inputBuffer) {
+  constructor(physicsWorld, inputBuffer, metrics = null) {
     this.physicsWorld = physicsWorld;
     this.inputBuffer = inputBuffer;
+    this.metrics = metrics;
     this.lastServerTick = null;
     this.lastAckedSequence = null;
   }
@@ -121,7 +123,8 @@ export class ClientReconcileSystem {
     });
     this.lastAckedSequence = ack;
 
-    const threshold = 0.12;
+    const threshold = NETWORK_CONFIG.RECONCILIATION_ERROR_THRESHOLD ?? 0.08;
+    this.metrics?.recordCorrection(errorMagnitude);
     if (errorMagnitude <= threshold) {
       // The server agrees with the historical predicted state. The current
       // player may be ahead because it contains unacknowledged input; leave it
@@ -173,8 +176,17 @@ export class ClientReconcileSystem {
     const after = physics.rigidBody?.translation?.() || transform.position;
     const correction = calculateVisualCorrection(predictedCurrent, after);
 
-    if (magnitude(correction) < 4) {
+    const correctionMagnitude = magnitude(correction);
+    const maxCorrection = NETWORK_CONFIG.RECONCILIATION_MAX_VISUAL_CORRECTION ?? 1.5;
+    if (correctionMagnitude <= maxCorrection) {
       localEntity.networkVisualCorrection = correction;
+    } else {
+      const scale = maxCorrection / Math.max(correctionMagnitude, 0.0001);
+      localEntity.networkVisualCorrection = {
+        x: correction.x * scale,
+        y: correction.y * scale,
+        z: correction.z * scale,
+      };
     }
 
     return true;

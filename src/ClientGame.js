@@ -24,6 +24,9 @@ import { ImpactSystem } from './presentation/impact/ImpactSystem.js';
 import { PresentationEffectStore } from './presentation/effects/PresentationEffectStore.js';
 import { applyWorldManifest } from './network/WorldSync.js';
 import { getAccuracyState } from './utils/AccuracyModel.js';
+import { NetworkMetrics } from './network/NetworkMetrics.js';
+import { NetworkDiagnostics } from './network/NetworkDiagnostics.js';
+import { NetworkClock } from './game/simulation/network/NetworkClock.js';
 
 export class ClientGame {
   constructor(containerElement) {
@@ -37,6 +40,12 @@ export class ClientGame {
     this.peerManager = new PeerManager();
     this.networkTransport = new PeerTransport(this.peerManager);
     this.hud = new HUD();
+    this.networkMetrics = new NetworkMetrics();
+    this.networkDiagnostics = new NetworkDiagnostics();
+    this.networkClock = new NetworkClock({
+      tickRate: NETWORK_CONFIG.SERVER_TICK_RATE || 60,
+      smoothing: NETWORK_CONFIG.NETWORK_CLOCK_SMOOTHING ?? 0.08,
+    });
 
     this.localPlayerId = null;
     this.localEntity = null;
@@ -124,9 +133,13 @@ export class ClientGame {
     );
     this.reconcileSystem = new ClientReconcileSystem(
       this.physicsWorld,
-      this.pendingInputBuffer
+      this.pendingInputBuffer,
+      this.networkMetrics
     );
-    this.interpolationSystem = new InterpolationSystem();
+    this.interpolationSystem = new InterpolationSystem(undefined, {
+      networkClock: this.networkClock,
+      metrics: this.networkMetrics,
+    });
 
     createMap(this.ecsWorld, this.physicsWorld, this.sceneManager, this.presentationColliderRegistry);
 
@@ -158,6 +171,7 @@ export class ClientGame {
   }
 
   _fixedUpdate(dt) {
+    const startedAt = performance.now();
     if (!this.localEntity) return;
 
     // 1) Consume at most one newest authoritative snapshot on the simulation
@@ -212,6 +226,7 @@ export class ClientGame {
     this.networkTransport.sendToHost(Protocol.encodeInput(inputPayload));
     this.weaponSystem.update(this.ecsWorld, performance.now(), dt);
     this._flushWeaponPresentationEvents();
+    this.networkDiagnostics.recordSimulation(performance.now() - startedAt);
   }
 
   _flushWeaponPresentationEvents() {
@@ -224,6 +239,7 @@ export class ClientGame {
   }
 
   _render(_dt, now, alpha) {
+    const renderStartedAt = performance.now();
     this.interpolationSystem.update(
       this.ecsWorld,
       this.playerEntities,
@@ -280,6 +296,18 @@ export class ClientGame {
       recoil,
       speed01: accuracy.speedT,
       isSprinting,
+    });
+    this.networkDiagnostics.recordRender(performance.now() - renderStartedAt);
+    this.networkDiagnostics.recordFrame(_dt * 1000);
+  }
+
+  getNetworkDiagnostics() {
+    return Object.freeze({
+      transport: this.networkMetrics.snapshot(),
+      performance: this.networkDiagnostics.snapshot(),
+      clock: this.networkClock.getState(),
+      interpolationMs: this.interpolationSystem?.renderDelayMs ?? null,
+      pendingInputs: this.pendingInputBuffer?.length ?? 0,
     });
   }
 

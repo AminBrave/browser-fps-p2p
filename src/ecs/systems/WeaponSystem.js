@@ -15,11 +15,12 @@ import { BallisticsTracer } from '../../game/simulation/combat/BallisticsTracer.
 import { canReload, completeReload, shouldFire } from '../../game/simulation/combat/WeaponStateModel.js';
 
 export class WeaponSystem {
-  constructor({ physicsWorld, healthSystem = null, isAuthoritative = false, eventSink = null } = {}) {
+  constructor({ physicsWorld, healthSystem = null, isAuthoritative = false, eventSink = null, lagCompensation = null } = {}) {
     this.physicsWorld = physicsWorld;
     this.healthSystem = healthSystem;
     this.isAuthoritative = isAuthoritative;
     this.eventSink = eventSink;
+    this.lagCompensation = lagCompensation;
     this.presentationEvents = [];
     this.combatResolver = new CombatResolver();
     this.ballisticsTracer = new BallisticsTracer({
@@ -396,8 +397,49 @@ export class WeaponSystem {
         weapon
       );
 
-      const endPos = trace.point;
-      const hit = trace.hit;
+      // Authoritative hit registration uses a bounded historical hitbox
+      // timeline. Static-world occlusion is checked independently so rewinding
+      // a player cannot make a shot pass through a wall that existed then.
+      let lagHit = null;
+      let lagEntity = null;
+      if (this.isAuthoritative && this.lagCompensation?.resolve) {
+        const shotTick = Number(input.authoritativeTick);
+        if (Number.isFinite(shotTick)) {
+          lagHit = this.lagCompensation.resolve({
+            shotTick,
+            origin,
+            direction: dir,
+            maxDistance: range,
+          });
+          if (lagHit) {
+            lagEntity = Array.from(ecsWorld.with('player')).find(
+              (candidate) => candidate.player?.id === lagHit.entityId
+            ) || null;
+            const staticHit = this.physicsWorld?.castRayStatic?.(origin, dir, range, exclude);
+            if (staticHit && staticHit.toi <= lagHit.distance) {
+              lagHit = null;
+              lagEntity = null;
+            }
+          }
+        }
+      }
+
+      const endPos = lagHit
+        ? {
+            x: origin.x + dir.x * lagHit.distance,
+            y: origin.y + dir.y * lagHit.distance,
+            z: origin.z + dir.z * lagHit.distance,
+          }
+        : trace.point;
+      const hit = lagHit
+        ? {
+            toi: lagHit.distance,
+            entity: lagEntity,
+            hitZone: lagHit.zone,
+            normal: { x: -dir.x, y: -dir.y, z: -dir.z },
+            collider: null,
+          }
+        : trace.hit;
       const hitNormal = hit?.normal || {
         x: -dir.x,
         y: -dir.y,
